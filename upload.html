@@ -42,7 +42,7 @@
           <div class="toolbar" role="search">
             <label class="search-box">
               <span>搜索</span>
-              <input id="supplierSearch" type="search" placeholder="物料编码、SKU、供应商、联系人、产品线" />
+              <input id="supplierSearch" type="search" placeholder="物料编码、SKU、供应商、产品线" />
             </label>
             <select id="productLineFilter" aria-label="按产品线筛选">
               <option value="all">全部产品线</option>
@@ -72,7 +72,7 @@
           <article class="metric alert">
             <span>风险物料</span>
             <strong id="riskCount">0</strong>
-            <small>长周期或高 MOQ</small>
+            <small>起订量异常</small>
           </article>
         </section>
 
@@ -99,38 +99,6 @@
           </article>
         </section>
 
-        <section class="supplier-insight-grid" aria-label="供应链风险与契约指标">
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Contract Health</p>
-                <h2>账期与年框</h2>
-              </div>
-            </div>
-            <div id="paymentBars" class="bar-chart compact-bars"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Lead Time Risk</p>
-                <h2>长周期物料</h2>
-              </div>
-              <span class="upload-state" id="leadTimeState">> 45 天</span>
-            </div>
-            <div id="leadTimeList" class="risk-list"></div>
-          </article>
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">MOQ Risk</p>
-                <h2>高起订量物料</h2>
-              </div>
-              <span class="upload-state" id="moqState">>= 200</span>
-            </div>
-            <div id="moqList" class="risk-list"></div>
-          </article>
-        </section>
-
         <section class="panel table-panel supplier-table-panel">
           <div class="panel-heading">
             <div>
@@ -150,10 +118,8 @@
                   <th>物料名称</th>
                   <th>供应商</th>
                   <th>账期</th>
-                  <th>MOQ</th>
+                  <th>起订量</th>
                   <th>生产周期</th>
-                  <th>联系人</th>
-                  <th>电话</th>
                 </tr>
               </thead>
               <tbody id="supplierRows"></tbody>

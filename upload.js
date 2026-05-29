@@ -4,7 +4,6 @@ const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
-const LONG_LEAD_DAYS = 45;
 const HIGH_MOQ = 200;
 
 const supplierState = {
@@ -22,9 +21,6 @@ const dashboardEls = {
   riskCount: document.querySelector("#riskCount"),
   groupBars: document.querySelector("#groupBars"),
   productLineBars: document.querySelector("#productLineBars"),
-  paymentBars: document.querySelector("#paymentBars"),
-  leadTimeList: document.querySelector("#leadTimeList"),
-  moqList: document.querySelector("#moqList"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
   resetButton: document.querySelector("#resetButton"),
@@ -219,8 +215,6 @@ function applyDashboardFilters() {
       record.supplier,
       record.supplierShort,
       record.paymentTerm,
-      record.contact,
-      record.phone,
     ]
       .join(" ")
       .toLowerCase();
@@ -236,7 +230,7 @@ function applyDashboardFilters() {
 function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
-  const riskItems = visible.filter((record) => record.riskLevel !== "low");
+  const riskItems = visible.filter((record) => record.moq >= HIGH_MOQ);
   const contractKnown = visible.filter((record) => record.hasContract !== null);
   const contractYes = contractKnown.filter((record) => record.hasContract).length;
 
@@ -248,9 +242,6 @@ function renderDashboard(message) {
 
   renderBars(dashboardEls.groupBars, countBy(visible, "group"), message || "暂无采购组数据");
   renderBars(dashboardEls.productLineBars, countBy(visible, "primaryLine"), message || "暂无产品线数据");
-  renderBars(dashboardEls.paymentBars, countBy(visible, "paymentTerm"), message || "暂无账期数据");
-  renderRiskList(dashboardEls.leadTimeList, getLeadTimeRisks(visible), "暂无长周期风险");
-  renderRiskList(dashboardEls.moqList, getMoqRisks(visible), "暂无高 MOQ 风险");
   renderRows(visible, message);
 }
 
@@ -274,27 +265,9 @@ function renderBars(container, counts, emptyText) {
     .join("");
 }
 
-function renderRiskList(container, records, emptyText) {
-  if (!records.length) {
-    container.innerHTML = `<div class="empty-state compact-empty">${escapeHtml(emptyText)}</div>`;
-    return;
-  }
-  container.innerHTML = records
-    .slice(0, 6)
-    .map(
-      (record) => `
-        <div class="risk-item ${record.riskLevel}">
-          <strong>${escapeHtml(record.materialCode || record.sku || record.materialName || record.primaryLine)}</strong>
-          <span>${escapeHtml(record.supplierShort || record.supplier || record.owner)} · MOQ ${formatNumber(record.moq)} · ${formatNumber(record.leadTime)} 天</span>
-        </div>
-      `
-    )
-    .join("");
-}
-
 function renderRows(records, message) {
   if (!records.length) {
-    dashboardEls.rows.innerHTML = `<tr><td colspan="11" class="empty-table-cell">${escapeHtml(
+    dashboardEls.rows.innerHTML = `<tr><td colspan="9" class="empty-table-cell">${escapeHtml(
       message || "采购分工明细应用后显示采购黄页"
     )}</td></tr>`;
     return;
@@ -317,30 +290,16 @@ function renderRows(records, message) {
           <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
           <td>${escapeHtml(record.paymentTerm)}</td>
           <td>${formatNumber(record.moq)}</td>
-          <td><span class="badge ${record.leadTime > LONG_LEAD_DAYS ? "risk-mid" : "status-active"}">${formatNumber(record.leadTime)} 天</span></td>
-          <td>${escapeHtml(record.contact || "--")}</td>
-          <td>${escapeHtml(record.phone || "--")}</td>
+          <td>${formatNumber(record.leadTime)} 天</td>
         </tr>
       `
     )
     .join("");
 }
 
-function getLeadTimeRisks(records) {
-  return records
-    .filter((record) => record.leadTime > LONG_LEAD_DAYS)
-    .sort((a, b) => b.leadTime - a.leadTime);
-}
-
-function getMoqRisks(records) {
-  return records
-    .filter((record) => record.moq >= HIGH_MOQ)
-    .sort((a, b) => b.moq - a.moq);
-}
-
-function getRiskLevel(moq, leadTime) {
-  if (leadTime > 60 || moq >= 500) return "high";
-  if (leadTime > LONG_LEAD_DAYS || moq >= HIGH_MOQ) return "mid";
+function getRiskLevel(moq) {
+  if (moq >= 500) return "high";
+  if (moq >= HIGH_MOQ) return "mid";
   return "low";
 }
 
