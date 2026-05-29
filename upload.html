@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>文件上传 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="看板导航">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <div>
+            <strong>供应链信息库</strong>
+            <span>维护人孙立柱</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="./index.html#overview">总览</a>
+          <a href="./index.html#library">资料分布</a>
+          <a href="./index.html#documents">文档索引</a>
+          <a href="./index.html#actions">维护事项</a>
+          <a class="active" href="./upload.html">文件上传</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">数据分析入口</p>
+            <h1>文件上传</h1>
+          </div>
+        </header>
+
+        <section class="panel upload-panel upload-page-panel" id="upload">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Upload Source</p>
+              <h2>文件上传与分析入口</h2>
+            </div>
+            <span class="upload-state" id="uploadState">等待上传</span>
+          </div>
+          <div class="upload-layout">
+            <label class="upload-dropzone" id="uploadDropzone">
+              <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
+              <span class="upload-icon">↑</span>
+              <strong>选择或拖入分析文件</strong>
+              <small>支持 Excel 和 CSV。文件只在本地浏览器中读取，后续看板分析从这里开始。</small>
+            </label>
+            <div class="upload-summary" aria-live="polite">
+              <div>
+                <span>文件名</span>
+                <strong id="fileName">未选择</strong>
+              </div>
+              <div>
+                <span>文件大小</span>
+                <strong id="fileSize">--</strong>
+              </div>
+              <div>
+                <span>文件类型</span>
+                <strong id="fileType">--</strong>
+              </div>
+              <button id="analysisButton" type="button" disabled>生成看板</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./upload.js"></script>
+  </body>
+</html>
