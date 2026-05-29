@@ -11,6 +11,7 @@ const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
 
 const libraryState = {
   files: new Map(),
+  hiddenSlots: new Set(),
 };
 
 const libraryEls = {
@@ -101,10 +102,8 @@ async function applyAllSlots() {
 }
 
 async function deleteSlot(slotId) {
-  const db = await openLibraryDb();
-  await deleteRecord(db, slotId);
-  db.close();
-  await refreshLibrary();
+  libraryState.hiddenSlots.add(slotId);
+  renderLibrary();
 }
 
 async function refreshLibrary() {
@@ -115,6 +114,7 @@ async function refreshLibrary() {
   libraryState.files = new Map(
     records.filter((record) => slotIds.has(record.id)).map((record) => [record.id, normalizeRecord(record)])
   );
+  libraryState.hiddenSlots.clear();
   renderLibrary();
 }
 
@@ -128,7 +128,7 @@ function normalizeRecord(record) {
 }
 
 function renderLibrary() {
-  const records = [...libraryState.files.values()];
+  const records = getVisibleRecords();
   const appliedRecords = records.filter((record) => record.applied);
   const latest = records.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0];
 
@@ -142,24 +142,12 @@ function renderLibrary() {
 }
 
 function renderSlot(slot) {
+  if (libraryState.hiddenSlots.has(slot.id)) {
+    return renderEmptySlot(slot);
+  }
   const record = libraryState.files.get(slot.id);
   if (!record) {
-    return `
-      <article class="dimension-card empty-dimension">
-        <div class="dimension-card-head">
-          <div>
-            <p class="eyebrow">Dimension Slot</p>
-            <h2>${slot.name}</h2>
-          </div>
-          <span class="slot-status">空</span>
-        </div>
-        <label class="slot-upload">
-          <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
-          <strong>上传维度文件</strong>
-          <span>刷新月份和更新日期会自动记录</span>
-        </label>
-      </article>
-    `;
+    return renderEmptySlot(slot);
   }
 
   return `
@@ -195,6 +183,29 @@ function renderSlot(slot) {
       </div>
     </article>
   `;
+}
+
+function renderEmptySlot(slot) {
+  return `
+    <article class="dimension-card empty-dimension">
+      <div class="dimension-card-head">
+        <div>
+          <p class="eyebrow">Dimension Slot</p>
+          <h2>${slot.name}</h2>
+        </div>
+        <span class="slot-status">空</span>
+      </div>
+      <label class="slot-upload">
+        <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
+        <strong>上传维度文件</strong>
+        <span>刷新月份和更新日期会自动记录</span>
+      </label>
+    </article>
+  `;
+}
+
+function getVisibleRecords() {
+  return [...libraryState.files.values()].filter((record) => !libraryState.hiddenSlots.has(record.id));
 }
 
 function openLibraryDb() {
