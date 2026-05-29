@@ -22,9 +22,6 @@
         </div>
         <nav class="nav-list">
           <a href="./index.html#overview">总览</a>
-          <a href="./index.html#library">资料分布</a>
-          <a href="./index.html#documents">文档索引</a>
-          <a href="./index.html#actions">维护事项</a>
           <a class="active" href="./upload.html">文件上传</a>
         </nav>
       </aside>
@@ -65,7 +62,14 @@
                 <span>文件类型</span>
                 <strong id="fileType">--</strong>
               </div>
-              <button id="analysisButton" type="button" disabled>生成看板</button>
+              <div>
+                <span>应用状态</span>
+                <strong id="applyStatus">未应用</strong>
+              </div>
+              <div class="upload-actions">
+                <button id="applyButton" type="button" disabled>应用文件</button>
+                <button id="deleteButton" class="danger-button" type="button" disabled>删除文件</button>
+              </div>
             </div>
           </div>
         </section>
