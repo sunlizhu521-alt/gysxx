@@ -8,10 +8,12 @@
 - `upload.html`：供应商信息页面
 - `delivery.html`：供应商交付信息页面
 - `file-library.html`：月度维度表文件库页面
+- `fact-library.html`：备货发货事实表文件库页面
 - `styles.css`：页面样式
 - `app.js`：筛选、排序、图表和指标计算逻辑
 - `upload.js`：上传页文件选择和状态展示逻辑
 - `file-library.js`：多维度文件保存、列表和删除逻辑
+- `fact-library.js`：备货发货事实表文件保存、应用和临时删除逻辑
 - `data/documents.json`：钉钉文档索引数据
 - `data/documents.js`：支持直接双击打开页面的同源数据脚本
 

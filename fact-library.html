@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>维度表文件库 - 供应链信息库</title>
+    <title>备货发货事实表文件库 - 供应链信息库</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -25,16 +25,16 @@
           <a href="./index.html#overview">总览</a>
           <a href="./upload.html">供应商信息</a>
           <a href="./delivery.html">供应商交付信息</a>
-          <a class="active" href="./file-library.html">维度表文件库</a>
-          <a href="./fact-library.html">备货发货事实表文件库</a>
+          <a href="./file-library.html">维度表文件库</a>
+          <a class="active" href="./fact-library.html">备货发货事实表文件库</a>
         </nav>
       </aside>
 
       <main class="dashboard">
         <header class="topbar library-topbar">
           <div>
-            <p class="eyebrow">匹配维度管理</p>
-            <h1>维度表文件库</h1>
+            <p class="eyebrow">备货发货数据管理</p>
+            <h1>备货发货事实表文件库</h1>
           </div>
           <button id="applyAllButton" class="primary-button" type="button" disabled>一键全部应用刷新</button>
         </header>
@@ -42,22 +42,22 @@
         <section class="panel library-page-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Dimension Files</p>
-              <h2>月度维度表文件库</h2>
+              <p class="eyebrow">Fact Files</p>
+              <h2>月度备货发货事实表文件库</h2>
             </div>
             <span class="upload-state" id="libraryState">等待上传</span>
           </div>
           <div class="library-summary-grid">
             <div>
-              <span>维度上限</span>
+              <span>事实表上限</span>
               <strong>8</strong>
             </div>
             <div>
-              <span>已上传维度</span>
+              <span>已上传事实表</span>
               <strong id="libraryCount">0</strong>
             </div>
             <div>
-              <span>已应用维度</span>
+              <span>已应用事实表</span>
               <strong id="appliedCount">0</strong>
             </div>
             <div>
@@ -71,6 +71,6 @@
       </main>
     </div>
 
-    <script src="./file-library.js"></script>
+    <script src="./fact-library.js"></script>
   </body>
 </html>

@@ -1,24 +1,24 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
-const STORE_NAME = "dimension-files";
-const FACT_STORE_NAME = "fact-files";
+const DIMENSION_STORE_NAME = "dimension-files";
+const STORE_NAME = "fact-files";
 const SLOT_COUNT = 8;
 
-const dimensionNames = [
-  "Dim-YL医疗器械商品分类",
-  "Dim-仓库_金蝶、旺店通、领星",
-  "Dim-仓库与物料对照表",
-  "Dim-店铺名称汇总（金蝶&领星&简称）",
-  "Dim-客户与物料对照表",
-  "采购分工明细",
-  "维度 7",
-  "维度 8",
+const factNames = [
+  "备货发货事实表 1",
+  "备货发货事实表 2",
+  "备货发货事实表 3",
+  "备货发货事实表 4",
+  "备货发货事实表 5",
+  "备货发货事实表 6",
+  "备货发货事实表 7",
+  "备货发货事实表 8",
 ];
 
 const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
-  id: `dimension-${index + 1}`,
-  name: dimensionNames[index],
+  id: `fact-${index + 1}`,
+  name: factNames[index],
 }));
 
 const libraryState = {
@@ -147,7 +147,7 @@ function renderLibrary() {
   libraryEls.count.textContent = records.length;
   libraryEls.appliedCount.textContent = appliedRecords.length;
   libraryEls.updatedAt.textContent = latest ? formatDateTime(latest.savedAt) : "--";
-  libraryEls.state.textContent = records.length ? "维度文件已保存" : "等待上传";
+  libraryEls.state.textContent = records.length ? "事实表文件已保存" : "等待上传";
   libraryEls.applyAll.disabled = !records.length || appliedRecords.length === records.length;
 
   libraryEls.slots.innerHTML = slots.map(renderSlot).join("");
@@ -166,7 +166,7 @@ function renderSlot(slot) {
     <article class="dimension-card">
       <div class="dimension-card-head">
         <div>
-          <p class="eyebrow">Dimension Slot</p>
+          <p class="eyebrow">Fact Slot</p>
           <h2>${slot.name}</h2>
         </div>
         <span class="slot-status ${record.applied ? "applied" : "pending"}">${record.applied ? "已应用" : "待应用"}</span>
@@ -202,14 +202,14 @@ function renderEmptySlot(slot) {
     <article class="dimension-card empty-dimension">
       <div class="dimension-card-head">
         <div>
-          <p class="eyebrow">Dimension Slot</p>
+          <p class="eyebrow">Fact Slot</p>
           <h2>${slot.name}</h2>
         </div>
         <span class="slot-status">空</span>
       </div>
       <label class="slot-upload">
         <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
-        <strong>上传维度文件</strong>
+        <strong>上传事实表文件</strong>
         <span>刷新月份和更新日期会自动记录</span>
       </label>
     </article>
@@ -228,11 +228,11 @@ function openLibraryDb() {
       if (!db.objectStoreNames.contains(UPLOAD_STORE_NAME)) {
         db.createObjectStore(UPLOAD_STORE_NAME, { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains(DIMENSION_STORE_NAME)) {
+        db.createObjectStore(DIMENSION_STORE_NAME, { keyPath: "id" });
+      }
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(FACT_STORE_NAME)) {
-        db.createObjectStore(FACT_STORE_NAME, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -246,10 +246,6 @@ function putRecord(db, record) {
 
 function getAllRecords(db) {
   return runStoreRequest(db, "readonly", (store) => store.getAll());
-}
-
-function deleteRecord(db, key) {
-  return runStoreRequest(db, "readwrite", (store) => store.delete(key));
 }
 
 function runStoreRequest(db, mode, createRequest) {
@@ -314,5 +310,5 @@ function escapeHtml(value) {
 
 initLibrary().catch((error) => {
   console.error(error);
-  libraryEls.state.textContent = "维度表文件库异常";
+  libraryEls.state.textContent = "备货发货事实表文件库异常";
 });
