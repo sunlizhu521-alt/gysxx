@@ -1,0 +1,8 @@
+output/
+*.log
+*.tmp
+*.xlsx
+*.xls
+*.csv
+.DS_Store
+Thumbs.db

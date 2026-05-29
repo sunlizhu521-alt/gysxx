@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>供应链钉钉文档信息库</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="看板导航">
+        <div class="brand">
+          <span class="brand-mark">供</span>
+          <div>
+            <strong>供应链钉钉文档信息库</strong>
+            <span>DingTalk Document Hub</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a class="active" href="#overview">总览</a>
+          <a href="#library">资料分布</a>
+          <a href="#documents">文档索引</a>
+          <a href="#actions">维护事项</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">供应链管理中心</p>
+            <h1>供应链钉钉文档信息库</h1>
+          </div>
+          <div class="toolbar" role="search">
+            <label class="search-box">
+              <span>搜索</span>
+              <input id="searchInput" type="search" placeholder="文档、供应商、品类、标签、负责人" />
+            </label>
+            <select id="categoryFilter" aria-label="按文档分类筛选">
+              <option value="all">全部分类</option>
+            </select>
+            <select id="statusFilter" aria-label="按状态筛选">
+              <option value="all">全部状态</option>
+              <option value="有效">有效</option>
+              <option value="待补充">待补充</option>
+              <option value="已归档">已归档</option>
+            </select>
+          </div>
+        </header>
+
+        <section id="overview" class="metrics-grid" aria-label="关键指标">
+          <article class="metric">
+            <span>资料总数</span>
+            <strong id="totalDocuments">0</strong>
+            <small id="activeRatio">--</small>
+          </article>
+          <article class="metric">
+            <span>资料分类</span>
+            <strong id="categoryCount">0</strong>
+            <small>按供应链资料类型归档</small>
+          </article>
+          <article class="metric">
+            <span>负责人</span>
+            <strong id="ownerCount">0</strong>
+            <small>维护索引和摘要信息</small>
+          </article>
+          <article class="metric alert">
+            <span>待补充资料</span>
+            <strong id="pendingCount">0</strong>
+            <small>需要补齐字段或标签</small>
+          </article>
+        </section>
+
+        <section class="work-area">
+          <article class="panel chart-panel" id="library">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Library Profile</p>
+                <h2>资料状态与分类</h2>
+              </div>
+              <button id="resetButton" type="button">重置筛选</button>
+            </div>
+            <div class="chart-layout">
+              <div class="donut-wrap">
+                <canvas id="statusChart" width="260" height="260" aria-label="资料状态分布图"></canvas>
+                <div class="donut-center">
+                  <strong id="visibleCount">0</strong>
+                  <span>当前资料</span>
+                </div>
+              </div>
+              <div class="bar-chart" id="categoryBars" aria-label="分类资料数量"></div>
+            </div>
+          </article>
+
+          <article class="panel actions-panel" id="actions">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Next Actions</p>
+                <h2>维护事项</h2>
+              </div>
+            </div>
+            <div id="actionList" class="action-list"></div>
+          </article>
+        </section>
+
+        <section class="panel table-panel" id="documents">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Document Index</p>
+              <h2>钉钉文档索引</h2>
+            </div>
+            <div class="table-actions">
+              <button class="sort-button" data-sort="updatedAt" type="button">按更新时间排序</button>
+              <button class="sort-button" data-sort="category" type="button">按分类排序</button>
+              <button class="sort-button" data-sort="owner" type="button">按负责人排序</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>文档名称</th>
+                  <th>分类</th>
+                  <th>供应商/对象</th>
+                  <th>物料/品类</th>
+                  <th>标签</th>
+                  <th>负责人</th>
+                  <th>适用部门</th>
+                  <th>更新时间</th>
+                  <th>状态</th>
+                  <th>入口</th>
+                </tr>
+              </thead>
+              <tbody id="documentRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./data/documents.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
