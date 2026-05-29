@@ -35,43 +35,44 @@
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Supplier Dashboard</p>
-            <h1>供应商信息</h1>
+            <p class="eyebrow">Purchase Division Master Data</p>
+            <h1>采购分工与供应链主数据看板</h1>
+            <small class="source-note">数据来源：维度表文件库 / 采购分工明细</small>
           </div>
           <div class="toolbar" role="search">
             <label class="search-box">
               <span>搜索</span>
-              <input id="supplierSearch" type="search" placeholder="供应商、物料、产品线、采购负责人" />
+              <input id="supplierSearch" type="search" placeholder="物料编码、SKU、供应商、联系人、产品线" />
             </label>
             <select id="productLineFilter" aria-label="按产品线筛选">
               <option value="all">全部产品线</option>
             </select>
             <select id="ownerFilter" aria-label="按负责人筛选">
-              <option value="all">全部负责人</option>
+              <option value="all">全部采购组/对接人</option>
             </select>
           </div>
         </header>
 
         <section class="metrics-grid supplier-metrics" aria-label="供应商信息指标">
           <article class="metric">
-            <span>供应商数量</span>
-            <strong id="supplierCount">0</strong>
-            <small>按供应商名称去重</small>
+            <span>SKU / 物料数</span>
+            <strong id="skuCount">0</strong>
+            <small>当前筛选范围内的主数据行</small>
           </article>
           <article class="metric">
-            <span>物料数量</span>
-            <strong id="materialCount">0</strong>
-            <small>按物料编码去重</small>
+            <span>供应商数</span>
+            <strong id="activeSupplierCount">0</strong>
+            <small>按供应商或简称去重</small>
           </article>
           <article class="metric">
-            <span>销售产品线</span>
-            <strong id="productLineCount">0</strong>
-            <small>来自采购分工明细</small>
+            <span>年框覆盖率</span>
+            <strong id="contractRate">--</strong>
+            <small>是否有年框字段统计</small>
           </article>
           <article class="metric alert">
-            <span>待完善记录</span>
-            <strong id="missingCount">0</strong>
-            <small>供应商或物料字段为空</small>
+            <span>风险物料</span>
+            <strong id="riskCount">0</strong>
+            <small>长周期或高 MOQ</small>
           </article>
         </section>
 
@@ -79,30 +80,62 @@
           <article class="panel chart-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Product Line</p>
-                <h2>产品线分布</h2>
+                <p class="eyebrow">Workload Overview</p>
+                <h2>采购组工作负荷</h2>
               </div>
               <button id="resetButton" type="button">重置筛选</button>
             </div>
-            <div id="productLineBars" class="bar-chart"></div>
+            <div id="groupBars" class="bar-chart"></div>
           </article>
 
           <article class="panel actions-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Owner Profile</p>
-                <h2>采购负责人分布</h2>
+                <p class="eyebrow">Product Lines</p>
+                <h2>一级产品线分布</h2>
               </div>
             </div>
-            <div id="ownerBars" class="bar-chart compact-bars"></div>
+            <div id="productLineBars" class="bar-chart compact-bars"></div>
+          </article>
+        </section>
+
+        <section class="supplier-insight-grid" aria-label="供应链风险与契约指标">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Contract Health</p>
+                <h2>账期与年框</h2>
+              </div>
+            </div>
+            <div id="paymentBars" class="bar-chart compact-bars"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Lead Time Risk</p>
+                <h2>长周期物料</h2>
+              </div>
+              <span class="upload-state" id="leadTimeState">> 45 天</span>
+            </div>
+            <div id="leadTimeList" class="risk-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">MOQ Risk</p>
+                <h2>高起订量物料</h2>
+              </div>
+              <span class="upload-state" id="moqState">>= 200</span>
+            </div>
+            <div id="moqList" class="risk-list"></div>
           </article>
         </section>
 
         <section class="panel table-panel supplier-table-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Supplier Index</p>
-              <h2>供应商信息明细</h2>
+              <p class="eyebrow">Smart Directory</p>
+              <h2>采购黄页检索</h2>
             </div>
             <span class="upload-state" id="recordState">等待数据</span>
           </div>
@@ -110,12 +143,17 @@
             <table class="supplier-table">
               <thead>
                 <tr>
-                  <th>供应商</th>
+                  <th>一级产品线</th>
+                  <th>采购组/对接人</th>
                   <th>物料编码</th>
+                  <th>SKU</th>
                   <th>物料名称</th>
-                  <th>销售产品线</th>
-                  <th>采购负责人</th>
-                  <th>状态</th>
+                  <th>供应商</th>
+                  <th>账期</th>
+                  <th>MOQ</th>
+                  <th>生产周期</th>
+                  <th>联系人</th>
+                  <th>电话</th>
                 </tr>
               </thead>
               <tbody id="supplierRows"></tbody>

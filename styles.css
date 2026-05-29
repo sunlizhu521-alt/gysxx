@@ -194,6 +194,13 @@ h1 {
   font-size: 30px;
 }
 
+.source-note {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 h2 {
   font-size: 18px;
 }
@@ -310,7 +317,14 @@ select {
 }
 
 .supplier-table {
-  min-width: 980px;
+  min-width: 1320px;
+}
+
+.supplier-insight-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) repeat(2, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .compact-bars .bar-row,
@@ -341,6 +355,42 @@ select {
 .empty-table-cell {
   color: var(--muted);
   text-align: center;
+}
+
+.risk-list {
+  display: grid;
+  gap: 10px;
+}
+
+.risk-item {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border-left: 4px solid var(--amber);
+  border-radius: 6px;
+  background: #fffaf0;
+}
+
+.risk-item.high {
+  border-left-color: var(--red);
+  background: #fff5f5;
+}
+
+.risk-item.low {
+  border-left-color: var(--green);
+  background: #f1fbf4;
+}
+
+.risk-item strong,
+.risk-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-item span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .upload-state {
@@ -969,6 +1019,7 @@ th {
   .upload-layout,
   .library-summary-grid,
   .maintainer-gate,
+  .supplier-insight-grid,
   .dimension-grid {
     grid-template-columns: 1fr;
   }
