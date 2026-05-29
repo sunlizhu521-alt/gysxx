@@ -66,7 +66,7 @@
           <article class="metric">
             <span>销售产品线</span>
             <strong id="productLineCount">0</strong>
-            <small>来自供应商信息文件字段</small>
+            <small>来自采购分工明细</small>
           </article>
           <article class="metric alert">
             <span>待完善记录</span>
@@ -120,46 +120,6 @@
               </thead>
               <tbody id="supplierRows"></tbody>
             </table>
-          </div>
-        </section>
-
-        <section class="panel upload-panel supplier-source-panel" id="upload">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Data Source</p>
-              <h2>供应商信息数据源</h2>
-            </div>
-            <span class="upload-state" id="uploadState">等待上传</span>
-          </div>
-          <div class="upload-layout">
-            <label class="upload-dropzone" id="uploadDropzone">
-              <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
-              <span class="upload-icon">↑</span>
-              <strong>选择或拖入供应商信息文件</strong>
-              <small>应用文件后生成上方看板；刷新页面不会清空已保存的数据源。</small>
-            </label>
-            <div class="upload-summary" aria-live="polite">
-              <div>
-                <span>文件名</span>
-                <strong id="fileName">未选择</strong>
-              </div>
-              <div>
-                <span>文件大小</span>
-                <strong id="fileSize">--</strong>
-              </div>
-              <div>
-                <span>文件类型</span>
-                <strong id="fileType">--</strong>
-              </div>
-              <div>
-                <span>应用状态</span>
-                <strong id="applyStatus">未应用</strong>
-              </div>
-              <div class="upload-actions">
-                <button id="applyButton" type="button" disabled>应用文件</button>
-                <button id="deleteButton" class="danger-button" type="button" disabled>删除文件</button>
-              </div>
-            </div>
           </div>
         </section>
       </main>

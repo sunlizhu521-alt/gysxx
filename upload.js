@@ -1,27 +1,14 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
-const STORE_NAME = "uploaded-files";
+const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
-const FILE_KEY = "current-file";
+const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 
 const supplierState = {
-  selectedFile: null,
-  applied: false,
+  sourceRecord: null,
   records: [],
   filtered: [],
-};
-
-const uploadEls = {
-  fileInput: document.querySelector("#fileInput"),
-  uploadDropzone: document.querySelector("#uploadDropzone"),
-  uploadState: document.querySelector("#uploadState"),
-  fileName: document.querySelector("#fileName"),
-  fileSize: document.querySelector("#fileSize"),
-  fileType: document.querySelector("#fileType"),
-  applyStatus: document.querySelector("#applyStatus"),
-  applyButton: document.querySelector("#applyButton"),
-  deleteButton: document.querySelector("#deleteButton"),
 };
 
 const dashboardEls = {
@@ -48,54 +35,12 @@ const columnAliases = {
   status: ["状态", "供应商状态", "启用状态"],
 };
 
-async function initUpload() {
-  bindUploadEvents();
-  await restoreSavedFile();
+async function initSupplierDashboard() {
+  bindDashboardEvents();
+  await loadPurchaseAssignmentSource();
 }
 
-function bindUploadEvents() {
-  uploadEls.fileInput.addEventListener("change", async (event) => {
-    await handleSelectedFile(event.target.files[0]);
-  });
-
-  ["dragenter", "dragover"].forEach((eventName) => {
-    uploadEls.uploadDropzone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      uploadEls.uploadDropzone.classList.add("dragging");
-    });
-  });
-
-  ["dragleave", "drop"].forEach((eventName) => {
-    uploadEls.uploadDropzone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      uploadEls.uploadDropzone.classList.remove("dragging");
-    });
-  });
-
-  uploadEls.uploadDropzone.addEventListener("drop", async (event) => {
-    await handleSelectedFile(event.dataTransfer.files[0]);
-  });
-
-  uploadEls.applyButton.addEventListener("click", async () => {
-    if (!supplierState.selectedFile) return;
-    supplierState.applied = true;
-    await saveCurrentFile();
-    await parseAppliedFile();
-    renderFileState();
-  });
-
-  uploadEls.deleteButton.addEventListener("click", async () => {
-    await deleteSavedFile();
-    supplierState.selectedFile = null;
-    supplierState.applied = false;
-    supplierState.records = [];
-    supplierState.filtered = [];
-    uploadEls.fileInput.value = "";
-    renderFileState();
-    hydrateFilters();
-    renderDashboard();
-  });
-
+function bindDashboardEvents() {
   [dashboardEls.search, dashboardEls.productLineFilter, dashboardEls.ownerFilter].forEach((el) => {
     el.addEventListener("input", applyDashboardFilters);
   });
@@ -108,69 +53,38 @@ function bindUploadEvents() {
   });
 }
 
-async function handleSelectedFile(file) {
-  if (!file) return;
-  supplierState.selectedFile = file;
-  supplierState.applied = false;
-  supplierState.records = [];
-  supplierState.filtered = [];
-  await saveCurrentFile();
-  renderFileState();
-  hydrateFilters();
-  renderDashboard();
-}
-
-async function restoreSavedFile() {
-  const record = await readSavedFile();
-  if (!record?.file) {
-    renderFileState();
-    hydrateFilters();
-    renderDashboard();
-    return;
-  }
-
-  supplierState.selectedFile = record.file;
-  supplierState.applied = Boolean(record.applied);
-  if (supplierState.applied) {
-    await parseAppliedFile();
-  }
-  renderFileState();
-}
-
-function renderFileState() {
-  const file = supplierState.selectedFile;
-  if (!file) {
-    uploadEls.fileName.textContent = "未选择";
-    uploadEls.fileSize.textContent = "--";
-    uploadEls.fileType.textContent = "--";
-    uploadEls.applyStatus.textContent = "未应用";
-    uploadEls.uploadState.textContent = "等待上传";
-    uploadEls.applyButton.disabled = true;
-    uploadEls.deleteButton.disabled = true;
-    return;
-  }
-
-  uploadEls.fileName.textContent = file.name;
-  uploadEls.fileSize.textContent = formatFileSize(file.size);
-  uploadEls.fileType.textContent = getFileTypeLabel(file);
-  uploadEls.applyStatus.textContent = supplierState.applied ? "已应用" : "待应用";
-  uploadEls.uploadState.textContent = supplierState.applied ? "看板已刷新" : "文件已保存";
-  uploadEls.applyButton.disabled = supplierState.applied;
-  uploadEls.deleteButton.disabled = false;
-}
-
-async function parseAppliedFile() {
-  if (!supplierState.selectedFile) return;
+async function loadPurchaseAssignmentSource() {
   try {
-    supplierState.records = await readSupplierRecords(supplierState.selectedFile);
+    const db = await openAppDb();
+    const record = await getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT);
+    db.close();
+
+    supplierState.sourceRecord = record || null;
+    if (!record?.file) {
+      supplierState.records = [];
+      supplierState.filtered = [];
+      hydrateFilters();
+      renderDashboard("请先在维度表文件库上传并应用采购分工明细");
+      return;
+    }
+
+    if (!record.applied) {
+      supplierState.records = [];
+      supplierState.filtered = [];
+      hydrateFilters();
+      renderDashboard("采购分工明细待应用刷新");
+      return;
+    }
+
+    supplierState.records = await readSupplierRecords(record.file);
     hydrateFilters();
     applyDashboardFilters();
   } catch (error) {
     console.error(error);
     supplierState.records = [];
     supplierState.filtered = [];
-    dashboardEls.recordState.textContent = "文件解析失败";
-    renderDashboard();
+    hydrateFilters();
+    renderDashboard("采购分工明细读取失败");
   }
 }
 
@@ -209,14 +123,14 @@ function parseRows(rows) {
       const owner = getValue("owner") || "未分配";
       const status = getValue("status") || "正常";
       return {
-        id: `${index}-${supplier}-${materialCode}`,
+        id: `${index}-${supplier}-${materialCode}-${productLine}`,
         supplier,
         materialCode,
         materialName,
         productLine,
         owner,
         status,
-        isMissing: !supplier || !materialCode,
+        isMissing: !productLine || owner === "未分配",
       };
     })
     .filter((record) => record.supplier || record.materialCode || record.materialName || record.productLine !== "未分类" || record.owner !== "未分配");
@@ -268,23 +182,23 @@ function applyDashboardFilters() {
   renderDashboard();
 }
 
-function renderDashboard() {
+function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
   dashboardEls.supplierCount.textContent = uniqueValues(all, "supplier").filter(Boolean).length;
   dashboardEls.materialCount.textContent = uniqueValues(all, "materialCode").filter(Boolean).length;
   dashboardEls.productLineCount.textContent = uniqueValues(all, "productLine").filter(Boolean).length;
   dashboardEls.missingCount.textContent = all.filter((record) => record.isMissing).length;
-  dashboardEls.recordState.textContent = all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据";
-  renderBars(dashboardEls.productLineBars, countBy(visible, "productLine"), "暂无产品线数据");
-  renderBars(dashboardEls.ownerBars, countBy(visible, "owner"), "暂无负责人数据");
-  renderRows(visible);
+  dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
+  renderBars(dashboardEls.productLineBars, countBy(visible, "productLine"), message || "暂无产品线数据");
+  renderBars(dashboardEls.ownerBars, countBy(visible, "owner"), message || "暂无负责人数据");
+  renderRows(visible, message);
 }
 
 function renderBars(container, counts, emptyText) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
   if (!entries.length) {
-    container.innerHTML = `<div class="empty-state compact-empty">${emptyText}</div>`;
+    container.innerHTML = `<div class="empty-state compact-empty">${escapeHtml(emptyText)}</div>`;
     return;
   }
   const max = Math.max(...entries.map(([, count]) => count), 1);
@@ -301,9 +215,11 @@ function renderBars(container, counts, emptyText) {
     .join("");
 }
 
-function renderRows(records) {
+function renderRows(records, message) {
   if (!records.length) {
-    dashboardEls.rows.innerHTML = `<tr><td colspan="6" class="empty-table-cell">应用供应商信息文件后显示明细</td></tr>`;
+    dashboardEls.rows.innerHTML = `<tr><td colspan="6" class="empty-table-cell">${escapeHtml(
+      message || "采购分工明细应用后显示明细"
+    )}</td></tr>`;
     return;
   }
   dashboardEls.rows.innerHTML = records
@@ -323,38 +239,13 @@ function renderRows(records) {
     .join("");
 }
 
-async function saveCurrentFile() {
-  if (!supplierState.selectedFile) return;
-  const db = await openUploadDb();
-  await putRecord(db, {
-    id: FILE_KEY,
-    file: supplierState.selectedFile,
-    applied: supplierState.applied,
-    savedAt: new Date().toISOString(),
-  });
-  db.close();
-}
-
-async function readSavedFile() {
-  const db = await openUploadDb();
-  const record = await getRecord(db, FILE_KEY);
-  db.close();
-  return record;
-}
-
-async function deleteSavedFile() {
-  const db = await openUploadDb();
-  await deleteRecord(db, FILE_KEY);
-  db.close();
-}
-
-function openUploadDb() {
+function openAppDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(UPLOAD_STORE_NAME)) {
+        db.createObjectStore(UPLOAD_STORE_NAME, { keyPath: "id" });
       }
       if (!db.objectStoreNames.contains(DIMENSION_STORE_NAME)) {
         db.createObjectStore(DIMENSION_STORE_NAME, { keyPath: "id" });
@@ -368,22 +259,10 @@ function openUploadDb() {
   });
 }
 
-function putRecord(db, record) {
-  return runStoreRequest(db, "readwrite", (store) => store.put(record));
-}
-
-function getRecord(db, key) {
-  return runStoreRequest(db, "readonly", (store) => store.get(key));
-}
-
-function deleteRecord(db, key) {
-  return runStoreRequest(db, "readwrite", (store) => store.delete(key));
-}
-
-function runStoreRequest(db, mode, createRequest) {
+function getRecord(db, storeName, key) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, mode);
-    const request = createRequest(transaction.objectStore(STORE_NAME));
+    const transaction = db.transaction(storeName, "readonly");
+    const request = transaction.objectStore(storeName).get(key);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
@@ -442,26 +321,6 @@ function normalizeHeader(value) {
     .toLowerCase();
 }
 
-function formatFileSize(bytes) {
-  if (!Number.isFinite(bytes)) return "--";
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB"];
-  let size = bytes / 1024;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
-}
-
-function getFileTypeLabel(file) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "xlsx" || extension === "xls") return "Excel 工作簿";
-  if (extension === "csv") return "CSV 文件";
-  return file.type || "未知类型";
-}
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -471,7 +330,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-initUpload().catch((error) => {
+initSupplierDashboard().catch((error) => {
   console.error(error);
-  uploadEls.uploadState.textContent = "供应商看板异常";
+  dashboardEls.recordState.textContent = "供应商看板异常";
 });
