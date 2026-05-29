@@ -3,12 +3,14 @@ const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
+const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const HIGH_MOQ = 200;
 
 const supplierState = {
   records: [],
   filtered: [],
+  categoryMap: new Map(),
 };
 
 const dashboardEls = {
@@ -68,20 +70,34 @@ function bindDashboardEvents() {
 async function loadPurchaseAssignmentSource() {
   try {
     const db = await openAppDb();
-    const record = await getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT);
+    const [purchaseRecord, categoryRecord] = await Promise.all([
+      getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT),
+      getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
+    ]);
     db.close();
 
-    if (!record?.file) {
+    if (!purchaseRecord?.file) {
       resetDashboard("请先在维度表文件库上传并应用采购分工明细");
       return;
     }
 
-    if (!record.applied) {
+    if (!purchaseRecord.applied) {
       resetDashboard("采购分工明细待应用刷新");
       return;
     }
 
-    supplierState.records = await readSupplierRecords(record.file);
+    if (!categoryRecord?.file) {
+      resetDashboard("请先在维度表文件库上传并应用Dim-YL医疗器械商品分类");
+      return;
+    }
+
+    if (!categoryRecord.applied) {
+      resetDashboard("Dim-YL医疗器械商品分类待应用刷新");
+      return;
+    }
+
+    supplierState.categoryMap = await readCategoryDimension(categoryRecord.file);
+    supplierState.records = enrichSupplierRecords(await readSupplierRecords(purchaseRecord.file), supplierState.categoryMap);
     hydrateFilters();
     applyDashboardFilters();
   } catch (error) {
@@ -93,23 +109,40 @@ async function loadPurchaseAssignmentSource() {
 function resetDashboard(message) {
   supplierState.records = [];
   supplierState.filtered = [];
+  supplierState.categoryMap = new Map();
   hydrateFilters();
   renderDashboard(message);
 }
 
+async function readCategoryDimension(file) {
+  const rows = await readWorkbookRows(file);
+  const map = new Map();
+  rows.forEach((row) => {
+    const materialCode = normalizeMaterialCode(row[0]);
+    if (!materialCode) return;
+    map.set(materialCode, {
+      productLine: String(row[6] ?? "").trim(),
+      purchaseGroup: String(row[20] ?? "").trim(),
+    });
+  });
+  return map;
+}
+
 async function readSupplierRecords(file) {
+  return parseRows(await readWorkbookRows(file));
+}
+
+async function readWorkbookRows(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
-    return parseRows(csvToRows(await file.text()));
+    return csvToRows(await file.text());
   }
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
   const sheetName = chooseSheetName(workbook.SheetNames);
-  const sheet = workbook.Sheets[sheetName];
-  const rows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  return parseRows(rows);
+  return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
 }
 
 function chooseSheetName(sheetNames) {
@@ -166,8 +199,21 @@ function normalizeRow(row, headerMap, index) {
     contact: getValue("contact", 17),
     phone: getValue("phone", 18),
     address: getValue("address", 19),
-    riskLevel: getRiskLevel(moq, leadTime),
+    riskLevel: getRiskLevel(moq),
   };
+}
+
+function enrichSupplierRecords(records, categoryMap) {
+  return records.map((record) => {
+    const matched = categoryMap.get(normalizeMaterialCode(record.materialCode));
+    const primaryLine = matched?.productLine || record.primaryLine;
+    const group = matched?.purchaseGroup || record.group;
+    return {
+      ...record,
+      primaryLine: primaryLine || "未分类",
+      group: group || "未分组",
+    };
+  });
 }
 
 function createHeaderMap(headers) {
@@ -358,6 +404,13 @@ function normalizeHeader(value) {
     .trim()
     .replace(/\s+/g, "")
     .replace(/[()（）]/g, "")
+    .toLowerCase();
+}
+
+function normalizeMaterialCode(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\.0$/, "")
     .toLowerCase();
 }
 
