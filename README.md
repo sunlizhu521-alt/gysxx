@@ -7,7 +7,7 @@
 - `index.html`：看板页面
 - `upload.html`：供应商信息页面
 - `delivery.html`：供应商交付信息页面
-- `file-library.html`：月度维度文件库页面
+- `file-library.html`：月度维度表文件库页面
 - `styles.css`：页面样式
 - `app.js`：筛选、排序、图表和指标计算逻辑
 - `upload.js`：上传页文件选择和状态展示逻辑

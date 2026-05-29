@@ -310,5 +310,5 @@ function escapeHtml(value) {
 
 initLibrary().catch((error) => {
   console.error(error);
-  libraryEls.state.textContent = "文件库异常";
+  libraryEls.state.textContent = "维度表文件库异常";
 });
