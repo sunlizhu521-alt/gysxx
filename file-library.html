@@ -25,11 +25,11 @@
           <a href="./index.html#overview">总览</a>
           <a href="./upload.html">供应商信息</a>
           <a href="./delivery.html">供应商交付信息</a>
-          <a class="active" href="./file-library.html">维度表文件库</a>
-          <a href="./fact-library.html">备货发货事实表库</a>
           <a href="./domestic-stock.html">国内备货</a>
           <a href="./cross-border-stock.html">跨境备货</a>
-</nav>
+          <a href="./fact-library.html">备货事实表库</a>
+          <a class="active" href="./file-library.html">维度表文件库</a>
+        </nav>
       </aside>
 
       <main class="dashboard">
@@ -66,6 +66,17 @@
               <span>最近更新</span>
               <strong id="libraryUpdatedAt">--</strong>
             </div>
+          </div>
+          <div class="maintainer-gate">
+            <div>
+              <span>替换权限</span>
+              <strong id="maintainerState">仅维护人可替换文件</strong>
+            </div>
+            <label>
+              <span>维护人验证</span>
+              <input id="maintainerCode" type="password" placeholder="请输入维护人姓名" autocomplete="off" />
+            </label>
+            <button id="unlockButton" type="button">启用替换</button>
           </div>
         </section>
 

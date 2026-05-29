@@ -4,6 +4,8 @@ const UPLOAD_STORE_NAME = "uploaded-files";
 const STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const SLOT_COUNT = 8;
+const MAINTAINER_NAME = "孙立柱";
+const UNLOCK_KEY = "dimension-library-maintainer-unlocked";
 
 const dimensionNames = [
   "Dim-YL医疗器械商品分类",
@@ -24,6 +26,7 @@ const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
 const libraryState = {
   files: new Map(),
   hiddenSlots: new Set(),
+  canReplace: localStorage.getItem(UNLOCK_KEY) === "true",
 };
 
 const libraryEls = {
@@ -33,6 +36,10 @@ const libraryEls = {
   updatedAt: document.querySelector("#libraryUpdatedAt"),
   slots: document.querySelector("#dimensionSlots"),
   applyAll: document.querySelector("#applyAllButton"),
+  maintainerGate: document.querySelector(".maintainer-gate"),
+  maintainerState: document.querySelector("#maintainerState"),
+  maintainerCode: document.querySelector("#maintainerCode"),
+  unlockButton: document.querySelector("#unlockButton"),
 };
 
 async function initLibrary() {
@@ -62,9 +69,12 @@ function bindLibraryEvents() {
   });
 
   libraryEls.applyAll.addEventListener("click", applyAllSlots);
+
+  libraryEls.unlockButton.addEventListener("click", unlockReplaceAccess);
 }
 
 async function saveFile(slotId, file) {
+  if (!libraryState.canReplace) return;
   if (!file) return;
   const savedAt = new Date().toISOString();
   const record = {
@@ -149,8 +159,29 @@ function renderLibrary() {
   libraryEls.updatedAt.textContent = latest ? formatDateTime(latest.savedAt) : "--";
   libraryEls.state.textContent = records.length ? "维度文件已保存" : "等待上传";
   libraryEls.applyAll.disabled = !records.length || appliedRecords.length === records.length;
+  renderMaintainerState();
 
   libraryEls.slots.innerHTML = slots.map(renderSlot).join("");
+}
+
+function unlockReplaceAccess() {
+  const value = libraryEls.maintainerCode.value.trim();
+  if (value !== MAINTAINER_NAME) {
+    libraryEls.maintainerState.textContent = "验证失败，请输入维护人姓名";
+    libraryEls.maintainerGate.classList.remove("unlocked");
+    return;
+  }
+  libraryState.canReplace = true;
+  localStorage.setItem(UNLOCK_KEY, "true");
+  libraryEls.maintainerCode.value = "";
+  renderLibrary();
+}
+
+function renderMaintainerState() {
+  libraryEls.maintainerGate.classList.toggle("unlocked", libraryState.canReplace);
+  libraryEls.maintainerState.textContent = libraryState.canReplace ? "已启用维护人替换权限" : "仅维护人可替换文件";
+  libraryEls.unlockButton.disabled = libraryState.canReplace;
+  libraryEls.maintainerCode.disabled = libraryState.canReplace;
 }
 
 function renderSlot(slot) {
@@ -186,8 +217,8 @@ function renderSlot(slot) {
         </div>
       </div>
       <div class="dimension-actions">
-        <label>
-          <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
+        <label class="${libraryState.canReplace ? "" : "disabled"}">
+          <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" ${libraryState.canReplace ? "" : "disabled"} />
           替换文件
         </label>
         <button type="button" data-apply-slot="${slot.id}" ${record.applied ? "disabled" : ""}>应用刷新</button>
@@ -207,10 +238,10 @@ function renderEmptySlot(slot) {
         </div>
         <span class="slot-status">空</span>
       </div>
-      <label class="slot-upload">
-        <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
+      <label class="slot-upload ${libraryState.canReplace ? "" : "disabled"}">
+        <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" ${libraryState.canReplace ? "" : "disabled"} />
         <strong>上传维度文件</strong>
-        <span>刷新月份和更新日期会自动记录</span>
+        <span>${libraryState.canReplace ? "刷新月份和更新日期会自动记录" : "维护人验证后可替换文件"}</span>
       </label>
     </article>
   `;

@@ -8,7 +8,7 @@
 - `upload.html`：供应商信息页面
 - `delivery.html`：供应商交付信息页面
 - `file-library.html`：月度维度表文件库页面
-- `fact-library.html`：备货发货事实表库页面
+- `fact-library.html`：备货事实表库页面
 - `domestic-stock.html`：国内备货页面
 - `cross-border-stock.html`：跨境备货页面
 - `styles.css`：页面样式
