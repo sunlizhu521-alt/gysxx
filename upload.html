@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>文件上传 - 供应链信息库</title>
+    <title>供应商信息 - 供应链信息库</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -23,7 +23,8 @@
         </div>
         <nav class="nav-list">
           <a href="./index.html#overview">总览</a>
-          <a class="active" href="./upload.html">文件上传</a>
+          <a class="active" href="./upload.html">供应商信息</a>
+          <a href="./delivery.html">供应商交付信息</a>
           <a href="./file-library.html">文件库</a>
         </nav>
       </aside>
@@ -31,8 +32,8 @@
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">数据分析入口</p>
-            <h1>文件上传</h1>
+            <p class="eyebrow">供应商资料入口</p>
+            <h1>供应商信息</h1>
           </div>
         </header>
 
@@ -40,7 +41,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Upload Source</p>
-              <h2>文件上传与分析入口</h2>
+              <h2>供应商信息上传入口</h2>
             </div>
             <span class="upload-state" id="uploadState">等待上传</span>
           </div>
@@ -48,8 +49,8 @@
             <label class="upload-dropzone" id="uploadDropzone">
               <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
               <span class="upload-icon">↑</span>
-              <strong>选择或拖入分析文件</strong>
-              <small>支持 Excel 和 CSV。文件只在本地浏览器中读取，后续看板分析从这里开始。</small>
+              <strong>选择或拖入供应商信息文件</strong>
+              <small>支持 Excel 和 CSV。文件只在本地浏览器中读取，后续供应商看板分析从这里开始。</small>
             </label>
             <div class="upload-summary" aria-live="polite">
               <div>

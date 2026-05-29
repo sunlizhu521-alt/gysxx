@@ -4,9 +4,20 @@ const UPLOAD_STORE_NAME = "uploaded-files";
 const STORE_NAME = "dimension-files";
 const SLOT_COUNT = 8;
 
+const dimensionNames = [
+  "Dim-YL医疗器械商品分类",
+  "Dim-仓库_金蝶、旺店通、领星",
+  "Dim-仓库与物料对照表",
+  "Dim-店铺名称汇总（金蝶&领星&简称）",
+  "Dim-客户与物料对照表",
+  "采购分工明细",
+  "维度 7",
+  "维度 8",
+];
+
 const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
   id: `dimension-${index + 1}`,
-  name: `维度 ${index + 1}`,
+  name: dimensionNames[index],
 }));
 
 const libraryState = {
