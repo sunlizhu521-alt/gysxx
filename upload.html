@@ -35,16 +35,99 @@
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">供应商资料入口</p>
+            <p class="eyebrow">Supplier Dashboard</p>
             <h1>供应商信息</h1>
+          </div>
+          <div class="toolbar" role="search">
+            <label class="search-box">
+              <span>搜索</span>
+              <input id="supplierSearch" type="search" placeholder="供应商、物料、产品线、采购负责人" />
+            </label>
+            <select id="productLineFilter" aria-label="按产品线筛选">
+              <option value="all">全部产品线</option>
+            </select>
+            <select id="ownerFilter" aria-label="按负责人筛选">
+              <option value="all">全部负责人</option>
+            </select>
           </div>
         </header>
 
-        <section class="panel upload-panel upload-page-panel" id="upload">
+        <section class="metrics-grid supplier-metrics" aria-label="供应商信息指标">
+          <article class="metric">
+            <span>供应商数量</span>
+            <strong id="supplierCount">0</strong>
+            <small>按供应商名称去重</small>
+          </article>
+          <article class="metric">
+            <span>物料数量</span>
+            <strong id="materialCount">0</strong>
+            <small>按物料编码去重</small>
+          </article>
+          <article class="metric">
+            <span>销售产品线</span>
+            <strong id="productLineCount">0</strong>
+            <small>来自供应商信息文件字段</small>
+          </article>
+          <article class="metric alert">
+            <span>待完善记录</span>
+            <strong id="missingCount">0</strong>
+            <small>供应商或物料字段为空</small>
+          </article>
+        </section>
+
+        <section class="work-area supplier-work-area">
+          <article class="panel chart-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Product Line</p>
+                <h2>产品线分布</h2>
+              </div>
+              <button id="resetButton" type="button">重置筛选</button>
+            </div>
+            <div id="productLineBars" class="bar-chart"></div>
+          </article>
+
+          <article class="panel actions-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Owner Profile</p>
+                <h2>采购负责人分布</h2>
+              </div>
+            </div>
+            <div id="ownerBars" class="bar-chart compact-bars"></div>
+          </article>
+        </section>
+
+        <section class="panel table-panel supplier-table-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Upload Source</p>
-              <h2>供应商信息上传入口</h2>
+              <p class="eyebrow">Supplier Index</p>
+              <h2>供应商信息明细</h2>
+            </div>
+            <span class="upload-state" id="recordState">等待数据</span>
+          </div>
+          <div class="table-wrap">
+            <table class="supplier-table">
+              <thead>
+                <tr>
+                  <th>供应商</th>
+                  <th>物料编码</th>
+                  <th>物料名称</th>
+                  <th>销售产品线</th>
+                  <th>采购负责人</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="supplierRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel upload-panel supplier-source-panel" id="upload">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Data Source</p>
+              <h2>供应商信息数据源</h2>
             </div>
             <span class="upload-state" id="uploadState">等待上传</span>
           </div>
@@ -53,7 +136,7 @@
               <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
               <span class="upload-icon">↑</span>
               <strong>选择或拖入供应商信息文件</strong>
-              <small>支持 Excel 和 CSV。文件只在本地浏览器中读取，后续供应商看板分析从这里开始。</small>
+              <small>应用文件后生成上方看板；刷新页面不会清空已保存的数据源。</small>
             </label>
             <div class="upload-summary" aria-live="polite">
               <div>
@@ -82,6 +165,7 @@
       </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="./upload.js"></script>
   </body>
 </html>

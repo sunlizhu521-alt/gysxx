@@ -297,6 +297,52 @@ select {
   max-width: 980px;
 }
 
+.supplier-work-area {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.75fr);
+}
+
+.supplier-source-panel {
+  margin-top: 16px;
+}
+
+.supplier-table-panel {
+  margin-bottom: 0;
+}
+
+.supplier-table {
+  min-width: 980px;
+}
+
+.compact-bars .bar-row,
+.supplier-work-area .bar-row {
+  grid-template-columns: minmax(92px, 150px) minmax(0, 1fr) 42px;
+}
+
+.compact-bars .bar-row span:first-child,
+.supplier-work-area .bar-row span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  padding: 18px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: #f8fbff;
+  line-height: 1.7;
+}
+
+.compact-empty {
+  padding: 14px;
+}
+
+.empty-table-cell {
+  color: var(--muted);
+  text-align: center;
+}
+
 .upload-state {
   display: inline-flex;
   align-items: center;
