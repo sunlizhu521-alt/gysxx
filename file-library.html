@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>文件库 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="看板导航">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <span class="brand-wave wave-a"></span>
+            <span class="brand-wave wave-b"></span>
+            <span class="brand-wave wave-c"></span>
+            <span class="brand-wave wave-d"></span>
+          </span>
+          <div>
+            <strong>供应链信息库</strong>
+            <span>维护人孙立柱</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="./index.html#overview">总览</a>
+          <a href="./upload.html">文件上传</a>
+          <a class="active" href="./file-library.html">文件库</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">匹配维度管理</p>
+            <h1>文件库</h1>
+          </div>
+        </header>
+
+        <section class="panel upload-panel library-page-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Dimension Files</p>
+              <h2>月度维度文件库</h2>
+            </div>
+            <span class="upload-state" id="libraryState">等待上传</span>
+          </div>
+          <div class="upload-layout">
+            <label class="upload-dropzone" id="libraryDropzone">
+              <input id="libraryInput" type="file" accept=".xlsx,.xls,.csv" multiple />
+              <span class="upload-icon">↑</span>
+              <strong>选择或拖入多个维度文件</strong>
+              <small>用于后续数据分析时做匹配维度。建议每月刷新一次，保留当月最新版本。</small>
+            </label>
+            <div class="upload-summary">
+              <div>
+                <span>刷新月份</span>
+                <input id="refreshMonth" class="month-input" type="month" />
+              </div>
+              <div>
+                <span>文件数量</span>
+                <strong id="libraryCount">0</strong>
+              </div>
+              <div>
+                <span>最近更新</span>
+                <strong id="libraryUpdatedAt">--</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel library-list-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Library List</p>
+              <h2>已保存维度文件</h2>
+            </div>
+          </div>
+          <div id="libraryList" class="library-list" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./file-library.js"></script>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 const DB_NAME = "supply-chain-library";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "uploaded-files";
+const DIMENSION_STORE_NAME = "dimension-files";
 const FILE_KEY = "current-file";
 
 const uploadState = {
@@ -137,6 +138,9 @@ function openUploadDb() {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(DIMENSION_STORE_NAME)) {
+        db.createObjectStore(DIMENSION_STORE_NAME, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);

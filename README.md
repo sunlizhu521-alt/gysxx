@@ -6,9 +6,11 @@
 
 - `index.html`：看板页面
 - `upload.html`：文件上传页面
+- `file-library.html`：月度维度文件库页面
 - `styles.css`：页面样式
 - `app.js`：筛选、排序、图表和指标计算逻辑
 - `upload.js`：上传页文件选择和状态展示逻辑
+- `file-library.js`：多维度文件保存、列表和删除逻辑
 - `data/documents.json`：钉钉文档索引数据
 - `data/documents.js`：支持直接双击打开页面的同源数据脚本
 
