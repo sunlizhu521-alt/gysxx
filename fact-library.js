@@ -1,4 +1,4 @@
-const DB_NAME = "supply-chain-library";
+﻿const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
@@ -310,5 +310,5 @@ function escapeHtml(value) {
 
 initLibrary().catch((error) => {
   console.error(error);
-  libraryEls.state.textContent = "备货发货事实表文件库异常";
+  libraryEls.state.textContent = "备货发货事实表库异常";
 });
