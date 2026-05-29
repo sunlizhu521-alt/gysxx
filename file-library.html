@@ -29,14 +29,15 @@
       </aside>
 
       <main class="dashboard">
-        <header class="topbar">
+        <header class="topbar library-topbar">
           <div>
             <p class="eyebrow">匹配维度管理</p>
             <h1>文件库</h1>
           </div>
+          <button id="applyAllButton" class="primary-button" type="button" disabled>一键全部应用刷新</button>
         </header>
 
-        <section class="panel upload-panel library-page-panel">
+        <section class="panel library-page-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Dimension Files</p>
@@ -44,39 +45,27 @@
             </div>
             <span class="upload-state" id="libraryState">等待上传</span>
           </div>
-          <div class="upload-layout">
-            <label class="upload-dropzone" id="libraryDropzone">
-              <input id="libraryInput" type="file" accept=".xlsx,.xls,.csv" multiple />
-              <span class="upload-icon">↑</span>
-              <strong>选择或拖入多个维度文件</strong>
-              <small>用于后续数据分析时做匹配维度。建议每月刷新一次，保留当月最新版本。</small>
-            </label>
-            <div class="upload-summary">
-              <div>
-                <span>刷新月份</span>
-                <input id="refreshMonth" class="month-input" type="month" />
-              </div>
-              <div>
-                <span>文件数量</span>
-                <strong id="libraryCount">0</strong>
-              </div>
-              <div>
-                <span>最近更新</span>
-                <strong id="libraryUpdatedAt">--</strong>
-              </div>
+          <div class="library-summary-grid">
+            <div>
+              <span>维度上限</span>
+              <strong>8</strong>
+            </div>
+            <div>
+              <span>已上传维度</span>
+              <strong id="libraryCount">0</strong>
+            </div>
+            <div>
+              <span>已应用维度</span>
+              <strong id="appliedCount">0</strong>
+            </div>
+            <div>
+              <span>最近更新</span>
+              <strong id="libraryUpdatedAt">--</strong>
             </div>
           </div>
         </section>
 
-        <section class="panel library-list-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Library List</p>
-              <h2>已保存维度文件</h2>
-            </div>
-          </div>
-          <div id="libraryList" class="library-list" aria-live="polite"></div>
-        </section>
+        <section id="dimensionSlots" class="dimension-grid" aria-live="polite"></section>
       </main>
     </div>
 

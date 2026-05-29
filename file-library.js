@@ -2,76 +2,97 @@ const DB_NAME = "supply-chain-library";
 const DB_VERSION = 2;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const STORE_NAME = "dimension-files";
+const SLOT_COUNT = 8;
+
+const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
+  id: `dimension-${index + 1}`,
+  name: `维度 ${index + 1}`,
+}));
 
 const libraryState = {
-  files: [],
+  files: new Map(),
 };
 
 const libraryEls = {
-  input: document.querySelector("#libraryInput"),
-  dropzone: document.querySelector("#libraryDropzone"),
-  refreshMonth: document.querySelector("#refreshMonth"),
   state: document.querySelector("#libraryState"),
   count: document.querySelector("#libraryCount"),
+  appliedCount: document.querySelector("#appliedCount"),
   updatedAt: document.querySelector("#libraryUpdatedAt"),
-  list: document.querySelector("#libraryList"),
+  slots: document.querySelector("#dimensionSlots"),
+  applyAll: document.querySelector("#applyAllButton"),
 };
 
 async function initLibrary() {
-  libraryEls.refreshMonth.value = getCurrentMonth();
   bindLibraryEvents();
   await refreshLibrary();
 }
 
 function bindLibraryEvents() {
-  libraryEls.input.addEventListener("change", async (event) => {
-    await saveFiles([...event.target.files]);
-    libraryEls.input.value = "";
+  libraryEls.slots.addEventListener("change", async (event) => {
+    const input = event.target.closest("[data-upload-slot]");
+    if (!input) return;
+    await saveFile(input.dataset.uploadSlot, input.files[0]);
+    input.value = "";
   });
 
-  ["dragenter", "dragover"].forEach((eventName) => {
-    libraryEls.dropzone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      libraryEls.dropzone.classList.add("dragging");
-    });
+  libraryEls.slots.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest("[data-delete-slot]");
+    if (deleteButton) {
+      await deleteSlot(deleteButton.dataset.deleteSlot);
+      return;
+    }
+
+    const applyButton = event.target.closest("[data-apply-slot]");
+    if (applyButton) {
+      await applySlot(applyButton.dataset.applySlot);
+    }
   });
 
-  ["dragleave", "drop"].forEach((eventName) => {
-    libraryEls.dropzone.addEventListener(eventName, (event) => {
-      event.preventDefault();
-      libraryEls.dropzone.classList.remove("dragging");
-    });
-  });
-
-  libraryEls.dropzone.addEventListener("drop", async (event) => {
-    await saveFiles([...event.dataTransfer.files]);
-  });
-
-  libraryEls.list.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-delete-id]");
-    if (!button) return;
-    await deleteFile(button.dataset.deleteId);
-    await refreshLibrary();
-  });
+  libraryEls.applyAll.addEventListener("click", applyAllSlots);
 }
 
-async function saveFiles(files) {
-  const validFiles = files.filter((file) => file);
-  if (!validFiles.length) return;
-
-  const db = await openLibraryDb();
-  const month = libraryEls.refreshMonth.value || getCurrentMonth();
+async function saveFile(slotId, file) {
+  if (!file) return;
   const savedAt = new Date().toISOString();
+  const record = {
+    id: slotId,
+    file,
+    name: file.name,
+    size: file.size,
+    typeLabel: getFileTypeLabel(file),
+    refreshMonth: getMonthFromDate(savedAt),
+    savedAt,
+    applied: false,
+    appliedAt: null,
+  };
+  const db = await openLibraryDb();
+  await putRecord(db, record);
+  db.close();
+  await refreshLibrary();
+}
+
+async function applySlot(slotId) {
+  const record = libraryState.files.get(slotId);
+  if (!record) return;
+  record.applied = true;
+  record.appliedAt = new Date().toISOString();
+  const db = await openLibraryDb();
+  await putRecord(db, record);
+  db.close();
+  await refreshLibrary();
+}
+
+async function applyAllSlots() {
+  const records = [...libraryState.files.values()];
+  if (!records.length) return;
+  const appliedAt = new Date().toISOString();
+  const db = await openLibraryDb();
   await Promise.all(
-    validFiles.map((file) =>
+    records.map((record) =>
       putRecord(db, {
-        id: `${Date.now()}-${crypto.randomUUID()}`,
-        file,
-        name: file.name,
-        size: file.size,
-        typeLabel: getFileTypeLabel(file),
-        refreshMonth: month,
-        savedAt,
+        ...record,
+        applied: true,
+        appliedAt,
       })
     )
   );
@@ -79,47 +100,101 @@ async function saveFiles(files) {
   await refreshLibrary();
 }
 
+async function deleteSlot(slotId) {
+  const db = await openLibraryDb();
+  await deleteRecord(db, slotId);
+  db.close();
+  await refreshLibrary();
+}
+
 async function refreshLibrary() {
   const db = await openLibraryDb();
-  libraryState.files = await getAllRecords(db);
+  const records = await getAllRecords(db);
   db.close();
-  libraryState.files.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+  const slotIds = new Set(slots.map((slot) => slot.id));
+  libraryState.files = new Map(
+    records.filter((record) => slotIds.has(record.id)).map((record) => [record.id, normalizeRecord(record)])
+  );
   renderLibrary();
 }
 
-function renderLibrary() {
-  const files = libraryState.files;
-  libraryEls.count.textContent = files.length;
-  libraryEls.state.textContent = files.length ? "维度文件已保存" : "等待上传";
-  libraryEls.updatedAt.textContent = files[0] ? formatDateTime(files[0].savedAt) : "--";
-
-  if (!files.length) {
-    libraryEls.list.innerHTML = `<div class="empty-state">暂无维度文件，请先上传本月匹配维度表。</div>`;
-    return;
-  }
-
-  libraryEls.list.innerHTML = files
-    .map(
-      (item) => `
-        <article class="library-item">
-          <div>
-            <strong>${escapeHtml(item.name)}</strong>
-            <span>${escapeHtml(item.typeLabel)} · ${formatFileSize(item.size)} · ${formatMonth(item.refreshMonth)}</span>
-          </div>
-          <div class="library-item-meta">
-            <span>${formatDateTime(item.savedAt)}</span>
-            <button class="danger-button" type="button" data-delete-id="${escapeHtml(item.id)}">删除</button>
-          </div>
-        </article>
-      `
-    )
-    .join("");
+function normalizeRecord(record) {
+  return {
+    ...record,
+    refreshMonth: record.refreshMonth || getMonthFromDate(record.savedAt),
+    applied: Boolean(record.applied),
+    appliedAt: record.appliedAt || null,
+  };
 }
 
-async function deleteFile(id) {
-  const db = await openLibraryDb();
-  await deleteRecord(db, id);
-  db.close();
+function renderLibrary() {
+  const records = [...libraryState.files.values()];
+  const appliedRecords = records.filter((record) => record.applied);
+  const latest = records.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0];
+
+  libraryEls.count.textContent = records.length;
+  libraryEls.appliedCount.textContent = appliedRecords.length;
+  libraryEls.updatedAt.textContent = latest ? formatDateTime(latest.savedAt) : "--";
+  libraryEls.state.textContent = records.length ? "维度文件已保存" : "等待上传";
+  libraryEls.applyAll.disabled = !records.length || appliedRecords.length === records.length;
+
+  libraryEls.slots.innerHTML = slots.map(renderSlot).join("");
+}
+
+function renderSlot(slot) {
+  const record = libraryState.files.get(slot.id);
+  if (!record) {
+    return `
+      <article class="dimension-card empty-dimension">
+        <div class="dimension-card-head">
+          <div>
+            <p class="eyebrow">Dimension Slot</p>
+            <h2>${slot.name}</h2>
+          </div>
+          <span class="slot-status">空</span>
+        </div>
+        <label class="slot-upload">
+          <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
+          <strong>上传维度文件</strong>
+          <span>刷新月份和更新日期会自动记录</span>
+        </label>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="dimension-card">
+      <div class="dimension-card-head">
+        <div>
+          <p class="eyebrow">Dimension Slot</p>
+          <h2>${slot.name}</h2>
+        </div>
+        <span class="slot-status ${record.applied ? "applied" : "pending"}">${record.applied ? "已应用" : "待应用"}</span>
+      </div>
+      <div class="dimension-file">
+        <strong>${escapeHtml(record.name)}</strong>
+        <span>${escapeHtml(record.typeLabel)} · ${formatFileSize(record.size)}</span>
+      </div>
+      <div class="dimension-meta">
+        <div>
+          <span>刷新月份</span>
+          <strong>${formatMonth(record.refreshMonth)}</strong>
+        </div>
+        <div>
+          <span>更新日期</span>
+          <strong>${formatDateTime(record.savedAt)}</strong>
+        </div>
+      </div>
+      <div class="dimension-actions">
+        <label>
+          <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" />
+          替换文件
+        </label>
+        <button type="button" data-apply-slot="${slot.id}" ${record.applied ? "disabled" : ""}>应用刷新</button>
+        <button class="danger-button" type="button" data-delete-slot="${slot.id}">删除</button>
+      </div>
+    </article>
+  `;
 }
 
 function openLibraryDb() {
@@ -161,15 +236,15 @@ function runStoreRequest(db, mode, createRequest) {
   });
 }
 
-function getCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+function getMonthFromDate(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonth(value) {
   if (!value) return "未设置月份";
   const [year, month] = value.split("-");
-  return `${year}年${Number(month)}月维度`;
+  return `${year}年${Number(month)}月`;
 }
 
 function formatDateTime(value) {
