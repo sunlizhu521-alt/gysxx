@@ -266,14 +266,15 @@ function filterRecords(filters) {
 
 function renderDelivery(message) {
   const records = deliveryState.filtered;
+  const detailRecords = records.filter((record) => Number(record.remainingQty) > 0);
   deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
   deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
   deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
   deliveryEls.over60Qty.textContent = formatNumber(sumOver60Remaining(records));
   deliveryEls.state.textContent = message || (records.length ? `已匹配 ${records.length} 行` : "暂无匹配数据");
 
-  deliveryEls.rows.innerHTML = records.length
-    ? records.map(renderDeliveryRow).join("")
+  deliveryEls.rows.innerHTML = detailRecords.length
+    ? detailRecords.map(renderDeliveryRow).join("")
     : `<tr><td colspan="6">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
 }
 
@@ -284,7 +285,7 @@ function renderDeliveryRow(record) {
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
-      <td>${formatNumber(record.undeliveredQty)}</td>
+      <td>${formatNumber(record.shippedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
   `;
