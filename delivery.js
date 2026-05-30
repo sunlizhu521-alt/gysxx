@@ -18,6 +18,8 @@ const deliveryEls = {
   purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
+  dateFilter: document.querySelector("#dateFilter"),
+  stockAgeFilter: document.querySelector("#stockAgeFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
   orderedQty: document.querySelector("#orderedQty"),
   shippedQty: document.querySelector("#shippedQty"),
@@ -53,6 +55,8 @@ function bindDeliveryEvents() {
     deliveryEls.purchaseGroupFilter,
     deliveryEls.salesLineFilter,
     deliveryEls.salesSeriesFilter,
+    deliveryEls.dateFilter,
+    deliveryEls.stockAgeFilter,
   ].forEach((select) => select.addEventListener("input", applyDeliveryFilters));
 
   deliveryEls.resetButton.addEventListener("click", () => {
@@ -60,6 +64,8 @@ function bindDeliveryEvents() {
     deliveryEls.purchaseGroupFilter.value = "all";
     deliveryEls.salesLineFilter.value = "all";
     deliveryEls.salesSeriesFilter.value = "all";
+    deliveryEls.dateFilter.value = "all";
+    deliveryEls.stockAgeFilter.value = "all";
     applyDeliveryFilters();
   });
 }
@@ -203,10 +209,15 @@ function updateFilterOptions() {
   const businessUnit = deliveryEls.businessUnitFilter.value;
   const purchaseGroup = deliveryEls.purchaseGroupFilter.value;
   const salesLine = deliveryEls.salesLineFilter.value;
+  const stockAge = deliveryEls.stockAgeFilter.value;
 
-  syncSelect(deliveryEls.businessUnitFilter, uniqueValues(deliveryState.records, "businessUnit"), "全部事业部");
+  const baseScoped = filterRecords({ stockAge });
+  syncSelect(deliveryEls.businessUnitFilter, uniqueValues(baseScoped, "businessUnit"), "全部事业部");
 
-  const businessScoped = filterRecords({ businessUnit: deliveryEls.businessUnitFilter.value });
+  const businessScoped = filterRecords({
+    businessUnit: deliveryEls.businessUnitFilter.value,
+    stockAge,
+  });
   syncSelect(
     deliveryEls.purchaseGroupFilter,
     sortPurchaseGroups(uniqueValues(businessScoped, "purchaseGroup")),
@@ -217,6 +228,7 @@ function updateFilterOptions() {
   const groupScoped = filterRecords({
     businessUnit: deliveryEls.businessUnitFilter.value,
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
+    stockAge,
   });
   syncSelect(deliveryEls.salesLineFilter, uniqueValues(groupScoped, "salesLine"), "全部销售产品线", salesLine);
 
@@ -224,6 +236,7 @@ function updateFilterOptions() {
     businessUnit: deliveryEls.businessUnitFilter.value,
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
     salesLine: deliveryEls.salesLineFilter.value,
+    stockAge,
   });
   syncSelect(deliveryEls.salesSeriesFilter, uniqueValues(lineScoped, "salesSeries"), "全部销售系列");
 
@@ -250,6 +263,8 @@ function applyDeliveryFilters() {
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
     salesLine: deliveryEls.salesLineFilter.value,
     salesSeries: deliveryEls.salesSeriesFilter.value,
+    dateRange: deliveryEls.dateFilter.value,
+    stockAge: deliveryEls.stockAgeFilter.value,
   });
   renderDelivery();
 }
@@ -260,7 +275,11 @@ function filterRecords(filters) {
       (!filters.businessUnit || filters.businessUnit === "all" || record.businessUnit === filters.businessUnit) &&
       (!filters.purchaseGroup || filters.purchaseGroup === "all" || record.purchaseGroup === filters.purchaseGroup) &&
       (!filters.salesLine || filters.salesLine === "all" || record.salesLine === filters.salesLine) &&
-      (!filters.salesSeries || filters.salesSeries === "all" || record.salesSeries === filters.salesSeries)
+      (!filters.salesSeries || filters.salesSeries === "all" || record.salesSeries === filters.salesSeries) &&
+      (!filters.stockAge ||
+        filters.stockAge === "all" ||
+        (filters.stockAge === "over60" && record.isOver60) ||
+        (filters.stockAge === "notOver60" && !record.isOver60))
   );
 }
 
