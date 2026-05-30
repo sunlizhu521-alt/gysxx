@@ -400,10 +400,10 @@ function renderSupplierInfo(container, records, message) {
 function getVisibleDivisionRows() {
   const owner = dashboardEls.ownerFilter.value;
   if (owner !== "all") {
-    return supplierState.divisionRows.filter((row) => row.matchedPurchaseGroup === owner);
+    const ownerKey = normalizeGroupKey(owner);
+    return supplierState.divisionRows.filter((row) => row.matchedPurchaseGroup === owner || row.groupKey === ownerKey);
   }
-  const activeGroups = new Set(supplierState.records.map((record) => record.dimPurchaseGroup).filter(Boolean));
-  return supplierState.divisionRows.filter((row) => !activeGroups.size || activeGroups.has(row.matchedPurchaseGroup));
+  return supplierState.divisionRows;
 }
 
 function readDivisionSheet(workbook) {
@@ -424,12 +424,15 @@ function readDivisionSheet(workbook) {
 }
 
 function enrichDivisionRows(rows, categoryMap) {
-  return rows
-    .map((row) => ({
+  return rows.map((row) => {
+    const groupKey = normalizeGroupKey(row.key);
+    const matchedPurchaseGroup = categoryMap.get(`group:${groupKey}`)?.purchaseGroup || row.key || "";
+    return {
       ...row,
-      matchedPurchaseGroup: categoryMap.get(`group:${normalizeGroupKey(row.key)}`)?.purchaseGroup || "",
-    }))
-    .filter((row) => row.matchedPurchaseGroup);
+      groupKey,
+      matchedPurchaseGroup,
+    };
+  });
 }
 
 function renderDivisionInfo(head, body, rows, headers, message) {
@@ -469,9 +472,9 @@ function renderBars(container, counts, emptyText) {
   container.innerHTML = entries
     .map(
       ([label, count], index) => `
-        <div class="bar-row">
+        <div class="bar-row" style="--bar-color: ${BAR_COLORS[index % BAR_COLORS.length]}">
           <span title="${escapeHtml(label)}">${escapeHtml(label)}</span>
-          <span class="bar-track"><span class="bar-fill" style="width: ${(count / max) * 100}%; background: ${BAR_COLORS[index % BAR_COLORS.length]}"></span></span>
+          <span class="bar-track"><span class="bar-fill" style="width: ${(count / max) * 100}%"></span></span>
           <strong>${count}</strong>
         </div>
       `
@@ -643,10 +646,18 @@ function normalizeMaterialCode(value) {
 }
 
 function normalizeGroupKey(value) {
-  return String(value || "")
+  const text = String(value || "")
     .trim()
     .replace(/\s+/g, "")
+    .replace(/[()（）【】\\[\\]_-]/g, "")
     .toLowerCase();
+  if (!text) return "";
+  if (text.includes("其他配件")) return "其他配件";
+  if (text.includes("一组") || text.includes("1组")) return "采购一组";
+  if (text.includes("二组") || text.includes("2组")) return "采购二组";
+  if (text.includes("三组") || text.includes("3组")) return "采购三组";
+  if (text.includes("四组") || text.includes("4组")) return "采购四组";
+  return text;
 }
 
 function openAppDb() {
