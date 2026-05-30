@@ -346,8 +346,14 @@ select {
 
 .delivery-filter-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.delivery-filter-bar select {
+  min-width: 0;
+  font-size: 13px;
+  padding: 0 8px;
 }
 
 .delivery-table-panel {
