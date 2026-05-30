@@ -20,7 +20,6 @@ const dashboardEls = {
   ownerFilter: document.querySelector("#ownerFilter"),
   skuCount: document.querySelector("#skuCount"),
   activeSupplierCount: document.querySelector("#activeSupplierCount"),
-  contractRate: document.querySelector("#contractRate"),
   supplierInfoRows: document.querySelector("#supplierInfoRows"),
   divisionInfoHead: document.querySelector("#divisionInfoHead"),
   divisionInfoRows: document.querySelector("#divisionInfoRows"),
@@ -349,12 +348,9 @@ function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
   const productLineDistribution = getProductLineDistributionRecords();
-  const contractKnown = visible.filter((record) => record.hasContract !== null);
-  const contractYes = contractKnown.filter((record) => record.hasContract).length;
 
   dashboardEls.skuCount.textContent = visible.length || all.length || 0;
   dashboardEls.activeSupplierCount.textContent = uniqueSuppliers(visible.length ? visible : all).length;
-  dashboardEls.contractRate.textContent = contractKnown.length ? `${Math.round((contractYes / contractKnown.length) * 100)}%` : "--";
   dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
   dashboardEls.downloadButton.disabled = Boolean(message) || !visible.length;
 
@@ -366,7 +362,7 @@ function renderDashboard(message) {
 
 function renderSupplierInfo(container, records, message) {
   if (!records.length) {
-    container.innerHTML = `<tr><td colspan="4" class="empty-table-cell">${escapeHtml(message || "暂无供应商信息")}</td></tr>`;
+    container.innerHTML = `<tr><td colspan="2" class="empty-table-cell">${escapeHtml(message || "暂无供应商信息")}</td></tr>`;
     return;
   }
 
@@ -375,16 +371,12 @@ function renderSupplierInfo(container, records, message) {
     if (!result.has(key)) {
       result.set(key, {
         supplierShort: key,
-        paymentTerm: record.paymentTerm || "未填写",
-        hasContract: record.hasContract,
         region: record.region || formatRegion(record.address),
         count: 0,
       });
     }
     const item = result.get(key);
     item.count += 1;
-    if (item.paymentTerm === "未填写" && record.paymentTerm) item.paymentTerm = record.paymentTerm;
-    if (item.hasContract === null && record.hasContract !== null) item.hasContract = record.hasContract;
     if (!item.region && record.address) item.region = formatRegion(record.address);
     return result;
   }, new Map()).values()]
@@ -396,8 +388,6 @@ function renderSupplierInfo(container, records, message) {
       (item) => `
         <tr>
           <td><strong>${escapeHtml(item.supplierShort)}</strong></td>
-          <td>${escapeHtml(item.paymentTerm || "未填写")}</td>
-          <td>${formatContract(item.hasContract)}</td>
           <td>${escapeHtml(item.region || "未填写")}</td>
         </tr>
       `

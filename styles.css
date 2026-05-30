@@ -254,6 +254,10 @@ select {
   margin-bottom: 16px;
 }
 
+.supplier-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .metric,
 .panel {
   border: 1px solid var(--line);
@@ -882,14 +886,15 @@ select {
 table {
   width: 100%;
   min-width: 1120px;
+  border: 1px solid var(--line);
   border-collapse: collapse;
 }
 
 th,
 td {
   padding: 13px 12px;
-  border-bottom: 1px solid var(--line);
-  text-align: left;
+  border: 1px solid var(--line);
+  text-align: center;
   white-space: nowrap;
 }
 
