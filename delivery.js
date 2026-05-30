@@ -5,6 +5,7 @@ const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ORDER_SLOT = "fact-1";
+const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
 
 const deliveryState = {
   records: [],
@@ -27,10 +28,6 @@ const deliveryEls = {
 };
 
 const columnAliases = {
-  businessUnit: ["事业部", "事业部名称", "业务部", "部门", "阿米巴", "所属事业部"],
-  purchaseGroup: ["采购分组", "采购组", "采购组别", "组名"],
-  salesLine: ["销售产品线", "一级产品线", "产品线"],
-  salesSeries: ["销售系列", "系列", "产品系列"],
   materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
@@ -86,8 +83,7 @@ async function loadDeliverySource() {
     }
 
     deliveryState.categoryMap = categoryRecord?.file ? await readCategoryDimension(categoryRecord.file) : new Map();
-    deliveryState.records = enrichDeliveryRecords(parseRows(await readWorkbookRows(factRecord.file)), deliveryState.categoryMap);
-    hydrateDeliveryFilters();
+    deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(factRecord.file), deliveryState.categoryMap);
     applyDeliveryFilters();
   } catch (error) {
     console.error(error);
@@ -98,7 +94,7 @@ async function loadDeliverySource() {
 function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
-  hydrateDeliveryFilters();
+  updateFilterOptions();
   renderDelivery(message);
 }
 
@@ -117,6 +113,21 @@ async function readCategoryDimension(file) {
   return map;
 }
 
+async function readDeliveryWorkbook(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return parseRows(csvToRows(await file.text()), "未匹配");
+  }
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  return workbook.SheetNames.flatMap((sheetName) => {
+    const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+    return parseRows(rows, getBusinessUnitFromSheetName(sheetName));
+  });
+}
+
 async function readWorkbookRows(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
@@ -126,19 +137,15 @@ async function readWorkbookRows(file) {
     throw new Error("XLSX parser is not available.");
   }
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-  const sheetName = chooseSheetName(workbook.SheetNames);
-  return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+  return window.XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
 }
 
-function chooseSheetName(sheetNames) {
-  return (
-    sheetNames.find((name) => /订单|跟进|明细/.test(name)) ||
-    sheetNames.find((name) => /产品线明细/.test(name)) ||
-    sheetNames[0]
-  );
+function getBusinessUnitFromSheetName(sheetName) {
+  const name = String(sheetName || "").trim();
+  return name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配";
 }
 
-function parseRows(rows) {
+function parseRows(rows, businessUnit) {
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell)));
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
@@ -146,11 +153,11 @@ function parseRows(rows) {
 
   return rows
     .slice(headerIndex + 1)
-    .map((row, index) => normalizeRow(row, headerMap, index))
+    .map((row, index) => normalizeRow(row, headerMap, index, businessUnit))
     .filter((record) => record.materialCode || record.sku || record.itemName);
 }
 
-function normalizeRow(row, headerMap, index) {
+function normalizeRow(row, headerMap, index, businessUnit) {
   const getValue = (key, fallbackIndex) => {
     const columnIndex = headerMap[key] ?? fallbackIndex;
     return columnIndex === undefined ? "" : String(row[columnIndex] ?? "").trim();
@@ -162,14 +169,11 @@ function normalizeRow(row, headerMap, index) {
   const undeliveredQty = parseNumber(getValue("undeliveredQty")) || remainingQty;
 
   return {
-    id: `${index}-${getValue("materialCode")}-${getValue("sku")}`,
-    businessUnit: getValue("businessUnit"),
-    purchaseGroup: getValue("purchaseGroup"),
-    salesLine: getValue("salesLine"),
-    salesSeries: getValue("salesSeries"),
-    materialCode: getValue("materialCode", 3),
-    sku: getValue("sku", 4),
-    itemName: getValue("itemName", 5),
+    id: `${businessUnit}-${index}-${getValue("materialCode")}-${getValue("sku")}`,
+    businessUnit,
+    materialCode: getValue("materialCode"),
+    sku: getValue("sku"),
+    itemName: getValue("itemName"),
     orderedQty,
     shippedQty,
     undeliveredQty,
@@ -183,23 +187,47 @@ function enrichDeliveryRecords(records, categoryMap) {
     const matched = categoryMap.get(normalizeMaterialCode(record.materialCode));
     return {
       ...record,
-      salesLine: matched?.salesLine || record.salesLine || "未匹配",
-      salesSeries: matched?.salesSeries || record.salesSeries || "未匹配",
-      purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "未匹配",
-      businessUnit: record.businessUnit || "未匹配",
+      salesLine: matched?.salesLine || "未匹配",
+      salesSeries: matched?.salesSeries || "未匹配",
+      purchaseGroup: matched?.purchaseGroup || "未匹配",
     };
   });
 }
 
-function hydrateDeliveryFilters() {
-  fillSelect(deliveryEls.businessUnitFilter, uniqueValues(deliveryState.records, "businessUnit"), "全部事业部");
-  fillSelect(deliveryEls.purchaseGroupFilter, uniqueValues(deliveryState.records, "purchaseGroup"), "全部采购分组");
-  fillSelect(deliveryEls.salesLineFilter, uniqueValues(deliveryState.records, "salesLine"), "全部销售产品线");
-  fillSelect(deliveryEls.salesSeriesFilter, uniqueValues(deliveryState.records, "salesSeries"), "全部销售系列");
+function updateFilterOptions() {
+  const businessUnit = deliveryEls.businessUnitFilter.value;
+  const purchaseGroup = deliveryEls.purchaseGroupFilter.value;
+  const salesLine = deliveryEls.salesLineFilter.value;
+
+  syncSelect(deliveryEls.businessUnitFilter, uniqueValues(deliveryState.records, "businessUnit"), "全部事业部");
+
+  const businessScoped = filterRecords({ businessUnit: deliveryEls.businessUnitFilter.value });
+  syncSelect(
+    deliveryEls.purchaseGroupFilter,
+    sortPurchaseGroups(uniqueValues(businessScoped, "purchaseGroup")),
+    "全部采购分组",
+    purchaseGroup
+  );
+
+  const groupScoped = filterRecords({
+    businessUnit: deliveryEls.businessUnitFilter.value,
+    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
+  });
+  syncSelect(deliveryEls.salesLineFilter, uniqueValues(groupScoped, "salesLine"), "全部销售产品线", salesLine);
+
+  const lineScoped = filterRecords({
+    businessUnit: deliveryEls.businessUnitFilter.value,
+    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
+    salesLine: deliveryEls.salesLineFilter.value,
+  });
+  syncSelect(deliveryEls.salesSeriesFilter, uniqueValues(lineScoped, "salesSeries"), "全部销售系列");
+
+  if (businessUnit !== "all" && ![...deliveryEls.businessUnitFilter.options].some((option) => option.value === businessUnit)) {
+    deliveryEls.businessUnitFilter.value = "all";
+  }
 }
 
-function fillSelect(select, values, label) {
-  const currentValue = select.value;
+function syncSelect(select, values, label, preferredValue = select.value) {
   select.innerHTML = `<option value="all">${label}</option>`;
   values.forEach((value) => {
     const option = document.createElement("option");
@@ -207,23 +235,28 @@ function fillSelect(select, values, label) {
     option.textContent = value;
     select.appendChild(option);
   });
-  select.value = values.includes(currentValue) ? currentValue : "all";
+  select.value = values.includes(preferredValue) ? preferredValue : "all";
 }
 
 function applyDeliveryFilters() {
-  const businessUnit = deliveryEls.businessUnitFilter.value;
-  const purchaseGroup = deliveryEls.purchaseGroupFilter.value;
-  const salesLine = deliveryEls.salesLineFilter.value;
-  const salesSeries = deliveryEls.salesSeriesFilter.value;
-
-  deliveryState.filtered = deliveryState.records.filter(
-    (record) =>
-      (businessUnit === "all" || record.businessUnit === businessUnit) &&
-      (purchaseGroup === "all" || record.purchaseGroup === purchaseGroup) &&
-      (salesLine === "all" || record.salesLine === salesLine) &&
-      (salesSeries === "all" || record.salesSeries === salesSeries)
-  );
+  updateFilterOptions();
+  deliveryState.filtered = filterRecords({
+    businessUnit: deliveryEls.businessUnitFilter.value,
+    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
+    salesLine: deliveryEls.salesLineFilter.value,
+    salesSeries: deliveryEls.salesSeriesFilter.value,
+  });
   renderDelivery();
+}
+
+function filterRecords(filters) {
+  return deliveryState.records.filter(
+    (record) =>
+      (!filters.businessUnit || filters.businessUnit === "all" || record.businessUnit === filters.businessUnit) &&
+      (!filters.purchaseGroup || filters.purchaseGroup === "all" || record.purchaseGroup === filters.purchaseGroup) &&
+      (!filters.salesLine || filters.salesLine === "all" || record.salesLine === filters.salesLine) &&
+      (!filters.salesSeries || filters.salesSeries === "all" || record.salesSeries === filters.salesSeries)
+  );
 }
 
 function renderDelivery(message) {
@@ -270,6 +303,17 @@ function hasKnownHeader(value) {
 
 function uniqueValues(items, key) {
   return [...new Set(items.map((item) => item[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+}
+
+function sortPurchaseGroups(values) {
+  return [...values].sort((a, b) => {
+    const aIndex = PURCHASE_GROUP_ORDER.indexOf(a);
+    const bIndex = PURCHASE_GROUP_ORDER.indexOf(b);
+    if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
+    if (aIndex >= 0) return -1;
+    if (bIndex >= 0) return 1;
+    return String(a).localeCompare(String(b), "zh-CN");
+  });
 }
 
 function sumBy(items, key) {
