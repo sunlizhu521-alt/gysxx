@@ -23,6 +23,7 @@ const dashboardEls = {
   productLineBars: document.querySelector("#productLineBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
+  downloadButton: document.querySelector("#downloadButton"),
   resetButton: document.querySelector("#resetButton"),
 };
 
@@ -63,6 +64,8 @@ function bindDashboardEvents() {
     dashboardEls.ownerFilter.value = "all";
     applyDashboardFilters();
   });
+
+  dashboardEls.downloadButton.addEventListener("click", downloadCurrentRows);
 }
 
 async function loadPurchaseAssignmentSource() {
@@ -275,9 +278,34 @@ function applyDashboardFilters() {
   renderDashboard();
 }
 
+function getProductLineDistributionRecords() {
+  const query = dashboardEls.search.value.trim().toLowerCase();
+  const owner = dashboardEls.ownerFilter.value;
+  return supplierState.records.filter((record) => {
+    const searchable = [
+      record.primaryLine,
+      record.secondaryLine,
+      record.group,
+      record.dimProductLine,
+      record.dimPurchaseGroup,
+      record.owner,
+      record.materialCode,
+      record.sku,
+      record.materialName,
+      record.supplier,
+      record.supplierShort,
+      record.paymentTerm,
+    ]
+      .join(" ")
+      .toLowerCase();
+    return (!query || searchable.includes(query)) && (owner === "all" || record.dimPurchaseGroup === owner);
+  });
+}
+
 function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
+  const productLineDistribution = getProductLineDistributionRecords();
   const contractKnown = visible.filter((record) => record.hasContract !== null);
   const contractYes = contractKnown.filter((record) => record.hasContract).length;
 
@@ -285,9 +313,10 @@ function renderDashboard(message) {
   dashboardEls.activeSupplierCount.textContent = uniqueSuppliers(visible.length ? visible : all).length;
   dashboardEls.contractRate.textContent = contractKnown.length ? `${Math.round((contractYes / contractKnown.length) * 100)}%` : "--";
   dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
+  dashboardEls.downloadButton.disabled = Boolean(message) || !visible.length;
 
   renderSupplierInfo(dashboardEls.supplierInfoRows, visible, message);
-  renderBars(dashboardEls.productLineBars, countBy(visible, "dimProductLine"), message || "暂无产品线数据");
+  renderBars(dashboardEls.productLineBars, countBy(productLineDistribution, "dimProductLine"), message || "暂无产品线数据");
   renderRows(visible, message);
 }
 
@@ -354,7 +383,7 @@ function renderBars(container, counts, emptyText) {
 
 function renderRows(records, message) {
   if (!records.length) {
-    dashboardEls.rows.innerHTML = `<tr><td colspan="9" class="empty-table-cell">${escapeHtml(
+    dashboardEls.rows.innerHTML = `<tr><td colspan="8" class="empty-table-cell">${escapeHtml(
       message || "采购分工明细应用后显示采购黄页"
     )}</td></tr>`;
     return;
@@ -370,13 +399,39 @@ function renderRows(records, message) {
           <td>${escapeHtml(record.sku || "--")}</td>
           <td>${escapeHtml(record.materialName || "--")}</td>
           <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
-          <td>${escapeHtml(record.paymentTerm)}</td>
           <td>${formatNumber(record.moq)}</td>
           <td>${formatNumber(record.leadTime)} 天</td>
         </tr>
       `
     )
     .join("");
+}
+
+function downloadCurrentRows() {
+  if (!supplierState.filtered.length) return;
+  const headers = ["一级产品线", "采购组对接人", "物料编码", "SKU", "物料名称", "供应商", "起订量", "生产周期"];
+  const rows = supplierState.filtered.map((record) => [
+    record.primaryLine,
+    record.group || record.owner || "",
+    record.materialCode,
+    record.sku,
+    record.materialName,
+    record.supplierShort || record.supplier,
+    record.moq || "",
+    record.leadTime || "",
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `采购黄页检索_${formatDownloadDate(new Date())}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function parseBoolean(value) {
@@ -400,6 +455,16 @@ function formatContract(value) {
   if (value === true) return "是";
   if (value === false) return "否";
   return "未填写";
+}
+
+function formatDownloadDate(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 function formatRegion(address) {
