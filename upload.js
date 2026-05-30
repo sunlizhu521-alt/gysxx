@@ -130,12 +130,14 @@ function resetDashboard(message) {
 }
 
 async function readCategoryDimension(file) {
-  const rows = await readWorkbookRows(file);
+  const rows = await readWorkbookRows(file, "Dim-YL医疗器械商品分类");
   const map = new Map();
   rows.forEach((row) => {
     const materialCode = normalizeMaterialCode(row[0]);
     if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
     map.set(materialCode, {
+      sku: String(row[2] ?? "").trim(),
+      materialName: String(row[3] ?? "").trim(),
       productLine: String(row[6] ?? "").trim(),
       purchaseGroup: String(row[20] ?? "").trim(),
     });
@@ -256,12 +258,16 @@ function enrichSupplierRecords(records, categoryMap) {
     const matched = categoryMap.get(normalizeMaterialCode(record.materialCode));
     const dimProductLine = matched?.productLine || "";
     const dimPurchaseGroup = matched?.purchaseGroup || "";
+    const dimSku = matched?.sku || "";
+    const dimMaterialName = matched?.materialName || "";
     return {
       ...record,
       dimProductLine,
       dimPurchaseGroup,
       primaryLine: dimProductLine || "未匹配",
       group: dimPurchaseGroup || "未匹配",
+      sku: dimSku,
+      materialName: dimMaterialName,
       region: formatRegion(record.address),
     };
   });
