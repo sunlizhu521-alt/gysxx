@@ -342,12 +342,23 @@ select {
   white-space: nowrap;
 }
 
-.supplier-info-table {
-  min-width: 640px;
+.supplier-info-wrap,
+.division-info-wrap {
+  overflow-x: visible;
 }
 
+.supplier-info-table,
 .division-info-table {
-  min-width: 720px;
+  min-width: 0;
+  table-layout: auto;
+}
+
+.supplier-info-table th,
+.supplier-info-table td,
+.division-info-table th,
+.division-info-table td {
+  white-space: normal;
+  word-break: break-word;
 }
 
 .empty-state {
@@ -829,7 +840,6 @@ select {
 .bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--teal), var(--blue));
 }
 
 .action-list {

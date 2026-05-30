@@ -5,6 +5,8 @@ const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
+const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
+const BAR_COLORS = ["#2f6fed", "#159a9c", "#6957d6", "#2f9e44", "#d98b11", "#d64545", "#0f766e", "#7c3aed", "#2563eb", "#ea580c"];
 
 const supplierState = {
   records: [],
@@ -274,7 +276,7 @@ function createHeaderMap(headers) {
 
 function hydrateFilters() {
   fillSelect(dashboardEls.productLineFilter, uniqueValues(supplierState.records, "dimProductLine"), "全部产品线");
-  fillSelect(dashboardEls.ownerFilter, uniqueValues(supplierState.records, "dimPurchaseGroup"), "全部采购组");
+  fillSelect(dashboardEls.ownerFilter, sortPurchaseGroups(uniqueValues(supplierState.records, "dimPurchaseGroup")), "全部采购组");
 }
 
 function fillSelect(select, values, label) {
@@ -466,10 +468,10 @@ function renderBars(container, counts, emptyText) {
   const max = Math.max(...entries.map(([, count]) => count), 1);
   container.innerHTML = entries
     .map(
-      ([label, count]) => `
+      ([label, count], index) => `
         <div class="bar-row">
           <span title="${escapeHtml(label)}">${escapeHtml(label)}</span>
-          <span class="bar-track"><span class="bar-fill" style="width: ${(count / max) * 100}%"></span></span>
+          <span class="bar-track"><span class="bar-fill" style="width: ${(count / max) * 100}%; background: ${BAR_COLORS[index % BAR_COLORS.length]}"></span></span>
           <strong>${count}</strong>
         </div>
       `
@@ -599,6 +601,17 @@ function uniqueSuppliers(records) {
 
 function uniqueValues(items, key) {
   return [...new Set(items.map((item) => item[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+}
+
+function sortPurchaseGroups(values) {
+  return [...values].sort((a, b) => {
+    const aIndex = PURCHASE_GROUP_ORDER.indexOf(a);
+    const bIndex = PURCHASE_GROUP_ORDER.indexOf(b);
+    if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
+    if (aIndex >= 0) return -1;
+    if (bIndex >= 0) return 1;
+    return String(a).localeCompare(String(b), "zh-CN");
+  });
 }
 
 function countBy(items, key) {
