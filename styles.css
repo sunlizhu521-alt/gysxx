@@ -315,6 +315,7 @@ select {
 }
 
 .supplier-work-area {
+  --supplier-summary-body-height: 300px;
   grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.15fr) minmax(300px, 0.85fr);
 }
 
@@ -354,6 +355,16 @@ select {
   overflow-x: hidden;
 }
 
+.supplier-info-wrap,
+.supplier-work-area .compact-bars {
+  height: var(--supplier-summary-body-height);
+  overflow-y: auto;
+}
+
+.supplier-info-wrap {
+  padding-right: 2px;
+}
+
 .supplier-info-table,
 .division-info-table {
   width: 100%;
@@ -376,6 +387,10 @@ select {
 }
 
 .supplier-info-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fbff;
   padding-top: 8px;
   padding-bottom: 8px;
 }
