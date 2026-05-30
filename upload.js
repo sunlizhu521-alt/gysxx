@@ -106,7 +106,7 @@ async function loadPurchaseAssignmentSource() {
     supplierState.categoryMap = await readCategoryDimension(categoryRecord.file);
     const { records, divisionRows, divisionHeaders } = await readSupplierRecords(purchaseRecord.file);
     supplierState.records = enrichSupplierRecords(records, supplierState.categoryMap);
-    supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap);
+    supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap, divisionHeaders);
     supplierState.divisionHeaders = divisionHeaders;
     hydrateFilters();
     applyDashboardFilters();
@@ -424,12 +424,15 @@ function readDivisionSheet(workbook) {
   return { divisionRows, divisionHeaders };
 }
 
-function enrichDivisionRows(rows, categoryMap) {
+function enrichDivisionRows(rows, categoryMap, headers) {
+  const groupColumnIndex = getDivisionColumnIndexes(headers)[0] ?? 0;
   return rows.map((row) => {
-    const groupKey = normalizeGroupKey(row.key);
-    const matchedPurchaseGroup = categoryMap.get(`group:${groupKey}`)?.purchaseGroup || row.key || "";
+    const groupName = row.cells[groupColumnIndex] || row.key || "";
+    const groupKey = normalizeGroupKey(groupName);
+    const matchedPurchaseGroup = categoryMap.get(`group:${groupKey}`)?.purchaseGroup || groupName;
     return {
       ...row,
+      groupName,
       groupKey,
       matchedPurchaseGroup,
     };
