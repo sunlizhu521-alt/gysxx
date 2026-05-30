@@ -31,12 +31,13 @@ const columnAliases = {
   materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
-  orderedQty: ["下单数量", "采购数量", "订单数量", "订购数量", "数量"],
-  shippedQty: ["已发货数量", "发货数量", "已交付数量", "已到货数量", "入库数量"],
-  undeliveredQty: ["未交付数量", "欠货数量", "未发货数量", "未到货数量"],
-  remainingQty: ["剩余数量", "剩余未交付", "剩余未发货", "未清数量"],
-  over60Qty: ["库存超60天数量", "超60天数量", "超60天库存", "库龄超60天数量"],
+  orderedQty: ["下单数量-备货需求-OA申请为准"],
+  shippedQty: ["发货数量"],
+  remainingQty: ["未发货数量"],
+  stockAge: ["库龄＞60", "库龄>60", "库龄"],
 };
+
+const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty", "remainingQty"];
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
@@ -116,7 +117,7 @@ async function readCategoryDimension(file) {
 async function readDeliveryWorkbook(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
-    return parseRows(csvToRows(await file.text()), "未匹配");
+    return parsePurchaseOrderSheet(csvToRows(await file.text()), "未匹配");
   }
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
@@ -124,7 +125,7 @@ async function readDeliveryWorkbook(file) {
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
   return workbook.SheetNames.flatMap((sheetName) => {
     const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
-    return parseRows(rows, getBusinessUnitFromSheetName(sheetName));
+    return parsePurchaseOrderSheet(rows, getBusinessUnitFromSheetName(sheetName));
   });
 }
 
@@ -145,16 +146,21 @@ function getBusinessUnitFromSheetName(sheetName) {
   return name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配";
 }
 
-function parseRows(rows, businessUnit) {
+function parsePurchaseOrderSheet(rows, businessUnit) {
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell)));
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
   const headerMap = createHeaderMap(headers);
+  if (!isPurchaseOrderSheet(headerMap)) return [];
 
   return rows
     .slice(headerIndex + 1)
     .map((row, index) => normalizeRow(row, headerMap, index, businessUnit))
     .filter((record) => record.materialCode || record.sku || record.itemName);
+}
+
+function isPurchaseOrderSheet(headerMap) {
+  return purchaseOrderRequiredColumns.every((key) => headerMap[key] !== undefined);
 }
 
 function normalizeRow(row, headerMap, index, businessUnit) {
@@ -164,9 +170,8 @@ function normalizeRow(row, headerMap, index, businessUnit) {
   };
   const orderedQty = parseNumber(getValue("orderedQty"));
   const shippedQty = parseNumber(getValue("shippedQty"));
-  const fallbackRemaining = Math.max(orderedQty - shippedQty, 0);
-  const remainingQty = parseNumber(getValue("remainingQty")) || fallbackRemaining;
-  const undeliveredQty = parseNumber(getValue("undeliveredQty")) || remainingQty;
+  const remainingQty = parseNumber(getValue("remainingQty"));
+  const stockAgeValue = getValue("stockAge");
 
   return {
     id: `${businessUnit}-${index}-${getValue("materialCode")}-${getValue("sku")}`,
@@ -176,9 +181,9 @@ function normalizeRow(row, headerMap, index, businessUnit) {
     itemName: getValue("itemName"),
     orderedQty,
     shippedQty,
-    undeliveredQty,
+    undeliveredQty: remainingQty,
     remainingQty,
-    over60Qty: parseNumber(getValue("over60Qty")),
+    isOver60: isStockAgeOver60(stockAgeValue),
   };
 }
 
@@ -264,7 +269,7 @@ function renderDelivery(message) {
   deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
   deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
   deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
-  deliveryEls.over60Qty.textContent = formatNumber(sumBy(records, "over60Qty"));
+  deliveryEls.over60Qty.textContent = formatNumber(sumOver60Remaining(records));
   deliveryEls.state.textContent = message || (records.length ? `已匹配 ${records.length} 行` : "暂无匹配数据");
 
   deliveryEls.rows.innerHTML = records.length
@@ -318,6 +323,18 @@ function sortPurchaseGroups(values) {
 
 function sumBy(items, key) {
   return items.reduce((sum, item) => sum + (Number(item[key]) || 0), 0);
+}
+
+function sumOver60Remaining(items) {
+  return items.reduce((sum, item) => sum + (item.isOver60 ? Number(item.remainingQty) || 0 : 0), 0);
+}
+
+function isStockAgeOver60(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  if (/库龄\s*[>＞]\s*60/.test(text)) return true;
+  if (/^(是|true|yes|y|1|超60|超过60天)$/i.test(text)) return true;
+  return parseNumber(text) > 60;
 }
 
 function parseNumber(value) {
