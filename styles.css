@@ -318,6 +318,11 @@ select {
   grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.15fr) minmax(300px, 0.85fr);
 }
 
+.supplier-work-area > .panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .supplier-source-panel {
   margin-top: 16px;
 }
@@ -333,6 +338,7 @@ select {
 .compact-bars .bar-row,
 .supplier-work-area .bar-row {
   grid-template-columns: minmax(92px, 150px) minmax(0, 1fr) 42px;
+  min-width: 0;
 }
 
 .compact-bars .bar-row span:first-child,
@@ -344,31 +350,31 @@ select {
 
 .supplier-info-wrap,
 .division-info-wrap {
-  overflow-x: visible;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .supplier-info-table,
 .division-info-table {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .supplier-info-table th,
 .supplier-info-table td,
 .division-info-table th,
 .division-info-table td {
-  white-space: normal;
-  word-break: break-word;
-}
-
-.division-info-table th {
-  white-space: nowrap;
-}
-
-.division-info-table td {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bar-chart,
+.bar-track {
+  min-width: 0;
 }
 
 .empty-state {
