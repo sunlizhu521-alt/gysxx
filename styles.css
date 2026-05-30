@@ -332,6 +332,33 @@ select {
   white-space: nowrap;
 }
 
+.supplier-info-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.supplier-info-item {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.supplier-info-item strong,
+.supplier-info-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.supplier-info-item span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .empty-state {
   padding: 18px;
   border: 1px dashed var(--line);
@@ -973,6 +1000,7 @@ th {
   .topbar,
   .work-area,
   .chart-layout,
+  .supplier-info-list,
   .upload-layout,
   .library-summary-grid,
   .maintainer-gate,

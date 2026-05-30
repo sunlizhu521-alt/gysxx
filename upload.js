@@ -21,7 +21,7 @@ const dashboardEls = {
   activeSupplierCount: document.querySelector("#activeSupplierCount"),
   contractRate: document.querySelector("#contractRate"),
   riskCount: document.querySelector("#riskCount"),
-  groupBars: document.querySelector("#groupBars"),
+  supplierInfoList: document.querySelector("#supplierInfoList"),
   productLineBars: document.querySelector("#productLineBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
@@ -119,7 +119,7 @@ async function readCategoryDimension(file) {
   const map = new Map();
   rows.forEach((row) => {
     const materialCode = normalizeMaterialCode(row[0]);
-    if (!materialCode) return;
+    if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
     map.set(materialCode, {
       productLine: String(row[6] ?? "").trim(),
       purchaseGroup: String(row[20] ?? "").trim(),
@@ -206,12 +206,15 @@ function normalizeRow(row, headerMap, index) {
 function enrichSupplierRecords(records, categoryMap) {
   return records.map((record) => {
     const matched = categoryMap.get(normalizeMaterialCode(record.materialCode));
-    const primaryLine = matched?.productLine || record.primaryLine;
-    const group = matched?.purchaseGroup || record.group;
+    const dimProductLine = matched?.productLine || "";
+    const dimPurchaseGroup = matched?.purchaseGroup || "";
     return {
       ...record,
-      primaryLine: primaryLine || "未分类",
-      group: group || "未分组",
+      dimProductLine,
+      dimPurchaseGroup,
+      primaryLine: dimProductLine || "未匹配",
+      group: dimPurchaseGroup || "未匹配",
+      region: formatRegion(record.address),
     };
   });
 }
@@ -228,8 +231,8 @@ function createHeaderMap(headers) {
 }
 
 function hydrateFilters() {
-  fillSelect(dashboardEls.productLineFilter, uniqueValues(supplierState.records, "primaryLine"), "全部产品线");
-  fillSelect(dashboardEls.ownerFilter, uniqueGroupOptions(supplierState.records), "全部采购组/对接人");
+  fillSelect(dashboardEls.productLineFilter, uniqueValues(supplierState.records, "dimProductLine"), "全部产品线");
+  fillSelect(dashboardEls.ownerFilter, uniqueValues(supplierState.records, "dimPurchaseGroup"), "全部采购组");
 }
 
 function fillSelect(select, values, label) {
@@ -254,6 +257,8 @@ function applyDashboardFilters() {
       record.primaryLine,
       record.secondaryLine,
       record.group,
+      record.dimProductLine,
+      record.dimPurchaseGroup,
       record.owner,
       record.materialCode,
       record.sku,
@@ -266,8 +271,8 @@ function applyDashboardFilters() {
       .toLowerCase();
     return (
       (!query || searchable.includes(query)) &&
-      (productLine === "all" || record.primaryLine === productLine) &&
-      (owner === "all" || record.group === owner || record.owner === owner)
+      (productLine === "all" || record.dimProductLine === productLine) &&
+      (owner === "all" || record.dimPurchaseGroup === owner)
     );
   });
   renderDashboard();
@@ -286,9 +291,50 @@ function renderDashboard(message) {
   dashboardEls.riskCount.textContent = riskItems.length;
   dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
 
-  renderBars(dashboardEls.groupBars, countBy(visible, "group"), message || "暂无采购组数据");
-  renderBars(dashboardEls.productLineBars, countBy(visible, "primaryLine"), message || "暂无产品线数据");
+  renderSupplierInfo(dashboardEls.supplierInfoList, visible, message);
+  renderBars(dashboardEls.productLineBars, countBy(visible, "dimProductLine"), message || "暂无产品线数据");
   renderRows(visible, message);
+}
+
+function renderSupplierInfo(container, records, message) {
+  if (!records.length) {
+    container.innerHTML = `<div class="empty-state compact-empty">${escapeHtml(message || "暂无供应商信息")}</div>`;
+    return;
+  }
+
+  const suppliers = [...records.reduce((result, record) => {
+    const key = record.supplierShort || record.supplier || "未填写";
+    if (!result.has(key)) {
+      result.set(key, {
+        supplierShort: key,
+        paymentTerm: record.paymentTerm || "未填写",
+        hasContract: record.hasContract,
+        region: record.region || formatRegion(record.address),
+        count: 0,
+      });
+    }
+    const item = result.get(key);
+    item.count += 1;
+    if (item.paymentTerm === "未填写" && record.paymentTerm) item.paymentTerm = record.paymentTerm;
+    if (item.hasContract === null && record.hasContract !== null) item.hasContract = record.hasContract;
+    if (!item.region && record.address) item.region = formatRegion(record.address);
+    return result;
+  }, new Map()).values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  container.innerHTML = suppliers
+    .map(
+      (item) => `
+        <div class="supplier-info-item">
+          <strong>${escapeHtml(item.supplierShort)}</strong>
+          <span>账期：${escapeHtml(item.paymentTerm || "未填写")}</span>
+          <span>年框：${formatContract(item.hasContract)}</span>
+          <span>地址：${escapeHtml(item.region || "未填写")}</span>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function renderBars(container, counts, emptyText) {
@@ -364,6 +410,30 @@ function parseNumber(value) {
 
 function formatNumber(value) {
   return Number.isFinite(value) && value ? new Intl.NumberFormat("zh-CN").format(value) : "--";
+}
+
+function formatContract(value) {
+  if (value === true) return "是";
+  if (value === false) return "否";
+  return "未填写";
+}
+
+function formatRegion(address) {
+  const text = String(address || "").trim();
+  if (!text) return "";
+  const normalized = text.replace(/\s+/g, "");
+  const direct = normalized.match(/^(北京市|上海市|天津市|重庆市)([^省市自治区特别行政区]{1,12}?(区|县|市))?/);
+  if (direct) return `${direct[1]}${direct[2] || ""}`;
+  const province = normalized.match(/^(.{2,12}?(省|自治区|特别行政区))/);
+  if (!province) {
+    const cityIndex = normalized.indexOf("市");
+    return cityIndex > 0 ? normalized.slice(0, cityIndex + 1) : normalized.slice(0, 12);
+  }
+  const rest = normalized.slice(province[1].length);
+  const cityIndex = rest.indexOf("市");
+  if (cityIndex > 0) return `${province[1]}${rest.slice(0, cityIndex + 1)}`;
+  const region = rest.match(/^(.{2,12}?(自治州|地区|盟))/);
+  return `${province[1]}${region ? region[1] : ""}`;
 }
 
 function extractGroup(value) {

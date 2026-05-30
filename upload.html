@@ -48,7 +48,7 @@
               <option value="all">全部产品线</option>
             </select>
             <select id="ownerFilter" aria-label="按负责人筛选">
-              <option value="all">全部采购组/对接人</option>
+              <option value="all">全部采购组</option>
             </select>
           </div>
         </header>
@@ -80,12 +80,12 @@
           <article class="panel chart-panel">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Workload Overview</p>
-                <h2>采购组工作负荷</h2>
+                <p class="eyebrow">Supplier Profile</p>
+                <h2>供应商信息</h2>
               </div>
               <button id="resetButton" type="button">重置筛选</button>
             </div>
-            <div id="groupBars" class="bar-chart"></div>
+            <div id="supplierInfoList" class="supplier-info-list"></div>
           </article>
 
           <article class="panel actions-panel">
@@ -112,7 +112,7 @@
               <thead>
                 <tr>
                   <th>一级产品线</th>
-                  <th>采购组/对接人</th>
+                  <th>采购组对接人</th>
                   <th>物料编码</th>
                   <th>SKU</th>
                   <th>物料名称</th>
