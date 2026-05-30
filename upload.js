@@ -56,6 +56,9 @@ const columnAliases = {
 
 async function initSupplierDashboard() {
   bindDashboardEvents();
+  if (window.ensureSharedLibraryLoaded) {
+    await window.ensureSharedLibraryLoaded();
+  }
   await loadPurchaseAssignmentSource();
 }
 

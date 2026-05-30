@@ -44,6 +44,9 @@ const libraryEls = {
 
 async function initLibrary() {
   bindLibraryEvents();
+  if (window.ensureSharedLibraryLoaded) {
+    await window.ensureSharedLibraryLoaded();
+  }
   await refreshLibrary();
 }
 
