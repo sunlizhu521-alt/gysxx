@@ -10,6 +10,8 @@ const supplierState = {
   records: [],
   filtered: [],
   categoryMap: new Map(),
+  divisionRows: [],
+  divisionHeaders: [],
 };
 
 const dashboardEls = {
@@ -20,6 +22,8 @@ const dashboardEls = {
   activeSupplierCount: document.querySelector("#activeSupplierCount"),
   contractRate: document.querySelector("#contractRate"),
   supplierInfoRows: document.querySelector("#supplierInfoRows"),
+  divisionInfoHead: document.querySelector("#divisionInfoHead"),
+  divisionInfoRows: document.querySelector("#divisionInfoRows"),
   productLineBars: document.querySelector("#productLineBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
@@ -98,7 +102,10 @@ async function loadPurchaseAssignmentSource() {
     }
 
     supplierState.categoryMap = await readCategoryDimension(categoryRecord.file);
-    supplierState.records = enrichSupplierRecords(await readSupplierRecords(purchaseRecord.file), supplierState.categoryMap);
+    const { records, divisionRows, divisionHeaders } = await readSupplierRecords(purchaseRecord.file);
+    supplierState.records = enrichSupplierRecords(records, supplierState.categoryMap);
+    supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap);
+    supplierState.divisionHeaders = divisionHeaders;
     hydrateFilters();
     applyDashboardFilters();
   } catch (error) {
@@ -111,6 +118,8 @@ function resetDashboard(message) {
   supplierState.records = [];
   supplierState.filtered = [];
   supplierState.categoryMap = new Map();
+  supplierState.divisionRows = [];
+  supplierState.divisionHeaders = [];
   hydrateFilters();
   renderDashboard(message);
 }
@@ -125,15 +134,39 @@ async function readCategoryDimension(file) {
       productLine: String(row[6] ?? "").trim(),
       purchaseGroup: String(row[20] ?? "").trim(),
     });
+    const purchaseGroup = normalizeGroupKey(row[20]);
+    if (purchaseGroup) {
+      map.set(`group:${purchaseGroup}`, {
+        productLine: String(row[6] ?? "").trim(),
+        purchaseGroup: String(row[20] ?? "").trim(),
+      });
+    }
   });
   return map;
 }
 
 async function readSupplierRecords(file) {
-  return parseRows(await readWorkbookRows(file));
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return {
+      records: parseRows(await readWorkbookRows(file)),
+      divisionRows: [],
+      divisionHeaders: [],
+    };
+  }
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const detailRows = readWorkbookSheetRows(workbook);
+  const divisionData = readDivisionSheet(workbook);
+  return {
+    records: parseRows(detailRows),
+    ...divisionData,
+  };
 }
 
-async function readWorkbookRows(file) {
+async function readWorkbookRows(file, preferredSheet) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
     return csvToRows(await file.text());
@@ -142,11 +175,21 @@ async function readWorkbookRows(file) {
     throw new Error("XLSX parser is not available.");
   }
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-  const sheetName = chooseSheetName(workbook.SheetNames);
+  return readWorkbookSheetRows(workbook, preferredSheet);
+}
+
+function readWorkbookSheetRows(workbook, preferredSheet) {
+  const sheetName = chooseSheetName(workbook.SheetNames, preferredSheet);
   return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
 }
 
-function chooseSheetName(sheetNames) {
+function chooseSheetName(sheetNames, preferredSheet) {
+  if (preferredSheet) {
+    const exact = sheetNames.find((name) => name === preferredSheet);
+    if (exact) return exact;
+    const fuzzy = sheetNames.find((name) => name.includes(preferredSheet));
+    if (fuzzy) return fuzzy;
+  }
   return (
     sheetNames.find((name) => name.includes("产品线明细")) ||
     sheetNames.find((name) => name.includes("明细")) ||
@@ -316,6 +359,7 @@ function renderDashboard(message) {
   dashboardEls.downloadButton.disabled = Boolean(message) || !visible.length;
 
   renderSupplierInfo(dashboardEls.supplierInfoRows, visible, message);
+  renderDivisionInfo(dashboardEls.divisionInfoHead, dashboardEls.divisionInfoRows, getVisibleDivisionRows(), supplierState.divisionHeaders, message);
   renderBars(dashboardEls.productLineBars, countBy(productLineDistribution, "dimProductLine"), message || "暂无产品线数据");
   renderRows(visible, message);
 }
@@ -355,6 +399,68 @@ function renderSupplierInfo(container, records, message) {
           <td>${escapeHtml(item.paymentTerm || "未填写")}</td>
           <td>${formatContract(item.hasContract)}</td>
           <td>${escapeHtml(item.region || "未填写")}</td>
+        </tr>
+      `
+    )
+    .join("");
+}
+
+function getVisibleDivisionRows() {
+  const owner = dashboardEls.ownerFilter.value;
+  if (owner !== "all") {
+    return supplierState.divisionRows.filter((row) => row.matchedPurchaseGroup === owner);
+  }
+  const activeGroups = new Set(supplierState.records.map((record) => record.dimPurchaseGroup).filter(Boolean));
+  return supplierState.divisionRows.filter((row) => !activeGroups.size || activeGroups.has(row.matchedPurchaseGroup));
+}
+
+function readDivisionSheet(workbook) {
+  const sheetName = workbook.SheetNames.find((name) => name === "产品线分工表") || workbook.SheetNames.find((name) => name.includes("产品线分工表"));
+  if (!sheetName) return { divisionRows: [], divisionHeaders: [] };
+  const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+  const headerIndex = rows.findIndex((row) => row.some((cell) => String(cell ?? "").trim()));
+  if (headerIndex < 0) return { divisionRows: [], divisionHeaders: [] };
+  const divisionHeaders = rows[headerIndex].map((cell) => String(cell ?? "").trim());
+  const divisionRows = rows
+    .slice(headerIndex + 1)
+    .filter((row) => row.some((cell) => String(cell ?? "").trim()))
+    .map((row) => ({
+      key: String(row[0] ?? "").trim(),
+      cells: divisionHeaders.map((_, index) => String(row[index] ?? "").trim()),
+    }));
+  return { divisionRows, divisionHeaders };
+}
+
+function enrichDivisionRows(rows, categoryMap) {
+  return rows
+    .map((row) => ({
+      ...row,
+      matchedPurchaseGroup: categoryMap.get(`group:${normalizeGroupKey(row.key)}`)?.purchaseGroup || "",
+    }))
+    .filter((row) => row.matchedPurchaseGroup);
+}
+
+function renderDivisionInfo(head, body, rows, headers, message) {
+  const visibleHeaders = headers.slice(1);
+  head.innerHTML = visibleHeaders.length
+    ? `<tr>${visibleHeaders.map((header) => `<th>${escapeHtml(header || "未命名字段")}</th>`).join("")}</tr>`
+    : "";
+
+  if (!rows.length || !visibleHeaders.length) {
+    const colspan = Math.max(visibleHeaders.length, 1);
+    body.innerHTML = `<tr><td colspan="${colspan}" class="empty-table-cell">${escapeHtml(message || "暂无产品线分工表信息")}</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = rows
+    .slice(0, 80)
+    .map(
+      (row) => `
+        <tr>
+          ${row.cells
+            .slice(1)
+            .map((cell) => `<td>${escapeHtml(cell || "--")}</td>`)
+            .join("")}
         </tr>
       `
     )
@@ -530,6 +636,13 @@ function normalizeMaterialCode(value) {
   return String(value || "")
     .trim()
     .replace(/\.0$/, "")
+    .toLowerCase();
+}
+
+function normalizeGroupKey(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
     .toLowerCase();
 }
 

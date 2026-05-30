@@ -207,9 +207,9 @@ h2 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(230px, 1.4fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr);
+  grid-template-columns: minmax(230px, 1.4fr) minmax(130px, 0.75fr) minmax(130px, 0.75fr) auto;
   gap: 10px;
-  width: min(720px, 100%);
+  width: min(860px, 100%);
 }
 
 .search-box {
@@ -239,6 +239,12 @@ select {
 
 select {
   padding: 0 12px;
+}
+
+.toolbar button {
+  min-height: 42px;
+  padding: 0 14px;
+  white-space: nowrap;
 }
 
 .metrics-grid {
@@ -334,6 +340,14 @@ select {
 
 .supplier-info-table {
   min-width: 640px;
+}
+
+.division-info-wrap {
+  margin-top: 14px;
+}
+
+.division-info-table {
+  min-width: 720px;
 }
 
 .empty-state {

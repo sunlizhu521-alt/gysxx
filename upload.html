@@ -50,6 +50,7 @@
             <select id="ownerFilter" aria-label="按负责人筛选">
               <option value="all">全部采购组</option>
             </select>
+            <button id="resetButton" type="button">重置筛选</button>
           </div>
         </header>
 
@@ -78,7 +79,6 @@
                 <p class="eyebrow">Supplier Profile</p>
                 <h2>供应商信息</h2>
               </div>
-              <button id="resetButton" type="button">重置筛选</button>
             </div>
             <div class="table-wrap supplier-info-wrap">
               <table class="supplier-info-table">
@@ -91,6 +91,12 @@
                   </tr>
                 </thead>
                 <tbody id="supplierInfoRows"></tbody>
+              </table>
+            </div>
+            <div class="table-wrap division-info-wrap">
+              <table class="division-info-table">
+                <thead id="divisionInfoHead"></thead>
+                <tbody id="divisionInfoRows"></tbody>
               </table>
             </div>
           </article>
