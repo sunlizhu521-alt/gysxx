@@ -402,7 +402,7 @@ function getVisibleDivisionRows() {
   const owner = dashboardEls.ownerFilter.value;
   if (owner !== "all") {
     const ownerKey = normalizeGroupKey(owner);
-    return supplierState.divisionRows.filter((row) => row.matchedPurchaseGroup === owner || row.groupKey === ownerKey);
+    return supplierState.divisionRows.filter((row) => row.groupKey === ownerKey || normalizeGroupKey(row.matchedPurchaseGroup) === ownerKey);
   }
   return supplierState.divisionRows;
 }
@@ -454,7 +454,7 @@ function renderDivisionInfo(head, body, rows, headers, message) {
       (row) => `
         <tr>
           ${columnIndexes
-            .map((columnIndex) => `<td>${escapeHtml(row.cells[columnIndex] || "--")}</td>`)
+            .map((columnIndex) => `<td title="${escapeHtml(row.cells[columnIndex] || "--")}">${escapeHtml(row.cells[columnIndex] || "--")}</td>`)
             .join("")}
         </tr>
       `

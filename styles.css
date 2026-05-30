@@ -365,6 +365,12 @@ select {
   white-space: nowrap;
 }
 
+.division-info-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .empty-state {
   padding: 18px;
   border: 1px dashed var(--line);
