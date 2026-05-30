@@ -7,6 +7,7 @@ const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
 const BAR_COLORS = ["#2f6fed", "#159a9c", "#6957d6", "#2f9e44", "#d98b11", "#d64545", "#0f766e", "#7c3aed", "#2563eb", "#ea580c"];
+const DIVISION_DISPLAY_COLUMNS = ["组名", "事业部唯一对接人", "组员", "负责事项"];
 
 const supplierState = {
   records: [],
@@ -436,13 +437,13 @@ function enrichDivisionRows(rows, categoryMap) {
 }
 
 function renderDivisionInfo(head, body, rows, headers, message) {
-  const visibleHeaders = headers.slice(1);
-  head.innerHTML = visibleHeaders.length
-    ? `<tr>${visibleHeaders.map((header) => `<th>${escapeHtml(header || "未命名字段")}</th>`).join("")}</tr>`
+  const columnIndexes = getDivisionColumnIndexes(headers);
+  head.innerHTML = columnIndexes.length
+    ? `<tr>${DIVISION_DISPLAY_COLUMNS.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr>`
     : "";
 
-  if (!rows.length || !visibleHeaders.length) {
-    const colspan = Math.max(visibleHeaders.length, 1);
+  if (!rows.length || !columnIndexes.length) {
+    const colspan = Math.max(columnIndexes.length, 1);
     body.innerHTML = `<tr><td colspan="${colspan}" class="empty-table-cell">${escapeHtml(message || "暂无产品线分工表信息")}</td></tr>`;
     return;
   }
@@ -452,14 +453,21 @@ function renderDivisionInfo(head, body, rows, headers, message) {
     .map(
       (row) => `
         <tr>
-          ${row.cells
-            .slice(1)
-            .map((cell) => `<td>${escapeHtml(cell || "--")}</td>`)
+          ${columnIndexes
+            .map((columnIndex) => `<td>${escapeHtml(row.cells[columnIndex] || "--")}</td>`)
             .join("")}
         </tr>
       `
     )
     .join("");
+}
+
+function getDivisionColumnIndexes(headers) {
+  if (!headers.length) return [];
+  return DIVISION_DISPLAY_COLUMNS.map((label, index) => {
+    const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader(label));
+    return matchedIndex >= 0 ? matchedIndex : index;
+  });
 }
 
 function renderBars(container, counts, emptyText) {
