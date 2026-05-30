@@ -69,11 +69,6 @@
             <strong id="contractRate">--</strong>
             <small>是否有年框字段统计</small>
           </article>
-          <article class="metric alert">
-            <span>风险物料</span>
-            <strong id="riskCount">0</strong>
-            <small>起订量异常</small>
-          </article>
         </section>
 
         <section class="work-area supplier-work-area">
@@ -85,7 +80,19 @@
               </div>
               <button id="resetButton" type="button">重置筛选</button>
             </div>
-            <div id="supplierInfoList" class="supplier-info-list"></div>
+            <div class="table-wrap supplier-info-wrap">
+              <table class="supplier-info-table">
+                <thead>
+                  <tr>
+                    <th>供应商简称</th>
+                    <th>账期</th>
+                    <th>是否有年框</th>
+                    <th>地址</th>
+                  </tr>
+                </thead>
+                <tbody id="supplierInfoRows"></tbody>
+              </table>
+            </div>
           </article>
 
           <article class="panel actions-panel">

@@ -5,7 +5,6 @@ const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
-const HIGH_MOQ = 200;
 
 const supplierState = {
   records: [],
@@ -20,8 +19,7 @@ const dashboardEls = {
   skuCount: document.querySelector("#skuCount"),
   activeSupplierCount: document.querySelector("#activeSupplierCount"),
   contractRate: document.querySelector("#contractRate"),
-  riskCount: document.querySelector("#riskCount"),
-  supplierInfoList: document.querySelector("#supplierInfoList"),
+  supplierInfoRows: document.querySelector("#supplierInfoRows"),
   productLineBars: document.querySelector("#productLineBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
@@ -199,7 +197,6 @@ function normalizeRow(row, headerMap, index) {
     contact: getValue("contact", 17),
     phone: getValue("phone", 18),
     address: getValue("address", 19),
-    riskLevel: getRiskLevel(moq),
   };
 }
 
@@ -281,24 +278,22 @@ function applyDashboardFilters() {
 function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
-  const riskItems = visible.filter((record) => record.moq >= HIGH_MOQ);
   const contractKnown = visible.filter((record) => record.hasContract !== null);
   const contractYes = contractKnown.filter((record) => record.hasContract).length;
 
   dashboardEls.skuCount.textContent = visible.length || all.length || 0;
   dashboardEls.activeSupplierCount.textContent = uniqueSuppliers(visible.length ? visible : all).length;
   dashboardEls.contractRate.textContent = contractKnown.length ? `${Math.round((contractYes / contractKnown.length) * 100)}%` : "--";
-  dashboardEls.riskCount.textContent = riskItems.length;
   dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
 
-  renderSupplierInfo(dashboardEls.supplierInfoList, visible, message);
+  renderSupplierInfo(dashboardEls.supplierInfoRows, visible, message);
   renderBars(dashboardEls.productLineBars, countBy(visible, "dimProductLine"), message || "暂无产品线数据");
   renderRows(visible, message);
 }
 
 function renderSupplierInfo(container, records, message) {
   if (!records.length) {
-    container.innerHTML = `<div class="empty-state compact-empty">${escapeHtml(message || "暂无供应商信息")}</div>`;
+    container.innerHTML = `<tr><td colspan="4" class="empty-table-cell">${escapeHtml(message || "暂无供应商信息")}</td></tr>`;
     return;
   }
 
@@ -326,12 +321,12 @@ function renderSupplierInfo(container, records, message) {
   container.innerHTML = suppliers
     .map(
       (item) => `
-        <div class="supplier-info-item">
-          <strong>${escapeHtml(item.supplierShort)}</strong>
-          <span>账期：${escapeHtml(item.paymentTerm || "未填写")}</span>
-          <span>年框：${formatContract(item.hasContract)}</span>
-          <span>地址：${escapeHtml(item.region || "未填写")}</span>
-        </div>
+        <tr>
+          <td><strong>${escapeHtml(item.supplierShort)}</strong></td>
+          <td>${escapeHtml(item.paymentTerm || "未填写")}</td>
+          <td>${formatContract(item.hasContract)}</td>
+          <td>${escapeHtml(item.region || "未填写")}</td>
+        </tr>
       `
     )
     .join("");
@@ -369,12 +364,7 @@ function renderRows(records, message) {
     .map(
       (record) => `
         <tr>
-          <td>
-            <span class="doc-name">
-              <strong>${escapeHtml(record.primaryLine)}</strong>
-              <small>${escapeHtml(record.secondaryLine || "--")}</small>
-            </span>
-          </td>
+          <td>${escapeHtml(record.primaryLine)}</td>
           <td>${escapeHtml(record.group || record.owner || "--")}</td>
           <td>${escapeHtml(record.materialCode || "--")}</td>
           <td>${escapeHtml(record.sku || "--")}</td>
@@ -387,12 +377,6 @@ function renderRows(records, message) {
       `
     )
     .join("");
-}
-
-function getRiskLevel(moq) {
-  if (moq >= 500) return "high";
-  if (moq >= HIGH_MOQ) return "mid";
-  return "low";
 }
 
 function parseBoolean(value) {
