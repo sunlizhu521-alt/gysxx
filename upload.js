@@ -383,8 +383,7 @@ function renderSupplierInfo(container, records, message) {
     if (!item.region && record.address) item.region = formatRegion(record.address);
     return result;
   }, new Map()).values()]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 8);
+    .sort((a, b) => b.count - a.count);
 
   container.innerHTML = suppliers
     .map(

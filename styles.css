@@ -362,12 +362,22 @@ select {
   table-layout: fixed;
 }
 
+.supplier-info-table {
+  font-size: 12px;
+}
+
 .supplier-info-table th,
 .supplier-info-table td {
   min-width: 0;
   overflow: hidden;
+  padding: 7px 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.supplier-info-table th {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .division-info-table {
