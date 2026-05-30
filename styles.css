@@ -363,12 +363,24 @@ select {
 }
 
 .supplier-info-table th,
-.supplier-info-table td,
-.division-info-table th,
-.division-info-table td {
+.supplier-info-table td {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.division-info-table {
+  font-size: 12px;
+  table-layout: auto;
+}
+
+.division-info-table th,
+.division-info-table td {
+  min-width: 0;
+  overflow: visible;
+  padding: 10px 6px;
+  text-overflow: clip;
   white-space: nowrap;
 }
 
