@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>供应商交付信息 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260530-15" />
   </head>
   <body>
     <div class="app-shell">
@@ -35,22 +35,87 @@
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">交付分析入口</p>
+            <p class="eyebrow">Supplier Delivery</p>
             <h1>供应商交付信息</h1>
+            <small class="source-note">数据来源：备货事实表库 / 采购订单跟进表</small>
           </div>
         </header>
 
-        <section class="panel upload-panel upload-page-panel">
+        <section class="panel delivery-filter-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Delivery Source</p>
-              <h2>供应商交付信息看板</h2>
+              <p class="eyebrow">Filters</p>
+              <h2>筛选条件</h2>
             </div>
-            <span class="upload-state">待配置</span>
+            <button id="deliveryResetButton" type="button">重置筛选</button>
           </div>
-          <div class="empty-state">后续可在这里接入供应商交期、到货、欠货、准时率等交付维度数据。</div>
+          <div class="delivery-filter-bar">
+            <select id="businessUnitFilter" aria-label="按事业部筛选">
+              <option value="all">全部事业部</option>
+            </select>
+            <select id="purchaseGroupFilter" aria-label="按采购分组筛选">
+              <option value="all">全部采购分组</option>
+            </select>
+            <select id="salesLineFilter" aria-label="按销售产品线筛选">
+              <option value="all">全部销售产品线</option>
+            </select>
+            <select id="salesSeriesFilter" aria-label="按销售系列筛选">
+              <option value="all">全部销售系列</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="metrics-grid delivery-metrics" aria-label="供应商交付指标">
+          <article class="metric">
+            <span>下单数量</span>
+            <strong id="orderedQty">0</strong>
+            <small>当前筛选范围内汇总</small>
+          </article>
+          <article class="metric">
+            <span>已发货数量</span>
+            <strong id="shippedQty">0</strong>
+            <small>当前筛选范围内汇总</small>
+          </article>
+          <article class="metric">
+            <span>剩余数量</span>
+            <strong id="remainingQty">0</strong>
+            <small>下单数量减已发货数量</small>
+          </article>
+          <article class="metric alert">
+            <span>库存超60天数量</span>
+            <strong id="over60Qty">0</strong>
+            <small>按匹配字段汇总</small>
+          </article>
+        </section>
+
+        <section class="panel table-panel delivery-table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Open Orders</p>
+              <h2>供应商未交付明细</h2>
+            </div>
+            <span class="upload-state" id="deliveryState">等待数据</span>
+          </div>
+          <div class="table-wrap delivery-table-wrap">
+            <table class="delivery-table">
+              <thead>
+                <tr>
+                  <th>物料编码</th>
+                  <th>SKU</th>
+                  <th>物品名称</th>
+                  <th>下单数量</th>
+                  <th>未交付数量</th>
+                  <th>剩余数量</th>
+                </tr>
+              </thead>
+              <tbody id="deliveryRows"></tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="./shared-library.js?v=20260530-15"></script>
+    <script src="./delivery.js?v=20260530-15"></script>
   </body>
 </html>

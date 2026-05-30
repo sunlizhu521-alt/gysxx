@@ -8,7 +8,7 @@ const MAINTAINER_KEY = "3.1415926";
 const UNLOCK_KEY = "fact-library-key-unlocked-v2";
 
 const factNames = [
-  "备货发货事实表 1",
+  "采购订单跟进表",
   "备货发货事实表 2",
   "备货发货事实表 3",
   "备货发货事实表 4",
