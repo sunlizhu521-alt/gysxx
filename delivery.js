@@ -21,6 +21,7 @@ const deliveryEls = {
   dateFilter: document.querySelector("#dateFilter"),
   stockAgeFilter: document.querySelector("#stockAgeFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
+  downloadButton: document.querySelector("#deliveryDownloadButton"),
   orderedQty: document.querySelector("#orderedQty"),
   shippedQty: document.querySelector("#shippedQty"),
   remainingQty: document.querySelector("#remainingQty"),
@@ -68,6 +69,8 @@ function bindDeliveryEvents() {
     deliveryEls.stockAgeFilter.value = "all";
     applyDeliveryFilters();
   });
+
+  deliveryEls.downloadButton.addEventListener("click", downloadDeliveryDetails);
 }
 
 async function loadDeliverySource() {
@@ -285,12 +288,13 @@ function filterRecords(filters) {
 
 function renderDelivery(message) {
   const records = deliveryState.filtered;
-  const detailRecords = records.filter((record) => Number(record.remainingQty) > 0);
+  const detailRecords = getDeliveryDetailRecords();
   deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
   deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
   deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
   deliveryEls.over60Qty.textContent = formatNumber(sumOver60Remaining(records));
   deliveryEls.state.textContent = message || (records.length ? `已匹配 ${records.length} 行` : "暂无匹配数据");
+  deliveryEls.downloadButton.disabled = Boolean(message) || !detailRecords.length;
 
   deliveryEls.rows.innerHTML = detailRecords.length
     ? detailRecords.map(renderDeliveryRow).join("")
@@ -308,6 +312,54 @@ function renderDeliveryRow(record) {
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
   `;
+}
+
+function getDeliveryDetailRecords() {
+  return deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0);
+}
+
+function downloadDeliveryDetails() {
+  const rows = getDeliveryDetailRecords();
+  if (!rows.length || !window.XLSX) return;
+
+  const exportRows = rows.map((record) => ({
+    物料编码: record.materialCode || "",
+    SKU: record.sku || "",
+    物品名称: record.itemName || "",
+    下单数量: Number(record.orderedQty) || 0,
+    已发货数量: Number(record.shippedQty) || 0,
+    剩余数量: Number(record.remainingQty) || 0,
+  }));
+  const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
+    header: ["物料编码", "SKU", "物品名称", "下单数量", "已发货数量", "剩余数量"],
+  });
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
+  window.XLSX.writeFile(workbook, `${buildDeliveryDownloadName()}.xlsx`);
+}
+
+function buildDeliveryDownloadName() {
+  const parts = [
+    "供应商未交付明细",
+    selectedText(deliveryEls.businessUnitFilter),
+    selectedText(deliveryEls.purchaseGroupFilter),
+    selectedText(deliveryEls.salesLineFilter),
+    selectedText(deliveryEls.salesSeriesFilter),
+    selectedText(deliveryEls.dateFilter),
+    selectedText(deliveryEls.stockAgeFilter),
+  ];
+  return parts.map(sanitizeFileNamePart).filter(Boolean).join("_");
+}
+
+function selectedText(select) {
+  return select.options[select.selectedIndex]?.textContent?.trim() || "";
+}
+
+function sanitizeFileNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "");
 }
 
 function createHeaderMap(headers) {

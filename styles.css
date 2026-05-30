@@ -356,6 +356,29 @@ select {
   padding: 0 8px;
 }
 
+.delivery-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delivery-heading-actions button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+  white-space: nowrap;
+}
+
+.delivery-heading-actions button:disabled {
+  background: #eef2f7;
+  border-color: #d8e0ea;
+  color: #9aa6b2;
+  cursor: not-allowed;
+}
+
 .delivery-table-panel {
   margin-bottom: 0;
 }

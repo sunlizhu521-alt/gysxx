@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>供应商交付信息 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260530-20" />
+    <link rel="stylesheet" href="./styles.css?v=20260530-21" />
   </head>
   <body>
     <div class="app-shell">
@@ -102,7 +102,10 @@
               <p class="eyebrow">Open Orders</p>
               <h2>供应商未交付明细</h2>
             </div>
-            <span class="upload-state" id="deliveryState">等待数据</span>
+            <div class="delivery-heading-actions">
+              <button id="deliveryDownloadButton" type="button" disabled>下载明细</button>
+              <span class="upload-state" id="deliveryState">等待数据</span>
+            </div>
           </div>
           <div class="table-wrap delivery-table-wrap">
             <table class="delivery-table">
@@ -124,6 +127,6 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="./shared-library.js?v=20260530-19"></script>
-    <script src="./delivery.js?v=20260530-19"></script>
+    <script src="./delivery.js?v=20260530-21"></script>
   </body>
 </html>
