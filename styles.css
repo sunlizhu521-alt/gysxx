@@ -728,6 +728,61 @@ select {
   color: var(--green);
 }
 
+.admin-gate-panel {
+  max-width: 680px;
+}
+
+.admin-gate {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.admin-gate label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-gate input {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+.admin-gate button,
+.admin-link-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.admin-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-link-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 220px;
+}
+
+.admin-link-card p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 10px 0 0;
+}
+
 .dimension-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

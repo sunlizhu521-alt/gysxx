@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>&#31649;&#29702;&#20837;&#21475; - &#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</title>
+    <link rel="stylesheet" href="./styles.css?v=20260601-4" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="&#30475;&#26495;&#23548;&#33322;">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <span class="brand-wave wave-a"></span>
+            <span class="brand-wave wave-b"></span>
+            <span class="brand-wave wave-c"></span>
+            <span class="brand-wave wave-d"></span>
+          </span>
+          <div>
+            <strong>&#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</strong>
+            <span>&#32500;&#25252;&#20154;&#23385;&#31435;&#26609;</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="./index.html#overview">&#24635;&#35272;</a>
+          <a href="./upload.html">&#20379;&#24212;&#21830;&#20449;&#24687;</a>
+          <a href="./delivery.html">&#20379;&#24212;&#21830;&#20132;&#20184;&#20449;&#24687;</a>
+          <a href="./domestic-stock.html">&#22269;&#20869;&#22791;&#36135;</a>
+          <a href="./cross-border-stock.html">&#36328;&#22659;&#22791;&#36135;</a>
+          <a class="active" href="./admin.html">&#31649;&#29702;&#20837;&#21475;</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Admin Portal</p>
+            <h1>&#31649;&#29702;&#20837;&#21475;</h1>
+            <small class="source-note">&#20165;&#32500;&#25252;&#20154;&#20351;&#29992;&#65292;&#26222;&#36890;&#21516;&#20107;&#35831;&#20351;&#29992;&#19994;&#21153;&#30475;&#26495;&#38142;&#25509;</small>
+          </div>
+        </header>
+
+        <section class="panel admin-gate-panel" id="adminGatePanel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Verification</p>
+              <h2>&#39564;&#35777;&#31192;&#38053;</h2>
+            </div>
+            <span class="upload-state" id="adminState">&#31561;&#24453;&#39564;&#35777;</span>
+          </div>
+          <div class="admin-gate">
+            <label>
+              <span>&#39564;&#35777;&#31192;&#38053;</span>
+              <input id="adminKey" type="password" placeholder="&#35831;&#36755;&#20837;&#39564;&#35777;&#31192;&#38053;" autocomplete="off" />
+            </label>
+            <button id="adminUnlockButton" type="button">&#36827;&#20837;&#32500;&#25252;&#21306;</button>
+          </div>
+        </section>
+
+        <section class="admin-links" id="adminLinks" hidden>
+          <article class="panel admin-link-card">
+            <div>
+              <p class="eyebrow">Dimension Library</p>
+              <h2>&#32500;&#24230;&#34920;&#25991;&#20214;&#24211;</h2>
+              <p>&#32500;&#25252;&#21830;&#21697;&#20998;&#31867;&#12289;&#20179;&#24211;&#12289;&#24215;&#38138;&#12289;&#23458;&#25143;&#12289;&#37319;&#36141;&#20998;&#24037;&#31561;&#32500;&#24230;&#25991;&#20214;&#12290;</p>
+            </div>
+            <a class="primary-button admin-link-button" href="./file-library.html">&#36827;&#20837;&#32500;&#24230;&#34920;&#25991;&#20214;&#24211;</a>
+          </article>
+
+          <article class="panel admin-link-card">
+            <div>
+              <p class="eyebrow">Fact Library</p>
+              <h2>&#22791;&#36135;&#20107;&#23454;&#34920;&#24211;</h2>
+              <p>&#32500;&#25252;&#37319;&#36141;&#35746;&#21333;&#36319;&#36827;&#34920;&#31561;&#20107;&#23454;&#25968;&#25454;&#25991;&#20214;&#12290;</p>
+            </div>
+            <a class="primary-button admin-link-button" href="./fact-library.html">&#36827;&#20837;&#22791;&#36135;&#20107;&#23454;&#34920;&#24211;</a>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="./admin.js?v=20260601-1"></script>
+  </body>
+</html>
