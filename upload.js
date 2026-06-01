@@ -56,6 +56,9 @@ const columnAliases = {
 
 async function initSupplierDashboard() {
   bindDashboardEvents();
+  if (await loadPrebuiltSupplierDirectory()) {
+    return;
+  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
@@ -75,6 +78,25 @@ function bindDashboardEvents() {
   });
 
   dashboardEls.downloadButton.addEventListener("click", downloadCurrentRows);
+}
+
+async function loadPrebuiltSupplierDirectory() {
+  try {
+    const response = await fetch("./data/supplier-directory.json?v=20260601-1", { cache: "no-store" });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    if (!Array.isArray(payload.records) || !payload.records.length) return false;
+    supplierState.records = payload.records;
+    supplierState.divisionRows = Array.isArray(payload.divisionRows) ? payload.divisionRows : [];
+    supplierState.divisionHeaders = Array.isArray(payload.divisionHeaders) ? payload.divisionHeaders : [];
+    supplierState.categoryMap = new Map();
+    hydrateFilters();
+    applyDashboardFilters();
+    return true;
+  } catch (error) {
+    console.warn("prebuilt supplier directory unavailable", error);
+    return false;
+  }
 }
 
 async function loadPurchaseAssignmentSource() {

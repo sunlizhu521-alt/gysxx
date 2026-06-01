@@ -44,6 +44,9 @@ const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty"
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
+  if (await loadPrebuiltDeliveryOrders()) {
+    return;
+  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
@@ -71,6 +74,22 @@ function bindDeliveryEvents() {
   });
 
   deliveryEls.downloadButton.addEventListener("click", downloadDeliveryDetails);
+}
+
+async function loadPrebuiltDeliveryOrders() {
+  try {
+    const response = await fetch("./data/delivery-orders.json?v=20260601-1", { cache: "no-store" });
+    if (!response.ok) return false;
+    const payload = await response.json();
+    if (!Array.isArray(payload.records) || !payload.records.length) return false;
+    deliveryState.records = payload.records;
+    deliveryState.categoryMap = new Map();
+    applyDeliveryFilters();
+    return true;
+  } catch (error) {
+    console.warn("prebuilt delivery orders unavailable", error);
+    return false;
+  }
 }
 
 async function loadDeliverySource() {
