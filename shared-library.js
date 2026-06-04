@@ -48,7 +48,7 @@
   function isSharedRecordNewer(sharedRecord, existingRecord) {
     const sharedDate = new Date(sharedRecord.savedAt || 0).getTime();
     const existingDate = new Date(existingRecord.savedAt || 0).getTime();
-    return sharedDate > existingDate || sharedRecord.size !== existingRecord.size;
+    return !existingRecord || sharedDate > existingDate;
   }
 
   async function reviveSharedRecord(record) {

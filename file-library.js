@@ -79,6 +79,7 @@ function bindLibraryEvents() {
 async function saveFile(slotId, file) {
   if (!libraryState.canReplace) return;
   if (!file) return;
+  const existingRecord = libraryState.files.get(slotId);
   const savedAt = new Date().toISOString();
   const record = {
     id: slotId,
@@ -88,8 +89,8 @@ async function saveFile(slotId, file) {
     typeLabel: getFileTypeLabel(file),
     refreshMonth: getMonthFromDate(savedAt),
     savedAt,
-    applied: false,
-    appliedAt: null,
+    applied: Boolean(existingRecord?.applied),
+    appliedAt: existingRecord?.applied ? savedAt : null,
   };
   const db = await openLibraryDb();
   await putRecord(db, record);
