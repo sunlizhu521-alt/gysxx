@@ -467,12 +467,34 @@ function renderSupplierInfo(container, records, message) {
 }
 
 function getVisibleDivisionRows() {
-  const owner = dashboardEls.ownerFilter.value;
-  if (owner !== "all") {
-    const ownerKey = normalizeGroupKey(owner);
-    return supplierState.divisionRows.filter((row) => row.groupKey === ownerKey || normalizeGroupKey(row.matchedPurchaseGroup) === ownerKey);
-  }
-  return supplierState.divisionRows;
+  if (!supplierState.filtered.length) return [];
+  const visibleGroupKeys = new Set(
+    supplierState.filtered
+      .map((record) => normalizeGroupKey(record.dimPurchaseGroup || record.group || record.owner))
+      .filter(Boolean)
+  );
+  const visibleProductLines = new Set(
+    supplierState.filtered
+      .map((record) => normalizeDivisionMatchText(record.dimProductLine || record.primaryLine))
+      .filter(Boolean)
+  );
+
+  return supplierState.divisionRows.filter((row) => {
+    const rowGroupKey = normalizeGroupKey(row.matchedPurchaseGroup || row.groupName);
+    const rowText = normalizeDivisionMatchText([row.key, row.groupName, row.matchedPurchaseGroup, ...(row.cells || [])].join(" "));
+    const groupMatched = !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
+    const productLineMatched =
+      !visibleProductLines.size ||
+      [...visibleProductLines].some((line) => rowText.includes(line) || line.includes(rowText));
+    return groupMatched && productLineMatched;
+  });
+}
+
+function normalizeDivisionMatchText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\s()（）【】\[\]_\-+\/、，,]/g, "")
+    .toLowerCase();
 }
 
 function readDivisionSheet(workbook) {
