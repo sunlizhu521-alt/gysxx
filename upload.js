@@ -5,6 +5,7 @@ const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
+const SUPPLIER_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93 / \u91c7\u8d2d\u5206\u5de5\u660e\u7ec6";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
 const BAR_COLORS = ["#2f6fed", "#159a9c", "#6957d6", "#2f9e44", "#d98b11", "#d64545", "#0f766e", "#7c3aed", "#2563eb", "#ea580c"];
 const DIVISION_DISPLAY_COLUMNS = ["组名", "事业部唯一对接人", "组员", "负责事项"];
@@ -29,6 +30,7 @@ const dashboardEls = {
   productLineBars: document.querySelector("#productLineBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
+  sourceNote: document.querySelector("#supplierSourceNote"),
   downloadButton: document.querySelector("#downloadButton"),
   resetButton: document.querySelector("#resetButton"),
 };
@@ -90,6 +92,7 @@ async function loadPrebuiltSupplierDirectory() {
     supplierState.divisionRows = Array.isArray(payload.divisionRows) ? payload.divisionRows : [];
     supplierState.divisionHeaders = Array.isArray(payload.divisionHeaders) ? payload.divisionHeaders : [];
     supplierState.categoryMap = new Map();
+    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, payload.source?.purchaseAssignment || { generatedAt: payload.generatedAt });
     hydrateFilters();
     applyDashboardFilters();
     return true;
@@ -133,6 +136,7 @@ async function loadPurchaseAssignmentSource() {
     supplierState.records = enrichSupplierRecords(records, supplierState.categoryMap);
     supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap, divisionHeaders);
     supplierState.divisionHeaders = divisionHeaders;
+    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, purchaseRecord);
     hydrateFilters();
     applyDashboardFilters();
   } catch (error) {
@@ -147,6 +151,7 @@ function resetDashboard(message) {
   supplierState.categoryMap = new Map();
   supplierState.divisionRows = [];
   supplierState.divisionHeaders = [];
+  updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, null);
   hydrateFilters();
   renderDashboard(message);
 }
@@ -629,6 +634,30 @@ function formatContract(value) {
 function formatDownloadDate(date) {
   const pad = (value) => String(value).padStart(2, "0");
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function updateSourceNote(element, label, sourceRecord) {
+  if (!element) return;
+  const time = getReferenceTime(sourceRecord);
+  element.textContent = `${label}\uff5c\u5f15\u7528\u65f6\u95f4\uff1a${time ? formatReferenceTime(time) : "--"}`;
+}
+
+function getReferenceTime(sourceRecord) {
+  return sourceRecord?.appliedAt || sourceRecord?.savedAt || sourceRecord?.generatedAt || "";
+}
+
+function formatReferenceTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function escapeCsvCell(value) {

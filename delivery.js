@@ -5,6 +5,7 @@ const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ORDER_SLOT = "fact-1";
+const DELIVERY_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93 / \u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
 
 const deliveryState = {
@@ -28,6 +29,7 @@ const deliveryEls = {
   over60Qty: document.querySelector("#over60Qty"),
   rows: document.querySelector("#deliveryRows"),
   state: document.querySelector("#deliveryState"),
+  sourceNote: document.querySelector("#deliverySourceNote"),
 };
 
 const columnAliases = {
@@ -84,6 +86,7 @@ async function loadPrebuiltDeliveryOrders() {
     if (!Array.isArray(payload.records) || !payload.records.length) return false;
     deliveryState.records = payload.records;
     deliveryState.categoryMap = new Map();
+    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, payload.source?.purchaseOrder || { generatedAt: payload.generatedAt });
     applyDeliveryFilters();
     return true;
   } catch (error) {
@@ -113,6 +116,7 @@ async function loadDeliverySource() {
 
     deliveryState.categoryMap = categoryRecord?.file ? await readCategoryDimension(categoryRecord.file) : new Map();
     deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(factRecord.file), deliveryState.categoryMap);
+    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, factRecord);
     applyDeliveryFilters();
   } catch (error) {
     console.error(error);
@@ -123,6 +127,7 @@ async function loadDeliverySource() {
 function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
+  updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, null);
   updateFilterOptions();
   renderDelivery(message);
 }
@@ -435,6 +440,30 @@ function parseNumber(value) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function updateSourceNote(element, label, sourceRecord) {
+  if (!element) return;
+  const time = getReferenceTime(sourceRecord);
+  element.textContent = `${label}\uff5c\u5f15\u7528\u65f6\u95f4\uff1a${time ? formatReferenceTime(time) : "--"}`;
+}
+
+function getReferenceTime(sourceRecord) {
+  return sourceRecord?.appliedAt || sourceRecord?.savedAt || sourceRecord?.generatedAt || "";
+}
+
+function formatReferenceTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function normalizeHeader(value) {
