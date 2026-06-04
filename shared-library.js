@@ -17,7 +17,7 @@
   };
 
   async function hydrateSharedLibrary() {
-    const response = await fetch(`${SHARED_LIBRARY_URL}?v=20260530-13`, { cache: "no-store" });
+    const response = await fetch(`${SHARED_LIBRARY_URL}?v=20260604-2`, { cache: "no-store" });
     if (!response.ok) return { imported: 0, skipped: 0 };
 
     const payload = await response.json();
@@ -46,9 +46,13 @@
   }
 
   function isSharedRecordNewer(sharedRecord, existingRecord) {
-    const sharedDate = new Date(sharedRecord.savedAt || 0).getTime();
-    const existingDate = new Date(existingRecord.savedAt || 0).getTime();
-    return !existingRecord || sharedDate > existingDate;
+    if (!existingRecord) return true;
+    return (
+      sharedRecord.name !== existingRecord.name ||
+      Number(sharedRecord.size || 0) !== Number(existingRecord.size || 0) ||
+      String(sharedRecord.savedAt || "") !== String(existingRecord.savedAt || "") ||
+      String(sharedRecord.appliedAt || "") !== String(existingRecord.appliedAt || "")
+    );
   }
 
   async function reviveSharedRecord(record) {
