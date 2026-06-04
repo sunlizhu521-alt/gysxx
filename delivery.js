@@ -366,7 +366,7 @@ function filterRecords(filters) {
 function renderDelivery(message) {
   const records = deliveryState.filtered;
   const detailRecords = getDeliveryDetailRecords();
-  deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
+  deliveryEls.orderedQty.textContent = formatNumber(sumBy(detailRecords, "orderedQty"));
   deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
   deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
   deliveryEls.over60Qty.textContent = formatNumber(sumOver60Remaining(records));
