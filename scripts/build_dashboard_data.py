@@ -288,12 +288,58 @@ def create_header_map(headers, aliases):
     return header_map
 
 
+def material_code_column_score(value):
+    raw = text(value)
+    if not raw:
+        return 0
+    normalized = normalize_material_code(raw)
+    if len(normalized) < 4 or re.search(r"[\u4e00-\u9fff]", normalized):
+        return 0
+    score = 1
+    if re.search(r"\d", normalized):
+        score += 2
+    if re.fullmatch(r"[a-z0-9._\-]+", normalized):
+        score += 1
+    return score
+
+
+def infer_material_code_column(headers, data_rows, used_columns):
+    unused_blank_columns = [
+        index
+        for index, header in enumerate(headers)
+        if index not in used_columns and not text(header)
+    ]
+    candidate_columns = unused_blank_columns or [
+        index for index in range(len(headers)) if index not in used_columns
+    ]
+    best_column = None
+    best_score = 0
+    for column in candidate_columns:
+        score = sum(
+            material_code_column_score(row[column] if column < len(row) else "")
+            for row in data_rows[:50]
+        )
+        if score > best_score:
+            best_column = column
+            best_score = score
+    return best_column if best_score >= 3 else None
+
+
 def parse_order_rows(rows, business_unit):
     header_index = None
     header_map = None
     for index, row in enumerate(rows):
         headers = [text(cell) for cell in row]
         possible_map = create_header_map(headers, ORDER_ALIASES)
+        if all(key in possible_map for key in ["orderedQty", "shippedQty", "remainingQty"]):
+            if "materialCode" not in possible_map:
+                inferred_column = infer_material_code_column(
+                    headers,
+                    rows[index + 1 :],
+                    set(possible_map.values()),
+                )
+                if inferred_column is not None:
+                    possible_map["materialCode"] = inferred_column
         if all(key in possible_map for key in ["materialCode", "orderedQty", "shippedQty", "remainingQty"]):
             header_index = index
             header_map = possible_map

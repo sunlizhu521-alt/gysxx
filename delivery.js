@@ -83,7 +83,7 @@ function bindDeliveryEvents() {
 
 async function loadPrebuiltDeliveryOrders() {
   try {
-    const response = await fetch("./data/delivery-orders.json?v=20260604-3", { cache: "no-store" });
+    const response = await fetch("./data/delivery-orders.json?v=20260605-1", { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json();
     if (!Array.isArray(payload.records) || !payload.records.length) return false;
@@ -191,6 +191,12 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
   const headerMap = createHeaderMap(headers);
+  if (headerMap.materialCode === undefined) {
+    const inferredColumn = inferMaterialCodeColumn(headers, rows.slice(headerIndex + 1), new Set(Object.values(headerMap)));
+    if (inferredColumn !== undefined) {
+      headerMap.materialCode = inferredColumn;
+    }
+  }
   if (!isPurchaseOrderSheet(headerMap)) return [];
 
   return rows
@@ -201,6 +207,35 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
 
 function isPurchaseOrderSheet(headerMap) {
   return purchaseOrderRequiredColumns.every((key) => headerMap[key] !== undefined);
+}
+
+function inferMaterialCodeColumn(headers, dataRows, usedColumns) {
+  const blankColumns = headers
+    .map((header, index) => ({ header, index }))
+    .filter(({ header, index }) => !usedColumns.has(index) && !String(header || "").trim())
+    .map(({ index }) => index);
+  const candidates = blankColumns.length ? blankColumns : headers.map((_, index) => index).filter((index) => !usedColumns.has(index));
+  let bestColumn;
+  let bestScore = 0;
+  candidates.forEach((column) => {
+    const score = dataRows.slice(0, 50).reduce((sum, row) => sum + scoreMaterialCodeCell(row[column]), 0);
+    if (score > bestScore) {
+      bestColumn = column;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 3 ? bestColumn : undefined;
+}
+
+function scoreMaterialCodeCell(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const normalized = normalizeMaterialCode(raw);
+  if (normalized.length < 4 || /[\u4e00-\u9fff]/.test(normalized)) return 0;
+  let score = 1;
+  if (/\d/.test(normalized)) score += 2;
+  if (/^[a-z0-9._-]+$/i.test(normalized)) score += 1;
+  return score;
 }
 
 function normalizeRow(row, headerMap, index, businessUnit) {
