@@ -81,16 +81,16 @@ function bindLibraryEvents() {
 async function saveFile(slotId, file) {
   if (!file) return;
   const savedAt = new Date().toISOString();
+  const existing = libraryState.files.get(slotId) || { id: slotId };
   const record = {
+    ...existing,
     id: slotId,
-    file,
-    name: file.name,
-    size: file.size,
-    typeLabel: getFileTypeLabel(file),
-    refreshMonth: getMonthFromDate(savedAt),
-    savedAt,
-    applied: true,
-    appliedAt: savedAt,
+    pendingFile: file,
+    pendingName: file.name,
+    pendingSize: file.size,
+    pendingTypeLabel: getFileTypeLabel(file),
+    pendingRefreshMonth: getMonthFromDate(savedAt),
+    pendingSavedAt: savedAt,
   };
   const db = await openLibraryDb();
   await putRecord(db, record);
@@ -101,26 +101,51 @@ async function saveFile(slotId, file) {
 async function applySlot(slotId) {
   const record = libraryState.files.get(slotId);
   if (!record) return;
-  record.applied = true;
-  record.appliedAt = new Date().toISOString();
+  const appliedAt = new Date().toISOString();
+  const updatedRecord = record.pendingFile
+    ? clearPendingFields({
+        ...record,
+        file: record.pendingFile,
+        name: record.pendingName,
+        size: record.pendingSize,
+        typeLabel: record.pendingTypeLabel,
+        refreshMonth: record.pendingRefreshMonth,
+        savedAt: record.pendingSavedAt,
+        applied: true,
+        appliedAt,
+      })
+    : {
+        ...record,
+        applied: true,
+        appliedAt,
+      };
   const db = await openLibraryDb();
-  await putRecord(db, record);
+  await putRecord(db, updatedRecord);
   db.close();
   await refreshLibrary();
 }
 
 async function applyAllSlots() {
-  const records = [...libraryState.files.values()];
+  const records = [...libraryState.files.values()].filter((record) => record.pendingFile);
   if (!records.length) return;
   const appliedAt = new Date().toISOString();
   const db = await openLibraryDb();
   await Promise.all(
     records.map((record) =>
-      putRecord(db, {
-        ...record,
-        applied: true,
-        appliedAt,
-      })
+      putRecord(
+        db,
+        clearPendingFields({
+          ...record,
+          file: record.pendingFile,
+          name: record.pendingName,
+          size: record.pendingSize,
+          typeLabel: record.pendingTypeLabel,
+          refreshMonth: record.pendingRefreshMonth,
+          savedAt: record.pendingSavedAt,
+          applied: true,
+          appliedAt,
+        })
+      )
     )
   );
   db.close();
@@ -147,22 +172,26 @@ async function refreshLibrary() {
 function normalizeRecord(record) {
   return {
     ...record,
-    refreshMonth: record.refreshMonth || getMonthFromDate(record.savedAt),
+    refreshMonth: record.refreshMonth || (record.savedAt ? getMonthFromDate(record.savedAt) : null),
     applied: Boolean(record.applied),
     appliedAt: record.appliedAt || null,
+    pendingRefreshMonth: record.pendingRefreshMonth || (record.pendingSavedAt ? getMonthFromDate(record.pendingSavedAt) : null),
   };
 }
 
 function renderLibrary() {
   const records = getVisibleRecords();
   const appliedRecords = records.filter((record) => record.applied);
-  const latest = records.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0];
+  const pendingRecords = records.filter((record) => record.pendingFile);
+  const latest = records
+    .map(getDisplayRecord)
+    .sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt))[0];
 
   libraryEls.count.textContent = records.length;
   libraryEls.appliedCount.textContent = appliedRecords.length;
   libraryEls.updatedAt.textContent = latest ? formatDateTime(latest.savedAt) : "--";
   libraryEls.state.textContent = records.length ? "维度文件已保存" : "等待上传";
-  libraryEls.applyAll.disabled = !records.length || appliedRecords.length === records.length;
+  libraryEls.applyAll.disabled = !pendingRecords.length;
   renderMaintainerState();
 
   libraryEls.slots.innerHTML = slots.map(renderSlot).join("");
@@ -198,6 +227,9 @@ function renderSlot(slot) {
     return renderEmptySlot(slot);
   }
 
+  const displayRecord = getDisplayRecord(record);
+  const isPending = Boolean(record.pendingFile);
+
   return `
     <article class="dimension-card">
       <div class="dimension-card-head">
@@ -205,20 +237,20 @@ function renderSlot(slot) {
           <p class="eyebrow">Dimension Slot</p>
           <h2>${slot.name}</h2>
         </div>
-        <span class="slot-status ${record.applied ? "applied" : "pending"}">${record.applied ? "已应用" : "待应用"}</span>
+        <span class="slot-status ${isPending ? "pending" : "applied"}">${isPending ? "\u5f85\u786e\u8ba4\u5e94\u7528" : "\u5df2\u5e94\u7528"}</span>
       </div>
       <div class="dimension-file">
-        <strong>${escapeHtml(record.name)}</strong>
-        <span>${escapeHtml(record.typeLabel)} · ${formatFileSize(record.size)}</span>
+        <strong>${escapeHtml(displayRecord.name)}</strong>
+        <span>${escapeHtml(displayRecord.typeLabel)} · ${formatFileSize(displayRecord.size)}</span>
       </div>
       <div class="dimension-meta">
         <div>
           <span>刷新月份</span>
-          <strong>${formatMonth(record.refreshMonth)}</strong>
+          <strong>${formatMonth(displayRecord.refreshMonth)}</strong>
         </div>
         <div>
           <span>更新日期</span>
-          <strong>${formatDateTime(record.savedAt)}</strong>
+          <strong>${formatDateTime(displayRecord.savedAt)}</strong>
         </div>
       </div>
       <div class="dimension-actions">
@@ -226,7 +258,7 @@ function renderSlot(slot) {
           <input type="file" accept=".xlsx,.xls,.csv" data-upload-slot="${slot.id}" ${libraryState.canReplace ? "" : "disabled"} />
           替换文件
         </label>
-        <button type="button" data-apply-slot="${slot.id}" ${record.applied ? "disabled" : ""}>应用刷新</button>
+        <button type="button" data-apply-slot="${slot.id}" ${isPending ? "" : "disabled"}>\u786e\u8ba4\u5e94\u7528\u5237\u65b0</button>
         <button class="danger-button" type="button" data-delete-slot="${slot.id}">删除</button>
       </div>
     </article>
@@ -254,6 +286,30 @@ function renderEmptySlot(slot) {
 
 function getVisibleRecords() {
   return [...libraryState.files.values()].filter((record) => !libraryState.hiddenSlots.has(record.id));
+}
+
+function getDisplayRecord(record) {
+  if (record.pendingFile) {
+    return {
+      name: record.pendingName,
+      size: record.pendingSize,
+      typeLabel: record.pendingTypeLabel,
+      refreshMonth: record.pendingRefreshMonth,
+      savedAt: record.pendingSavedAt,
+    };
+  }
+  return record;
+}
+
+function clearPendingFields(record) {
+  const nextRecord = { ...record };
+  delete nextRecord.pendingFile;
+  delete nextRecord.pendingName;
+  delete nextRecord.pendingSize;
+  delete nextRecord.pendingTypeLabel;
+  delete nextRecord.pendingRefreshMonth;
+  delete nextRecord.pendingSavedAt;
+  return nextRecord;
 }
 
 function openLibraryDb() {

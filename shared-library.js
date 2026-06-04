@@ -47,6 +47,16 @@
 
   function isSharedRecordNewer(sharedRecord, existingRecord) {
     if (!existingRecord) return true;
+    const sharedSavedAt = Date.parse(sharedRecord.savedAt || "");
+    const existingSavedAt = Date.parse(existingRecord.savedAt || "");
+    const existingPendingSavedAt = Date.parse(existingRecord.pendingSavedAt || "");
+    if (Number.isFinite(existingPendingSavedAt) && (!Number.isFinite(sharedSavedAt) || existingPendingSavedAt > sharedSavedAt)) {
+      return false;
+    }
+    if (Number.isFinite(sharedSavedAt) && Number.isFinite(existingSavedAt)) {
+      if (sharedSavedAt < existingSavedAt) return false;
+      if (sharedSavedAt > existingSavedAt) return true;
+    }
     return (
       sharedRecord.name !== existingRecord.name ||
       Number(sharedRecord.size || 0) !== Number(existingRecord.size || 0) ||

@@ -58,13 +58,13 @@ const columnAliases = {
 
 async function initSupplierDashboard() {
   bindDashboardEvents();
-  if (await loadPrebuiltSupplierDirectory()) {
-    return;
-  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
   if (await loadPurchaseAssignmentSource({ silent: true })) {
+    return;
+  }
+  if (await loadPrebuiltSupplierDirectory()) {
     return;
   }
   await loadPurchaseAssignmentSource();
@@ -114,44 +114,40 @@ async function loadPurchaseAssignmentSource(options = {}) {
       getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
     ]);
     db.close();
+    const appliedPurchaseRecord = getAppliedLibraryRecord(purchaseRecord);
+    const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
 
-    if (!purchaseRecord?.file) {
+    if (!appliedPurchaseRecord?.file) {
       if (options.silent) return false;
-      resetDashboard("请先在维度表文件库上传并应用采购分工明细");
-      return;
+      resetDashboard("\u8bf7\u5148\u5728\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93\u4e0a\u4f20\u5e76\u786e\u8ba4\u5e94\u7528\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6");
+      return false;
     }
 
-    if (false && !purchaseRecord.applied) {
+    if (!appliedCategoryRecord?.file) {
       if (options.silent) return false;
-      resetDashboard("采购分工明细待应用刷新");
-      return;
+      resetDashboard("\u8bf7\u5148\u5728\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93\u4e0a\u4f20\u5e76\u786e\u8ba4\u5e94\u7528Dim-YL\u533b\u7597\u5668\u68b0\u5546\u54c1\u5206\u7c7b");
+      return false;
     }
 
-    if (!categoryRecord?.file) {
-      if (options.silent) return false;
-      resetDashboard("请先在维度表文件库上传并应用Dim-YL医疗器械商品分类");
-      return;
-    }
-
-    if (false && !categoryRecord.applied) {
-      if (options.silent) return false;
-      resetDashboard("Dim-YL医疗器械商品分类待应用刷新");
-      return;
-    }
-
-    supplierState.categoryMap = await readCategoryDimension(categoryRecord.file);
-    const { records, divisionRows, divisionHeaders } = await readSupplierRecords(purchaseRecord.file);
+    supplierState.categoryMap = await readCategoryDimension(appliedCategoryRecord.file);
+    const { records, divisionRows, divisionHeaders } = await readSupplierRecords(appliedPurchaseRecord.file);
     supplierState.records = enrichSupplierRecords(records, supplierState.categoryMap);
     supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap, divisionHeaders);
     supplierState.divisionHeaders = divisionHeaders;
-    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, purchaseRecord);
+    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, appliedPurchaseRecord);
     hydrateFilters();
     applyDashboardFilters();
+    return true;
   } catch (error) {
     console.error(error);
     if (options.silent) return false;
-    resetDashboard("采购分工明细读取失败");
+    resetDashboard("\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6\u8bfb\u53d6\u5931\u8d25");
+    return false;
   }
+}
+
+function getAppliedLibraryRecord(record) {
+  return record?.applied && record?.file ? record : null;
 }
 
 function resetDashboard(message) {

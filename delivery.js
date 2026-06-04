@@ -46,13 +46,13 @@ const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty"
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
-  if (await loadPrebuiltDeliveryOrders()) {
-    return;
-  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
   if (await loadDeliverySource({ silent: true })) {
+    return;
+  }
+  if (await loadPrebuiltDeliveryOrders()) {
     return;
   }
   await loadDeliverySource();
@@ -106,29 +106,30 @@ async function loadDeliverySource(options = {}) {
       getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
     ]);
     db.close();
+    const appliedFactRecord = getAppliedLibraryRecord(factRecord);
+    const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
 
-    if (!factRecord?.file) {
+    if (!appliedFactRecord?.file) {
       if (options.silent) return false;
-      resetDelivery("请先在备货事实表库上传并应用采购订单跟进表");
-      return;
+      resetDelivery("\u8bf7\u5148\u5728\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93\u4e0a\u4f20\u5e76\u786e\u8ba4\u5e94\u7528\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868");
+      return false;
     }
 
-    if (false && !factRecord.applied) {
-      if (options.silent) return false;
-      resetDelivery("采购订单跟进表待应用刷新");
-      return;
-    }
-
-    deliveryState.categoryMap = categoryRecord?.file ? await readCategoryDimension(categoryRecord.file) : new Map();
-    deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(factRecord.file), deliveryState.categoryMap);
-    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, factRecord);
+    deliveryState.categoryMap = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : new Map();
+    deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap);
+    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, appliedFactRecord);
     applyDeliveryFilters();
     return true;
   } catch (error) {
     console.error(error);
     if (options.silent) return false;
-    resetDelivery("供应商交付信息读取失败");
+    resetDelivery("\u4f9b\u5e94\u5546\u4ea4\u4ed8\u4fe1\u606f\u8bfb\u53d6\u5931\u8d25");
+    return false;
   }
+}
+
+function getAppliedLibraryRecord(record) {
+  return record?.applied && record?.file ? record : null;
 }
 
 function resetDelivery(message) {
