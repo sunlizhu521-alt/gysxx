@@ -173,17 +173,17 @@ def build_supplier_directory(payload, category_map, group_map):
                     "materialName": matched.get("materialName") or "",
                     "supplier": supplier,
                     "supplierShort": supplier_short,
-                    "purchasePrice": number(row[8] if len(row) > 8 else ""),
-                    "unitPrice": number(row[9] if len(row) > 9 else ""),
-                    "moq": number(row[10] if len(row) > 10 else ""),
-                    "leadTime": number(row[11] if len(row) > 11 else ""),
+                    "purchasePrice": 0,
+                    "unitPrice": 0,
+                    "moq": number(row[8] if len(row) > 8 else ""),
+                    "leadTime": number(row[9] if len(row) > 9 else ""),
                     "paymentTerm": text(row[13] if len(row) > 13 else "") or "未填写",
                     "contact": text(row[17] if len(row) > 17 else ""),
                     "phone": text(row[18] if len(row) > 18 else ""),
                     "address": text(row[19] if len(row) > 19 else ""),
                     "dimProductLine": matched.get("salesLine") or "",
                     "dimPurchaseGroup": matched.get("purchaseGroup") or "",
-                    "region": format_region(row[19] if len(row) > 19 else ""),
+                    "region": format_region(row[19] if len(row) > 19 else "") or "未维护地址",
                 }
             )
 

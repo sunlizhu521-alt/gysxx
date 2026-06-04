@@ -262,8 +262,8 @@ function normalizeRow(row, headerMap, index) {
   const group = getValue("group") || extractGroup(owner);
   const supplier = getValue("supplier", 6);
   const supplierShort = getValue("supplierShort", 7) || supplier;
-  const moq = parseNumber(getValue("moq", 10));
-  const leadTime = parseNumber(getValue("leadTime", 11));
+  const moq = parseNumber(getValue("moq", 8));
+  const leadTime = parseNumber(getValue("leadTime", 9));
   const hasContract = parseBoolean(getValue("hasContract", 12));
 
   return {
@@ -277,8 +277,8 @@ function normalizeRow(row, headerMap, index) {
     materialName: getValue("materialName", 5),
     supplier,
     supplierShort,
-    purchasePrice: parseNumber(getValue("purchasePrice", 8)),
-    unitPrice: parseNumber(getValue("unitPrice", 9)),
+    purchasePrice: 0,
+    unitPrice: 0,
     moq,
     leadTime,
     hasContract,
@@ -304,7 +304,7 @@ function enrichSupplierRecords(records, categoryMap) {
       group: dimPurchaseGroup || "未匹配",
       sku: dimSku,
       materialName: dimMaterialName,
-      region: formatRegion(record.address),
+      region: formatRegion(record.address) || "未维护地址",
     };
   });
 }
@@ -491,12 +491,21 @@ function getVisibleDivisionRows() {
   return supplierState.divisionRows.filter((row) => {
     const rowGroupKey = normalizeGroupKey(row.matchedPurchaseGroup || row.groupName);
     const rowText = normalizeDivisionMatchText([row.key, row.groupName, row.matchedPurchaseGroup, ...(row.cells || [])].join(" "));
+    const rowTokens = getDivisionLineTokens(row.key || row.cells?.[0] || "");
     const groupMatched = !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
     const productLineMatched =
       !visibleProductLines.size ||
-      [...visibleProductLines].some((line) => rowText.includes(line) || line.includes(rowText));
+      [...visibleProductLines].some((line) => rowText.includes(line) || line.includes(rowText) || rowTokens.some((token) => line.includes(token)));
     return groupMatched && productLineMatched;
   });
+}
+
+function getDivisionLineTokens(value) {
+  return String(value || "")
+    .split(/[+＋、,，/／()（）\s]+/)
+    .map(normalizeDivisionMatchText)
+    .filter((token) => token.length >= 2)
+    .map((token) => token.replace(/^含/, ""));
 }
 
 function normalizeDivisionMatchText(value) {
