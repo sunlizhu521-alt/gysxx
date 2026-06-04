@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>&#31649;&#29702;&#31471;&#20837;&#24211;&#39029;&#38754; - &#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</title>
-    <link rel="stylesheet" href="./styles.css?v=20260601-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260604-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -52,7 +52,7 @@
           </div>
         </section>
 
-        <section class="admin-links" id="adminLinks" hidden>
+        <section class="admin-links" id="adminLinks">
           <article class="panel admin-link-card">
             <div>
               <p class="eyebrow">Dimension Library</p>
@@ -71,9 +71,37 @@
             <a class="primary-button admin-link-button" href="./fact-library.html">&#36827;&#20837;&#22791;&#36135;&#20107;&#23454;&#34920;&#24211;</a>
           </article>
         </section>
+
+        <section class="panel admin-reference-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Reference Status</p>
+              <h2>&#24341;&#29992;&#34920;&#26102;&#38388;</h2>
+            </div>
+            <span class="upload-state" id="adminReferenceState">&#35835;&#21462;&#20013;</span>
+          </div>
+          <div class="table-wrap">
+            <table class="admin-reference-table">
+              <thead>
+                <tr>
+                  <th>&#25991;&#20214;&#24211;</th>
+                  <th>&#24341;&#29992;&#34920;</th>
+                  <th>&#25991;&#20214;&#21517;</th>
+                  <th>&#21047;&#26032;&#26376;&#20221;</th>
+                  <th>&#26356;&#26032;&#26102;&#38388;</th>
+                  <th>&#24341;&#29992;&#26102;&#38388;</th>
+                  <th>&#29366;&#24577;</th>
+                </tr>
+              </thead>
+              <tbody id="adminReferenceRows">
+                <tr><td colspan="7" class="empty-table-cell">&#35835;&#21462;&#20013;</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </main>
     </div>
 
-    <script src="./admin.js?v=20260601-1"></script>
+    <script src="./admin.js?v=20260604-1"></script>
   </body>
 </html>

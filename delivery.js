@@ -46,11 +46,14 @@ const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty"
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
-  if (await loadPrebuiltDeliveryOrders()) {
-    return;
-  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
+  }
+  if (await loadDeliverySource({ silent: true })) {
+    return;
+  }
+  if (await loadPrebuiltDeliveryOrders()) {
+    return;
   }
   await loadDeliverySource();
 }
@@ -95,7 +98,7 @@ async function loadPrebuiltDeliveryOrders() {
   }
 }
 
-async function loadDeliverySource() {
+async function loadDeliverySource(options = {}) {
   try {
     const db = await openAppDb();
     const [factRecord, categoryRecord] = await Promise.all([
@@ -105,11 +108,13 @@ async function loadDeliverySource() {
     db.close();
 
     if (!factRecord?.file) {
+      if (options.silent) return false;
       resetDelivery("请先在备货事实表库上传并应用采购订单跟进表");
       return;
     }
 
     if (!factRecord.applied) {
+      if (options.silent) return false;
       resetDelivery("采购订单跟进表待应用刷新");
       return;
     }
@@ -118,8 +123,10 @@ async function loadDeliverySource() {
     deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(factRecord.file), deliveryState.categoryMap);
     updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, factRecord);
     applyDeliveryFilters();
+    return true;
   } catch (error) {
     console.error(error);
+    if (options.silent) return false;
     resetDelivery("供应商交付信息读取失败");
   }
 }

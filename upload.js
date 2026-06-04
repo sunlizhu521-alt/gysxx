@@ -58,11 +58,14 @@ const columnAliases = {
 
 async function initSupplierDashboard() {
   bindDashboardEvents();
-  if (await loadPrebuiltSupplierDirectory()) {
-    return;
-  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
+  }
+  if (await loadPurchaseAssignmentSource({ silent: true })) {
+    return;
+  }
+  if (await loadPrebuiltSupplierDirectory()) {
+    return;
   }
   await loadPurchaseAssignmentSource();
 }
@@ -77,6 +80,7 @@ function bindDashboardEvents() {
     dashboardEls.productLineFilter.value = "all";
     dashboardEls.ownerFilter.value = "all";
     applyDashboardFilters();
+    return true;
   });
 
   dashboardEls.downloadButton.addEventListener("click", downloadCurrentRows);
@@ -102,7 +106,7 @@ async function loadPrebuiltSupplierDirectory() {
   }
 }
 
-async function loadPurchaseAssignmentSource() {
+async function loadPurchaseAssignmentSource(options = {}) {
   try {
     const db = await openAppDb();
     const [purchaseRecord, categoryRecord] = await Promise.all([
@@ -112,21 +116,25 @@ async function loadPurchaseAssignmentSource() {
     db.close();
 
     if (!purchaseRecord?.file) {
+      if (options.silent) return false;
       resetDashboard("请先在维度表文件库上传并应用采购分工明细");
       return;
     }
 
     if (!purchaseRecord.applied) {
+      if (options.silent) return false;
       resetDashboard("采购分工明细待应用刷新");
       return;
     }
 
     if (!categoryRecord?.file) {
+      if (options.silent) return false;
       resetDashboard("请先在维度表文件库上传并应用Dim-YL医疗器械商品分类");
       return;
     }
 
     if (!categoryRecord.applied) {
+      if (options.silent) return false;
       resetDashboard("Dim-YL医疗器械商品分类待应用刷新");
       return;
     }
@@ -141,6 +149,7 @@ async function loadPurchaseAssignmentSource() {
     applyDashboardFilters();
   } catch (error) {
     console.error(error);
+    if (options.silent) return false;
     resetDashboard("采购分工明细读取失败");
   }
 }

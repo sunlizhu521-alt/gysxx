@@ -783,6 +783,30 @@ select {
   margin: 10px 0 0;
 }
 
+.admin-reference-panel {
+  margin-top: 16px;
+}
+
+.admin-reference-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-reference-table th,
+.admin-reference-table td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.admin-reference-table th {
+  background: var(--soft-blue);
+  color: var(--text);
+  font-weight: 700;
+}
+
 .dimension-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
