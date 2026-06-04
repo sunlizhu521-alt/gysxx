@@ -121,7 +121,7 @@ async function loadPurchaseAssignmentSource(options = {}) {
       return;
     }
 
-    if (!purchaseRecord.applied) {
+    if (false && !purchaseRecord.applied) {
       if (options.silent) return false;
       resetDashboard("采购分工明细待应用刷新");
       return;
@@ -133,7 +133,7 @@ async function loadPurchaseAssignmentSource(options = {}) {
       return;
     }
 
-    if (!categoryRecord.applied) {
+    if (false && !categoryRecord.applied) {
       if (options.silent) return false;
       resetDashboard("Dim-YL医疗器械商品分类待应用刷新");
       return;

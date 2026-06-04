@@ -44,9 +44,9 @@ function unlockAdmin() {
 }
 
 function showAdminLinks() {
-  adminEls.gatePanel.classList.add("unlocked");
-  adminEls.links.hidden = false;
-  adminEls.state.textContent = "\u5df2\u9a8c\u8bc1";
+  if (adminEls.gatePanel) adminEls.gatePanel.classList.add("unlocked");
+  if (adminEls.links) adminEls.links.hidden = false;
+  if (adminEls.state) adminEls.state.textContent = "\u5df2\u9a8c\u8bc1";
 }
 
 async function loadReferenceTimes() {
@@ -133,13 +133,16 @@ function escapeHtml(value) {
   })[char]);
 }
 
-adminEls.unlockButton.addEventListener("click", unlockAdmin);
-adminEls.keyInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") unlockAdmin();
-});
-
-if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "1") {
-  showAdminLinks();
+if (adminEls.unlockButton) {
+  adminEls.unlockButton.addEventListener("click", unlockAdmin);
 }
+if (adminEls.keyInput) {
+  adminEls.keyInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") unlockAdmin();
+  });
+}
+
+sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
+showAdminLinks();
 
 loadReferenceTimes();

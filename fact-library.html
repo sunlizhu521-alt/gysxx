@@ -3,8 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>备货事实表库 - 供应链信息库</title>
-    <script src="./admin-guard.js?v=20260601-1"></script>
+    <title>供应链信息库</title>
     <link rel="stylesheet" href="./styles.css?v=20260601-4" />
   </head>
   <body>
@@ -64,17 +63,6 @@
               <strong id="libraryUpdatedAt">--</strong>
             </div>
           </div>
-          <div class="maintainer-gate">
-            <div>
-              <span>替换权限</span>
-              <strong id="maintainerState">仅维护人可替换文件</strong>
-            </div>
-            <label>
-              <span>验证秘钥</span>
-              <input id="maintainerCode" type="password" placeholder="请输入验证秘钥" autocomplete="off" />
-            </label>
-            <button id="unlockButton" type="button">启用替换</button>
-          </div>
         </section>
 
         <section id="dimensionSlots" class="dimension-grid" aria-live="polite"></section>
@@ -82,6 +70,6 @@
     </div>
 
     <script src="./shared-library.js?v=20260604-1"></script>
-    <script src="./fact-library.js?v=20260604-1"></script>
+    <script src="./fact-library.js?v=20260604-2"></script>
   </body>
 </html>

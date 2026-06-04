@@ -113,7 +113,7 @@ async function loadDeliverySource(options = {}) {
       return;
     }
 
-    if (!factRecord.applied) {
+    if (false && !factRecord.applied) {
       if (options.silent) return false;
       resetDelivery("采购订单跟进表待应用刷新");
       return;

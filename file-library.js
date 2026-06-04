@@ -26,7 +26,7 @@ const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
 const libraryState = {
   files: new Map(),
   hiddenSlots: new Set(),
-  canReplace: localStorage.getItem(UNLOCK_KEY) === "true",
+  canReplace: true,
 };
 
 const libraryEls = {
@@ -73,13 +73,13 @@ function bindLibraryEvents() {
 
   libraryEls.applyAll.addEventListener("click", applyAllSlots);
 
-  libraryEls.unlockButton.addEventListener("click", unlockReplaceAccess);
+  if (libraryEls.unlockButton) {
+    libraryEls.unlockButton.addEventListener("click", unlockReplaceAccess);
+  }
 }
 
 async function saveFile(slotId, file) {
-  if (!libraryState.canReplace) return;
   if (!file) return;
-  const existingRecord = libraryState.files.get(slotId);
   const savedAt = new Date().toISOString();
   const record = {
     id: slotId,
@@ -89,8 +89,8 @@ async function saveFile(slotId, file) {
     typeLabel: getFileTypeLabel(file),
     refreshMonth: getMonthFromDate(savedAt),
     savedAt,
-    applied: Boolean(existingRecord?.applied),
-    appliedAt: existingRecord?.applied ? savedAt : null,
+    applied: true,
+    appliedAt: savedAt,
   };
   const db = await openLibraryDb();
   await putRecord(db, record);
@@ -182,6 +182,7 @@ function unlockReplaceAccess() {
 }
 
 function renderMaintainerState() {
+  if (!libraryEls.maintainerGate) return;
   libraryEls.maintainerGate.classList.toggle("unlocked", libraryState.canReplace);
   libraryEls.maintainerState.textContent = libraryState.canReplace ? "已启用秘钥替换权限" : "验证秘钥后可替换文件";
   libraryEls.unlockButton.disabled = libraryState.canReplace;
