@@ -71,6 +71,41 @@ def format_region(address):
     return province.group(1) + (region.group(1) if region else "")
 
 
+CITY_REGION_MAP = {
+    "常州": "江苏省常州市",
+    "泰兴": "江苏省泰州市",
+    "苏州": "江苏省苏州市",
+    "无锡": "江苏省无锡市",
+    "宁波": "浙江省宁波市",
+    "杭州": "浙江省杭州市",
+    "嘉兴": "浙江省嘉兴市",
+    "金华": "浙江省金华市",
+    "台州": "浙江省台州市",
+    "温州": "浙江省温州市",
+    "中山": "广东省中山市",
+    "广州": "广东省广州市",
+    "佛山": "广东省佛山市",
+    "东莞": "广东省东莞市",
+    "深圳": "广东省深圳市",
+    "厦门": "福建省厦门市",
+    "上海": "上海市",
+    "北京": "北京市",
+    "天津": "天津市",
+}
+
+
+def infer_region_from_supplier_name(*names):
+    text_value = "".join(text(name) for name in names)
+    for city, region in CITY_REGION_MAP.items():
+        if city in text_value:
+            return region
+    province_match = re.search(r"(江苏|浙江|广东|福建|上海|北京|天津|山东|安徽|河北|河南|湖北|湖南|江西|四川|重庆|陕西)", text_value)
+    if province_match:
+        province = province_match.group(1)
+        return province if province.endswith("市") else f"{province}省"
+    return ""
+
+
 def is_stock_age_over_60(value):
     value = text(value)
     if not value:
@@ -161,6 +196,7 @@ def build_supplier_directory(payload, category_map, group_map):
             if not any([material_code, supplier, supplier_short]):
                 continue
             matched = category_map.get(normalize_material_code(material_code), {})
+            region = format_region(row[19] if len(row) > 19 else "") or infer_region_from_supplier_name(supplier, supplier_short) or "未维护地址"
             records.append(
                 {
                     "id": f"{index}-{material_code}-{supplier_short}",
@@ -183,7 +219,7 @@ def build_supplier_directory(payload, category_map, group_map):
                     "address": text(row[19] if len(row) > 19 else ""),
                     "dimProductLine": matched.get("salesLine") or "",
                     "dimPurchaseGroup": matched.get("purchaseGroup") or "",
-                    "region": format_region(row[19] if len(row) > 19 else "") or "未维护地址",
+                    "region": region,
                 }
             )
 

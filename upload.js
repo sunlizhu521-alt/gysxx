@@ -88,7 +88,7 @@ function bindDashboardEvents() {
 
 async function loadPrebuiltSupplierDirectory() {
   try {
-    const response = await fetch("./data/supplier-directory.json?v=20260604-3", { cache: "no-store" });
+    const response = await fetch("./data/supplier-directory.json?v=20260604-4", { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json();
     if (!Array.isArray(payload.records) || !payload.records.length) return false;
@@ -304,7 +304,7 @@ function enrichSupplierRecords(records, categoryMap) {
       group: dimPurchaseGroup || "未匹配",
       sku: dimSku,
       materialName: dimMaterialName,
-      region: formatRegion(record.address) || "未维护地址",
+      region: formatRegion(record.address) || inferRegionFromSupplierName(record.supplier, record.supplierShort) || "未维护地址",
     };
   });
 }
@@ -754,6 +754,37 @@ function formatRegion(address) {
   if (cityIndex > 0) return `${province[1]}${rest.slice(0, cityIndex + 1)}`;
   const region = rest.match(/^(.{2,12}?(自治州|地区|盟))/);
   return `${province[1]}${region ? region[1] : ""}`;
+}
+
+function inferRegionFromSupplierName(...names) {
+  const text = names.filter(Boolean).join("");
+  const cityMap = new Map([
+    ["常州", "江苏省常州市"],
+    ["泰兴", "江苏省泰州市"],
+    ["苏州", "江苏省苏州市"],
+    ["无锡", "江苏省无锡市"],
+    ["宁波", "浙江省宁波市"],
+    ["杭州", "浙江省杭州市"],
+    ["嘉兴", "浙江省嘉兴市"],
+    ["金华", "浙江省金华市"],
+    ["台州", "浙江省台州市"],
+    ["温州", "浙江省温州市"],
+    ["中山", "广东省中山市"],
+    ["广州", "广东省广州市"],
+    ["佛山", "广东省佛山市"],
+    ["东莞", "广东省东莞市"],
+    ["深圳", "广东省深圳市"],
+    ["厦门", "福建省厦门市"],
+    ["上海", "上海市"],
+    ["北京", "北京市"],
+    ["天津", "天津市"],
+  ]);
+  for (const [city, region] of cityMap) {
+    if (text.includes(city)) return region;
+  }
+  const province = text.match(/(江苏|浙江|广东|福建|上海|北京|天津|山东|安徽|河北|河南|湖北|湖南|江西|四川|重庆|陕西)/)?.[1];
+  if (!province) return "";
+  return province.endsWith("市") ? province : `${province}省`;
 }
 
 function extractGroup(value) {
