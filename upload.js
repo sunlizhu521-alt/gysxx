@@ -487,17 +487,29 @@ function getVisibleDivisionRows() {
       .map((record) => normalizeDivisionMatchText(record.dimProductLine || record.primaryLine))
       .filter(Boolean)
   );
+  const showAllGroups = [...visibleProductLines].some(isAllGroupDivisionLine);
 
   return supplierState.divisionRows.filter((row) => {
     const rowGroupKey = normalizeGroupKey(row.matchedPurchaseGroup || row.groupName);
     const rowText = normalizeDivisionMatchText([row.key, row.groupName, row.matchedPurchaseGroup, ...(row.cells || [])].join(" "));
     const rowTokens = getDivisionLineTokens(row.key || row.cells?.[0] || "");
-    const groupMatched = !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
+    const groupMatched = showAllGroups || !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
     const productLineMatched =
+      showAllGroups ||
       !visibleProductLines.size ||
-      [...visibleProductLines].some((line) => rowText.includes(line) || line.includes(rowText) || rowTokens.some((token) => line.includes(token)));
+      [...visibleProductLines].some((line) => matchesDivisionProductLine(line, rowText, rowTokens));
     return groupMatched && productLineMatched;
   });
+}
+
+function isAllGroupDivisionLine(line) {
+  return ["其他成品", "其他配件"].includes(line);
+}
+
+function matchesDivisionProductLine(line, rowText, rowTokens) {
+  if (line === "升降椅" && rowText.includes("升降系列")) return true;
+  if (line === "防褥疮气床垫" && rowText.includes("气床垫")) return true;
+  return rowText.includes(line) || line.includes(rowText) || rowTokens.some((token) => line.includes(token));
 }
 
 function getDivisionLineTokens(value) {
