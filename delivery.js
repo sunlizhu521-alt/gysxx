@@ -46,13 +46,13 @@ const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty"
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
+  if (await loadPrebuiltDeliveryOrders()) {
+    return;
+  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
   if (await loadDeliverySource({ silent: true })) {
-    return;
-  }
-  if (await loadPrebuiltDeliveryOrders()) {
     return;
   }
   await loadDeliverySource();
@@ -83,7 +83,7 @@ function bindDeliveryEvents() {
 
 async function loadPrebuiltDeliveryOrders() {
   try {
-    const response = await fetch("./data/delivery-orders.json?v=20260601-1", { cache: "no-store" });
+    const response = await fetch("./data/delivery-orders.json?v=20260604-3", { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json();
     if (!Array.isArray(payload.records) || !payload.records.length) return false;

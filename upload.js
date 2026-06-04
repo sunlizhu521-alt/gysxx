@@ -58,13 +58,13 @@ const columnAliases = {
 
 async function initSupplierDashboard() {
   bindDashboardEvents();
+  if (await loadPrebuiltSupplierDirectory()) {
+    return;
+  }
   if (window.ensureSharedLibraryLoaded) {
     await window.ensureSharedLibraryLoaded();
   }
   if (await loadPurchaseAssignmentSource({ silent: true })) {
-    return;
-  }
-  if (await loadPrebuiltSupplierDirectory()) {
     return;
   }
   await loadPurchaseAssignmentSource();
@@ -88,7 +88,7 @@ function bindDashboardEvents() {
 
 async function loadPrebuiltSupplierDirectory() {
   try {
-    const response = await fetch("./data/supplier-directory.json?v=20260601-1", { cache: "no-store" });
+    const response = await fetch("./data/supplier-directory.json?v=20260604-3", { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json();
     if (!Array.isArray(payload.records) || !payload.records.length) return false;
