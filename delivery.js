@@ -232,55 +232,65 @@ function enrichDeliveryRecords(records, categoryMap) {
   });
 }
 
-function updateFilterOptions() {
-  const businessUnit = deliveryEls.businessUnitFilter.value;
-  const purchaseGroup = deliveryEls.purchaseGroupFilter.value;
-  const salesLine = deliveryEls.salesLineFilter.value;
-  const stockAge = deliveryEls.stockAgeFilter.value;
-
-  const baseScoped = filterRecords({ stockAge });
-  syncSelect(deliveryEls.businessUnitFilter, uniqueValues(baseScoped, "businessUnit"), "全部事业部");
-
-  const businessScoped = filterRecords({
-    businessUnit: deliveryEls.businessUnitFilter.value,
-    stockAge,
-  });
-  syncSelect(
-    deliveryEls.purchaseGroupFilter,
-    sortPurchaseGroups(uniqueValues(businessScoped, "purchaseGroup")),
-    "全部采购分组",
-    purchaseGroup
-  );
-
-  const groupScoped = filterRecords({
-    businessUnit: deliveryEls.businessUnitFilter.value,
-    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
-    stockAge,
-  });
-  syncSelect(deliveryEls.salesLineFilter, uniqueValues(groupScoped, "salesLine"), "全部销售产品线", salesLine);
-
-  const lineScoped = filterRecords({
+function getDeliveryFilterValues() {
+  return {
     businessUnit: deliveryEls.businessUnitFilter.value,
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
     salesLine: deliveryEls.salesLineFilter.value,
-    stockAge,
-  });
-  syncSelect(deliveryEls.salesSeriesFilter, uniqueValues(lineScoped, "salesSeries"), "全部销售系列");
+    salesSeries: deliveryEls.salesSeriesFilter.value,
+    dateRange: deliveryEls.dateFilter.value,
+    stockAge: deliveryEls.stockAgeFilter.value,
+  };
+}
 
-  if (businessUnit !== "all" && ![...deliveryEls.businessUnitFilter.options].some((option) => option.value === businessUnit)) {
-    deliveryEls.businessUnitFilter.value = "all";
-  }
+function updateFilterOptions() {
+  const filters = getDeliveryFilterValues();
+  syncSelect(
+    deliveryEls.businessUnitFilter,
+    uniqueValues(filterRecords({ ...filters, businessUnit: "all" }), "businessUnit"),
+    "\u5168\u90e8\u4e8b\u4e1a\u90e8",
+    filters.businessUnit
+  );
+  syncSelect(
+    deliveryEls.purchaseGroupFilter,
+    sortPurchaseGroups(uniqueValues(filterRecords({ ...getDeliveryFilterValues(), purchaseGroup: "all" }), "purchaseGroup")),
+    "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4",
+    filters.purchaseGroup
+  );
+  syncSelect(
+    deliveryEls.salesLineFilter,
+    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), salesLine: "all" }), "salesLine"),
+    "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf",
+    filters.salesLine
+  );
+  syncSelect(
+    deliveryEls.salesSeriesFilter,
+    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), salesSeries: "all" }), "salesSeries"),
+    "\u5168\u90e8\u9500\u552e\u7cfb\u5217",
+    filters.salesSeries
+  );
+  syncSelect(deliveryEls.dateFilter, [], "\u5168\u90e8\u65f6\u95f4", filters.dateRange);
+  syncSelect(
+    deliveryEls.stockAgeFilter,
+    [
+      { value: "over60", label: "\u8d8560\u5929" },
+      { value: "notOver60", label: "\u672a\u8d8560\u5929" },
+    ].filter((option) => filterRecords({ ...getDeliveryFilterValues(), stockAge: option.value }).length),
+    "\u5168\u90e8\u5e93\u9f84",
+    filters.stockAge
+  );
 }
 
 function syncSelect(select, values, label, preferredValue = select.value) {
   select.innerHTML = `<option value="all">${label}</option>`;
   values.forEach((value) => {
     const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
+    option.value = typeof value === "object" ? value.value : value;
+    option.textContent = typeof value === "object" ? value.label : value;
     select.appendChild(option);
   });
-  select.value = values.includes(preferredValue) ? preferredValue : "all";
+  const optionValues = values.map((value) => (typeof value === "object" ? value.value : value));
+  select.value = optionValues.includes(preferredValue) ? preferredValue : "all";
 }
 
 function applyDeliveryFilters() {

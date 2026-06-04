@@ -311,13 +311,29 @@ function createHeaderMap(headers) {
   );
 }
 
-function hydrateFilters() {
-  fillSelect(dashboardEls.productLineFilter, uniqueValues(supplierState.records, "dimProductLine"), "全部产品线");
-  fillSelect(dashboardEls.ownerFilter, sortPurchaseGroups(uniqueValues(supplierState.records, "dimPurchaseGroup")), "全部采购组");
+function getDashboardFilterValues() {
+  return {
+    query: dashboardEls.search.value.trim().toLowerCase(),
+    productLine: dashboardEls.productLineFilter.value,
+    owner: dashboardEls.ownerFilter.value,
+  };
 }
 
-function fillSelect(select, values, label) {
-  const currentValue = select.value;
+function updateDashboardFilterOptions() {
+  const filters = getDashboardFilterValues();
+  const productLineScoped = filterSupplierRecords({ ...filters, productLine: "all" });
+
+  syncDashboardSelect(dashboardEls.productLineFilter, uniqueValues(productLineScoped, "dimProductLine"), "\u5168\u90e8\u4ea7\u54c1\u7ebf", filters.productLine);
+  const ownerScoped = filterSupplierRecords({ ...getDashboardFilterValues(), owner: "all" });
+  syncDashboardSelect(
+    dashboardEls.ownerFilter,
+    sortPurchaseGroups(uniqueValues(ownerScoped, "dimPurchaseGroup")),
+    "\u5168\u90e8\u91c7\u8d2d\u7ec4",
+    filters.owner
+  );
+}
+
+function syncDashboardSelect(select, values, label, preferredValue = select.value) {
   select.innerHTML = `<option value="all">${label}</option>`;
   values.forEach((value) => {
     const option = document.createElement("option");
@@ -325,15 +341,11 @@ function fillSelect(select, values, label) {
     option.textContent = value;
     select.appendChild(option);
   });
-  select.value = values.includes(currentValue) ? currentValue : "all";
+  select.value = values.includes(preferredValue) ? preferredValue : "all";
 }
 
-function applyDashboardFilters() {
-  const query = dashboardEls.search.value.trim().toLowerCase();
-  const productLine = dashboardEls.productLineFilter.value;
-  const owner = dashboardEls.ownerFilter.value;
-
-  supplierState.filtered = supplierState.records.filter((record) => {
+function filterSupplierRecords(filters) {
+  return supplierState.records.filter((record) => {
     const searchable = [
       record.primaryLine,
       record.secondaryLine,
@@ -351,11 +363,32 @@ function applyDashboardFilters() {
       .join(" ")
       .toLowerCase();
     return (
-      (!query || searchable.includes(query)) &&
-      (productLine === "all" || record.dimProductLine === productLine) &&
-      (owner === "all" || record.dimPurchaseGroup === owner)
+      (!filters.query || searchable.includes(filters.query)) &&
+      (filters.productLine === "all" || record.dimProductLine === filters.productLine) &&
+      (filters.owner === "all" || record.dimPurchaseGroup === filters.owner)
     );
   });
+}
+
+function hydrateFilters() {
+  updateDashboardFilterOptions();
+}
+
+function fillSelect(select, values, label) {
+  const currentValue = select.value;
+  select.innerHTML = `<option value="all">${label}</option>`;
+  values.forEach((value) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.appendChild(option);
+  });
+  select.value = values.includes(currentValue) ? currentValue : "all";
+}
+
+function applyDashboardFilters() {
+  updateDashboardFilterOptions();
+  supplierState.filtered = filterSupplierRecords(getDashboardFilterValues());
   renderDashboard();
 }
 
