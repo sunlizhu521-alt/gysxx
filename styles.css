@@ -966,6 +966,12 @@ select {
   border-color: #bbf7d0;
 }
 
+.admin-file-card.drag-over {
+  border-color: var(--blue);
+  background: #eef5ff;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
 .admin-file-card-head {
   display: flex;
   justify-content: space-between;

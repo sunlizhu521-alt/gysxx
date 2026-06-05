@@ -61,9 +61,6 @@ async function initSupplierDashboard() {
   if (await loadPurchaseAssignmentSource({ silent: true })) {
     return;
   }
-  if (await loadPrebuiltSupplierDirectory()) {
-    return;
-  }
   await loadPurchaseAssignmentSource();
 }
 
@@ -81,26 +78,6 @@ function bindDashboardEvents() {
   });
 
   dashboardEls.downloadButton.addEventListener("click", downloadCurrentRows);
-}
-
-async function loadPrebuiltSupplierDirectory() {
-  try {
-    const response = await fetch("./data/supplier-directory.json?v=20260605-1", { cache: "no-store" });
-    if (!response.ok) return false;
-    const payload = await response.json();
-    if (!Array.isArray(payload.records) || !payload.records.length) return false;
-    supplierState.records = payload.records;
-    supplierState.divisionRows = Array.isArray(payload.divisionRows) ? payload.divisionRows : [];
-    supplierState.divisionHeaders = Array.isArray(payload.divisionHeaders) ? payload.divisionHeaders : [];
-    supplierState.categoryMap = new Map();
-    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, payload.source?.purchaseAssignment || { generatedAt: payload.generatedAt });
-    hydrateFilters();
-    applyDashboardFilters();
-    return true;
-  } catch (error) {
-    console.warn("prebuilt supplier directory unavailable", error);
-    return false;
-  }
 }
 
 async function loadPurchaseAssignmentSource(options = {}) {

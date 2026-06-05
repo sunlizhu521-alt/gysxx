@@ -56,6 +56,28 @@ function bindAdminEvents() {
     }
   });
 
+  adminEls.slots.addEventListener("dragover", (event) => {
+    const card = event.target.closest("[data-admin-drop]");
+    if (!card) return;
+    event.preventDefault();
+    card.classList.add("drag-over");
+  });
+
+  adminEls.slots.addEventListener("dragleave", (event) => {
+    const card = event.target.closest("[data-admin-drop]");
+    if (!card || card.contains(event.relatedTarget)) return;
+    card.classList.remove("drag-over");
+  });
+
+  adminEls.slots.addEventListener("drop", async (event) => {
+    const card = event.target.closest("[data-admin-drop]");
+    if (!card) return;
+    event.preventDefault();
+    card.classList.remove("drag-over");
+    const file = event.dataTransfer?.files?.[0];
+    await saveFile(card.dataset.adminDrop, file);
+  });
+
   adminEls.clearCacheButton.addEventListener("click", clearLibraryCache);
 }
 
@@ -161,7 +183,7 @@ function renderLibrarySlot(slot) {
   const isApplied = Boolean(record?.applied && !record.pendingFile);
   const hasPending = Boolean(record?.pendingFile);
   return `
-    <article class="admin-file-card ${isApplied ? "applied" : ""}">
+    <article class="admin-file-card ${isApplied ? "applied" : ""}" data-admin-drop="${slot.id}">
       <div class="admin-file-card-head">
         <div>
           <p class="eyebrow">${escapeHtml(slot.library)}</p>
@@ -173,6 +195,7 @@ function renderLibrarySlot(slot) {
         <span>${escapeHtml(display?.name || "\u672a\u4e0a\u4f20\u6587\u4ef6")}</span>
         <strong>${display ? `${escapeHtml(display.typeLabel || "\u6587\u4ef6")} / ${formatFileSize(display.size)}` : "--"}</strong>
         <small>\u66f4\u65b0\uff1a${display ? formatDateTime(display.savedAt) : "--"}</small>
+        <small>\u53ef\u70b9\u51fb\u4e0a\u4f20\uff0c\u4e5f\u53ef\u62d6\u62fd\u6587\u4ef6\u5230\u6b64\u5904</small>
       </div>
       <div class="admin-file-actions">
         <label class="admin-upload-button">

@@ -7,7 +7,6 @@ const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const DELIVERY_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93 / \u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868";
-const PREBUILT_DELIVERY_URL = "./data/delivery-orders.json?v=20260605-3";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他/配件", "未匹配"];
 
 const deliveryState = {
@@ -77,9 +76,6 @@ async function initDeliveryDashboard() {
   if (await loadDeliverySource({ silent: true })) {
     return;
   }
-  if (await loadPrebuiltDeliveryOrders()) {
-    return;
-  }
   await loadDeliverySource();
 }
 
@@ -121,23 +117,6 @@ function bindDeliveryEvents() {
   deliveryEls.downloadButton.addEventListener("click", downloadDeliveryDetails);
 }
 
-async function loadPrebuiltDeliveryOrders() {
-  try {
-    const response = await fetch(PREBUILT_DELIVERY_URL, { cache: "no-store" });
-    if (!response.ok) return false;
-    const payload = await response.json();
-    if (!Array.isArray(payload.records) || !payload.records.length) return false;
-    deliveryState.records = payload.records;
-    deliveryState.categoryMap = new Map();
-    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, payload.source?.purchaseOrder || { generatedAt: payload.generatedAt });
-    applyDeliveryFilters();
-    return true;
-  } catch (error) {
-    console.warn("prebuilt delivery orders unavailable", error);
-    return false;
-  }
-}
-
 async function loadDeliverySource(options = {}) {
   try {
     const db = await openAppDb();
@@ -159,13 +138,6 @@ async function loadDeliverySource(options = {}) {
 
     deliveryState.categoryMap = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : new Map();
     deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file ? await readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file) : new Map();
-    const fallbackMaps = await loadPrebuiltDeliveryMaps();
-    if (!deliveryState.categoryMap.size) {
-      deliveryState.categoryMap = fallbackMaps.categoryMap;
-    }
-    if (!deliveryState.purchaseDetailMap.size) {
-      deliveryState.purchaseDetailMap = fallbackMaps.purchaseDetailMap;
-    }
     const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
       if (options.silent) return false;
@@ -195,41 +167,6 @@ function resetDelivery(message) {
   updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, null);
   updateFilterOptions();
   renderDelivery(message);
-}
-
-async function loadPrebuiltDeliveryMaps() {
-  const emptyMaps = { categoryMap: new Map(), purchaseDetailMap: new Map() };
-  try {
-    const response = await fetch(PREBUILT_DELIVERY_URL, { cache: "no-store" });
-    if (!response.ok) return emptyMaps;
-    const payload = await response.json();
-    if (!Array.isArray(payload.records)) return emptyMaps;
-    return payload.records.reduce(
-      (maps, record) => {
-        const materialCode = normalizeMaterialCode(record.materialCode);
-        if (!materialCode) return maps;
-        if (!maps.categoryMap.has(materialCode)) {
-          maps.categoryMap.set(materialCode, {
-            salesLine: record.salesLine || "",
-            salesSeries: record.salesSeries || "",
-            purchaseGroup: record.purchaseGroup || "",
-          });
-        }
-        if (!maps.purchaseDetailMap.has(materialCode)) {
-          maps.purchaseDetailMap.set(materialCode, {
-            supplier: record.supplier || "",
-            supplierShort: record.supplierShort || record.supplier || "",
-            orderUser: record.orderUser || "\u672a\u7ef4\u62a4",
-          });
-        }
-        return maps;
-      },
-      emptyMaps
-    );
-  } catch (error) {
-    console.warn("prebuilt delivery fallback unavailable", error);
-    return emptyMaps;
-  }
 }
 
 async function readCategoryDimension(file) {
