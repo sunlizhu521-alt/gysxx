@@ -159,8 +159,10 @@ async function applyAllSlots() {
 }
 
 async function deleteSlot(slotId) {
-  libraryState.hiddenSlots.add(slotId);
-  renderLibrary();
+  const db = await openLibraryDb();
+  await deleteRecord(db, slotId);
+  db.close();
+  await refreshLibrary();
 }
 
 async function refreshLibrary() {
@@ -184,6 +186,7 @@ async function purgeDeprecatedSharedRecords(db) {
 
 function isDeprecatedSharedRecord(record) {
   if (record.pendingFile) return false;
+  if (isLegacySlotRecord(record, "dimension-3", 923760, "2026-06-05T00:21:40+00:00")) return true;
   return deprecatedSharedRecords.some(
     (deprecatedRecord) =>
       record.id === deprecatedRecord.id &&
@@ -191,6 +194,14 @@ function isDeprecatedSharedRecord(record) {
       Number(record.size || 0) === deprecatedRecord.size &&
       record.savedAt === deprecatedRecord.savedAt
   );
+}
+
+function isLegacySlotRecord(record, id, size, cutoffSavedAt) {
+  if (record.id !== id) return false;
+  if (Number(record.size || 0) !== size) return false;
+  const savedAt = Date.parse(record.savedAt || "");
+  const cutoff = Date.parse(cutoffSavedAt);
+  return Number.isFinite(savedAt) && Number.isFinite(cutoff) && savedAt <= cutoff;
 }
 
 function normalizeRecord(record) {
