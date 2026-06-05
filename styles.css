@@ -483,29 +483,9 @@ select {
   border-top-width: 3px;
 }
 
-.delivery-dashboard .metric strong {
-  margin: 5px 0 3px;
-  font-size: 24px;
-}
-
-.delivery-dashboard .metric span,
-.delivery-dashboard .metric small {
-  font-size: 12px;
-}
-
 .delivery-dashboard .panel-heading {
   gap: 10px;
   margin-bottom: 10px;
-}
-
-.delivery-dashboard .panel-heading h2 {
-  margin: 2px 0 0;
-  font-size: 17px;
-}
-
-.delivery-dashboard .eyebrow {
-  margin-bottom: 2px;
-  font-size: 10px;
 }
 
 .delivery-heading-actions button {
@@ -540,9 +520,9 @@ select {
 
 .delivery-table th,
 .delivery-table td {
-  padding: 7px 6px;
-  font-size: 11.5px;
-  line-height: 1.25;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .supplier-table {
