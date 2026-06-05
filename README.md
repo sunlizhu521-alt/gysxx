@@ -25,11 +25,15 @@
 
 发布到 GitHub Pages 后，打开仓库的 Pages 地址即可访问看板。
 
-## 固定线上文件库
+## 线上分享与本地文件库
 
-同事在不同电脑打开 GitHub Pages 时，不能读取你本机浏览器 IndexedDB 里的文件；必须读取仓库里的 `data/shared-library.json` 共享数据包。
+同事在不同电脑打开 GitHub Pages 时，不能读取你本机浏览器 IndexedDB 里的文件。当前分享方案是：
 
-固定发布流程：
+- 采购分工信息、供应商交付信息默认读取仓库里的轻量看板数据 JSON，打开链接就有内容。
+- 文件库更新页面不预置原始 Excel 文件，同事进入后按自己电脑本地上传、替换、确认应用刷新。
+- 同事上传后的文件只保存在自己浏览器本地，不会改变其他同事电脑的数据，也不会改变 GitHub 链接。
+
+如果需要重新生成轻量看板数据，先用固定源文件生成数据，再提交到 GitHub：
 
 ```powershell
 cd D:\Codex\供应链钉钉文档信息库
@@ -39,7 +43,7 @@ git commit -m "Publish latest library data"
 git push origin main
 ```
 
-固定源文件路径维护在 `data/library-source-files.json`。以后只要把最新 Excel 覆盖到这些固定路径，再执行上面的发布流程，同事打开链接就会读取线上最新文件库。
+固定源文件路径维护在 `data/library-source-files.json`。发布给同事前，可以清空 `data/shared-library.json`，避免原始 Excel 文件随文件库自动导入。
 
 如果浏览器因本地安全策略限制 `fetch` 读取 JSON，可在项目目录启动一个本地静态服务：
 

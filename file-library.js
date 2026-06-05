@@ -23,6 +23,15 @@ const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
   name: dimensionNames[index],
 }));
 
+const deprecatedSharedRecords = [
+  { id: "dimension-1", name: "Dim-YL医疗器械商品分类-2026年整理版.xlsx", size: 2194279, savedAt: "2026-06-02T23:31:33+00:00" },
+  { id: "dimension-2", name: "Dim-仓库_金蝶、旺店通、领星-2026年整理版.xlsx", size: 250823, savedAt: "2026-06-04T08:34:08+00:00" },
+  { id: "dimension-3", name: "Dim-仓库与物料对照表-2026年整理版.xlsx", size: 923760, savedAt: "2026-06-05T00:21:40+00:00" },
+  { id: "dimension-4", name: "Dim-店铺名称汇总（金蝶&领星&简称）2026年整理版.xlsx", size: 79457, savedAt: "2026-05-27T06:51:34+00:00" },
+  { id: "dimension-5", name: "Dim-客户与物料对照表-2026年整理版.xlsx", size: 510826, savedAt: "2026-06-01T22:23:15+00:00" },
+  { id: "dimension-6", name: "Dim-采购部分工明细.xlsx", size: 75507, savedAt: "2026-06-04T21:24:44+00:00" },
+];
+
 const libraryState = {
   files: new Map(),
   hiddenSlots: new Set(),
@@ -44,9 +53,6 @@ const libraryEls = {
 
 async function initLibrary() {
   bindLibraryEvents();
-  if (window.ensureSharedLibraryLoaded) {
-    await window.ensureSharedLibraryLoaded();
-  }
   await refreshLibrary();
 }
 
@@ -159,6 +165,7 @@ async function deleteSlot(slotId) {
 
 async function refreshLibrary() {
   const db = await openLibraryDb();
+  await purgeDeprecatedSharedRecords(db);
   const records = await getAllRecords(db);
   db.close();
   const slotIds = new Set(slots.map((slot) => slot.id));
@@ -167,6 +174,23 @@ async function refreshLibrary() {
   );
   libraryState.hiddenSlots.clear();
   renderLibrary();
+}
+
+async function purgeDeprecatedSharedRecords(db) {
+  const records = await getAllRecords(db);
+  const cleanupRecords = records.filter(isDeprecatedSharedRecord);
+  await Promise.all(cleanupRecords.map((record) => deleteRecord(db, record.id)));
+}
+
+function isDeprecatedSharedRecord(record) {
+  if (record.pendingFile) return false;
+  return deprecatedSharedRecords.some(
+    (deprecatedRecord) =>
+      record.id === deprecatedRecord.id &&
+      record.name === deprecatedRecord.name &&
+      Number(record.size || 0) === deprecatedRecord.size &&
+      record.savedAt === deprecatedRecord.savedAt
+  );
 }
 
 function normalizeRecord(record) {

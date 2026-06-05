@@ -23,6 +23,10 @@ const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
   name: factNames[index],
 }));
 
+const deprecatedSharedRecords = [
+  { id: "fact-1", name: "Fac-采购订单跟进表.xlsx", size: 804971, savedAt: "2026-06-04T05:43:46+00:00" },
+];
+
 const libraryState = {
   files: new Map(),
   hiddenSlots: new Set(),
@@ -44,9 +48,6 @@ const libraryEls = {
 
 async function initLibrary() {
   bindLibraryEvents();
-  if (window.ensureSharedLibraryLoaded) {
-    await window.ensureSharedLibraryLoaded();
-  }
   await refreshLibrary();
 }
 
@@ -159,6 +160,7 @@ async function deleteSlot(slotId) {
 
 async function refreshLibrary() {
   const db = await openLibraryDb();
+  await purgeDeprecatedSharedRecords(db);
   const records = await getAllRecords(db);
   db.close();
   const slotIds = new Set(slots.map((slot) => slot.id));
@@ -167,6 +169,23 @@ async function refreshLibrary() {
   );
   libraryState.hiddenSlots.clear();
   renderLibrary();
+}
+
+async function purgeDeprecatedSharedRecords(db) {
+  const records = await getAllRecords(db);
+  const cleanupRecords = records.filter(isDeprecatedSharedRecord);
+  await Promise.all(cleanupRecords.map((record) => deleteRecord(db, record.id)));
+}
+
+function isDeprecatedSharedRecord(record) {
+  if (record.pendingFile) return false;
+  return deprecatedSharedRecords.some(
+    (deprecatedRecord) =>
+      record.id === deprecatedRecord.id &&
+      record.name === deprecatedRecord.name &&
+      Number(record.size || 0) === deprecatedRecord.size &&
+      record.savedAt === deprecatedRecord.savedAt
+  );
 }
 
 function normalizeRecord(record) {
@@ -338,6 +357,10 @@ function putRecord(db, record) {
 
 function getAllRecords(db) {
   return runStoreRequest(db, "readonly", (store) => store.getAll());
+}
+
+function deleteRecord(db, key) {
+  return runStoreRequest(db, "readwrite", (store) => store.delete(key));
 }
 
 function runStoreRequest(db, mode, createRequest) {
