@@ -14,9 +14,11 @@ const deliveryState = {
   filtered: [],
   categoryMap: new Map(),
   purchaseDetailMap: new Map(),
+  selectedFilters: {},
 };
 
 const deliveryEls = {
+  filterBar: document.querySelector("#deliveryFilterBar"),
   businessUnitFilter: document.querySelector("#businessUnitFilter"),
   purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
@@ -35,6 +37,26 @@ const deliveryEls = {
   state: document.querySelector("#deliveryState"),
   sourceNote: document.querySelector("#deliverySourceNote"),
 };
+
+const deliveryFilterConfigs = [
+  { key: "businessUnit", element: deliveryEls.businessUnitFilter, label: "\u5168\u90e8\u4e8b\u4e1a\u90e8", field: "businessUnit" },
+  { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
+  { key: "salesLine", element: deliveryEls.salesLineFilter, label: "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf", field: "salesLine" },
+  { key: "salesSeries", element: deliveryEls.salesSeriesFilter, label: "\u5168\u90e8\u9500\u552e\u7cfb\u5217", field: "salesSeries" },
+  { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
+  { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
+  { key: "dateRange", element: deliveryEls.dateFilter, label: "\u5168\u90e8\u65f6\u95f4", field: null, staticOptions: [] },
+  {
+    key: "stockAge",
+    element: deliveryEls.stockAgeFilter,
+    label: "\u5168\u90e8\u5e93\u9f84",
+    field: null,
+    staticOptions: [
+      { value: "over60", label: "\u8d8560\u5929" },
+      { value: "notOver60", label: "\u672a\u8d8560\u5929" },
+    ],
+  },
+];
 
 const columnAliases = {
   materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
@@ -61,26 +83,37 @@ async function initDeliveryDashboard() {
 }
 
 function bindDeliveryEvents() {
-  [
-    deliveryEls.businessUnitFilter,
-    deliveryEls.purchaseGroupFilter,
-    deliveryEls.salesLineFilter,
-    deliveryEls.salesSeriesFilter,
-    deliveryEls.supplierShortFilter,
-    deliveryEls.orderUserFilter,
-    deliveryEls.dateFilter,
-    deliveryEls.stockAgeFilter,
-  ].forEach((select) => select.addEventListener("input", applyDeliveryFilters));
+  deliveryFilterConfigs.forEach((config) => {
+    deliveryState.selectedFilters[config.key] = new Set();
+    renderFilterShell(config);
+  });
+
+  deliveryEls.filterBar.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-filter-toggle]");
+    if (toggle) {
+      const key = toggle.dataset.filterToggle;
+      closeOtherFilterMenus(key);
+      deliveryFilterConfigs.find((config) => config.key === key)?.element.classList.toggle("open");
+      return;
+    }
+
+    const option = event.target.closest("[data-filter-option]");
+    if (option) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleFilterOption(option.dataset.filterKey, option.dataset.filterOption);
+      applyDeliveryFilters();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#deliveryFilterBar")) {
+      closeOtherFilterMenus();
+    }
+  });
 
   deliveryEls.resetButton.addEventListener("click", () => {
-    deliveryEls.businessUnitFilter.value = "all";
-    deliveryEls.purchaseGroupFilter.value = "all";
-    deliveryEls.salesLineFilter.value = "all";
-    deliveryEls.salesSeriesFilter.value = "all";
-    deliveryEls.supplierShortFilter.value = "all";
-    deliveryEls.orderUserFilter.value = "all";
-    deliveryEls.dateFilter.value = "all";
-    deliveryEls.stockAgeFilter.value = "all";
+    deliveryFilterConfigs.forEach((config) => deliveryState.selectedFilters[config.key].clear());
     applyDeliveryFilters();
   });
 
@@ -316,108 +349,118 @@ function enrichDeliveryRecords(records, categoryMap, purchaseDetailMap = new Map
 }
 
 function getDeliveryFilterValues() {
-  return {
-    businessUnit: deliveryEls.businessUnitFilter.value,
-    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
-    salesLine: deliveryEls.salesLineFilter.value,
-    salesSeries: deliveryEls.salesSeriesFilter.value,
-    supplierShort: deliveryEls.supplierShortFilter.value,
-    orderUser: deliveryEls.orderUserFilter.value,
-    dateRange: deliveryEls.dateFilter.value,
-    stockAge: deliveryEls.stockAgeFilter.value,
-  };
+  return Object.fromEntries(
+    deliveryFilterConfigs.map((config) => [config.key, [...(deliveryState.selectedFilters[config.key] || new Set())]])
+  );
 }
 
 function updateFilterOptions() {
   const filters = getDeliveryFilterValues();
-  syncSelect(
-    deliveryEls.businessUnitFilter,
-    uniqueValues(filterRecords({ ...filters, businessUnit: "all" }), "businessUnit"),
-    "\u5168\u90e8\u4e8b\u4e1a\u90e8",
-    filters.businessUnit
-  );
-  syncSelect(
-    deliveryEls.purchaseGroupFilter,
-    sortPurchaseGroups(uniqueValues(filterRecords({ ...getDeliveryFilterValues(), purchaseGroup: "all" }), "purchaseGroup")),
-    "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4",
-    filters.purchaseGroup
-  );
-  syncSelect(
-    deliveryEls.salesLineFilter,
-    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), salesLine: "all" }), "salesLine"),
-    "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf",
-    filters.salesLine
-  );
-  syncSelect(
-    deliveryEls.salesSeriesFilter,
-    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), salesSeries: "all" }), "salesSeries"),
-    "\u5168\u90e8\u9500\u552e\u7cfb\u5217",
-    filters.salesSeries
-  );
-  syncSelect(
-    deliveryEls.supplierShortFilter,
-    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), supplierShort: "all" }), "supplierShort"),
-    "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0",
-    filters.supplierShort
-  );
-  syncSelect(
-    deliveryEls.orderUserFilter,
-    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), orderUser: "all" }), "orderUser"),
-    "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba",
-    filters.orderUser
-  );
-  syncSelect(deliveryEls.dateFilter, [], "\u5168\u90e8\u65f6\u95f4", filters.dateRange);
-  syncSelect(
-    deliveryEls.stockAgeFilter,
-    [
-      { value: "over60", label: "\u8d8560\u5929" },
-      { value: "notOver60", label: "\u672a\u8d8560\u5929" },
-    ].filter((option) => filterRecords({ ...getDeliveryFilterValues(), stockAge: option.value }).length),
-    "\u5168\u90e8\u5e93\u9f84",
-    filters.stockAge
-  );
+  deliveryFilterConfigs.forEach((config) => {
+    const optionItems = getFilterOptionItems(config, filters);
+    syncMultiFilter(config, optionItems, filters[config.key] || []);
+  });
 }
 
-function syncSelect(select, values, label, preferredValue = select.value) {
-  select.innerHTML = `<option value="all">${label}</option>`;
-  values.forEach((value) => {
-    const option = document.createElement("option");
-    option.value = typeof value === "object" ? value.value : value;
-    option.textContent = typeof value === "object" ? value.label : value;
-    select.appendChild(option);
+function getFilterOptionItems(config, filters) {
+  if (config.staticOptions) {
+    return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
+  }
+  const values = uniqueValues(filterRecords({ ...filters, [config.key]: [] }), config.field);
+  const sortedValues = config.sort ? config.sort(values) : values;
+  return sortedValues.map((value) => ({ value, label: value }));
+}
+
+function renderFilterShell(config) {
+  config.element.innerHTML = `
+    <button class="multi-filter-button" type="button" data-filter-toggle="${config.key}">
+      <span>${config.label}</span>
+      <i aria-hidden="true">\u25be</i>
+    </button>
+    <div class="multi-filter-menu" role="menu"></div>
+  `;
+}
+
+function syncMultiFilter(config, options, selectedValues) {
+  const availableValues = new Set(options.map((option) => option.value));
+  const selectedSet = deliveryState.selectedFilters[config.key] || new Set();
+  [...selectedSet].forEach((value) => {
+    if (!availableValues.has(value)) selectedSet.delete(value);
   });
-  const optionValues = values.map((value) => (typeof value === "object" ? value.value : value));
-  select.value = optionValues.includes(preferredValue) ? preferredValue : "all";
+  deliveryState.selectedFilters[config.key] = selectedSet;
+
+  const button = config.element.querySelector(".multi-filter-button span");
+  const menu = config.element.querySelector(".multi-filter-menu");
+  button.textContent = getFilterButtonLabel(config, [...selectedSet]);
+  menu.innerHTML = `
+    <label class="multi-filter-option ${selectedSet.size ? "" : "selected"}" data-filter-key="${config.key}" data-filter-option="all">
+      <input type="checkbox" ${selectedSet.size ? "" : "checked"} />
+      <span>${config.label}</span>
+    </label>
+    ${options
+      .map(
+        (option) => `
+          <label class="multi-filter-option ${selectedSet.has(option.value) ? "selected" : ""}" data-filter-key="${config.key}" data-filter-option="${escapeAttribute(option.value)}">
+            <input type="checkbox" ${selectedSet.has(option.value) ? "checked" : ""} />
+            <span>${escapeHtml(option.label)}</span>
+          </label>`
+      )
+      .join("")}
+  `;
+}
+
+function getFilterButtonLabel(config, selectedValues) {
+  if (!selectedValues.length) return config.label;
+  if (selectedValues.length === 1) return selectedValues[0];
+  if (selectedValues.length === 2) return selectedValues.join("\u3001");
+  return `\u5df2\u9009${selectedValues.length}\u9879`;
+}
+
+function toggleFilterOption(key, value) {
+  const selectedSet = deliveryState.selectedFilters[key] || new Set();
+  if (value === "all") {
+    selectedSet.clear();
+  } else if (selectedSet.has(value)) {
+    selectedSet.delete(value);
+  } else {
+    selectedSet.add(value);
+  }
+  deliveryState.selectedFilters[key] = selectedSet;
+}
+
+function closeOtherFilterMenus(activeKey = "") {
+  deliveryFilterConfigs.forEach((config) => {
+    if (config.key !== activeKey) config.element.classList.remove("open");
+  });
 }
 
 function applyDeliveryFilters() {
   updateFilterOptions();
-  deliveryState.filtered = filterRecords({
-    businessUnit: deliveryEls.businessUnitFilter.value,
-    purchaseGroup: deliveryEls.purchaseGroupFilter.value,
-    salesLine: deliveryEls.salesLineFilter.value,
-    salesSeries: deliveryEls.salesSeriesFilter.value,
-    supplierShort: deliveryEls.supplierShortFilter.value,
-    orderUser: deliveryEls.orderUserFilter.value,
-    dateRange: deliveryEls.dateFilter.value,
-    stockAge: deliveryEls.stockAgeFilter.value,
-  });
+  deliveryState.filtered = filterRecords(getDeliveryFilterValues());
   renderDelivery();
 }
 
 function filterRecords(filters) {
   return deliveryState.records.filter(
     (record) =>
-      (!filters.businessUnit || filters.businessUnit === "all" || record.businessUnit === filters.businessUnit) &&
-      (!filters.purchaseGroup || filters.purchaseGroup === "all" || record.purchaseGroup === filters.purchaseGroup) &&
-      (!filters.salesLine || filters.salesLine === "all" || record.salesLine === filters.salesLine) &&
-      (!filters.salesSeries || filters.salesSeries === "all" || record.salesSeries === filters.salesSeries) &&
-      (!filters.supplierShort || filters.supplierShort === "all" || record.supplierShort === filters.supplierShort) &&
-      (!filters.orderUser || filters.orderUser === "all" || record.orderUser === filters.orderUser) &&
-      (!filters.stockAge ||
-        filters.stockAge === "all" ||
-        (filters.stockAge === "over60" && record.isOver60) ||
-        (filters.stockAge === "notOver60" && !record.isOver60))
+      matchesFilter(record.businessUnit, filters.businessUnit) &&
+      matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
+      matchesFilter(record.salesLine, filters.salesLine) &&
+      matchesFilter(record.salesSeries, filters.salesSeries) &&
+      matchesFilter(record.supplierShort, filters.supplierShort) &&
+      matchesFilter(record.orderUser, filters.orderUser) &&
+      matchesStockAgeFilter(record, filters.stockAge)
+  );
+}
+
+function matchesFilter(value, selectedValues = []) {
+  return !selectedValues?.length || selectedValues.includes(value);
+}
+
+function matchesStockAgeFilter(record, selectedValues = []) {
+  if (!selectedValues?.length) return true;
+  return selectedValues.some(
+    (value) => (value === "over60" && record.isOver60) || (value === "notOver60" && !record.isOver60)
   );
 }
 
@@ -477,21 +520,14 @@ function downloadDeliveryDetails() {
 
 function buildDeliveryDownloadName() {
   const parts = [
-    "供应商未交付明细",
-    selectedText(deliveryEls.businessUnitFilter),
-    selectedText(deliveryEls.purchaseGroupFilter),
-    selectedText(deliveryEls.salesLineFilter),
-    selectedText(deliveryEls.salesSeriesFilter),
-    selectedText(deliveryEls.supplierShortFilter),
-    selectedText(deliveryEls.orderUserFilter),
-    selectedText(deliveryEls.dateFilter),
-    selectedText(deliveryEls.stockAgeFilter),
+    "????????????",
+    ...deliveryFilterConfigs.map((config) => selectedText(config)),
   ];
   return parts.map(sanitizeFileNamePart).filter(Boolean).join("_");
 }
 
-function selectedText(select) {
-  return select.options[select.selectedIndex]?.textContent?.trim() || "";
+function selectedText(config) {
+  return getFilterButtonLabel(config, [...(deliveryState.selectedFilters[config.key] || new Set())]);
 }
 
 function sanitizeFileNamePart(value) {
@@ -499,6 +535,10 @@ function sanitizeFileNamePart(value) {
     .trim()
     .replace(/[\\/:*?"<>|]/g, "-")
     .replace(/\s+/g, "");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
 function createHeaderMap(headers) {

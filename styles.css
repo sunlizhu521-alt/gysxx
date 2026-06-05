@@ -346,14 +346,114 @@ select {
 
 .delivery-filter-bar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(112px, 1fr));
+  grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 8px;
+  align-items: start;
 }
 
-.delivery-filter-bar select {
+.multi-filter {
+  position: relative;
   min-width: 0;
-  font-size: 13px;
-  padding: 0 8px;
+}
+
+.multi-filter-button {
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  background: #fff;
+  color: #172033;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.multi-filter-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.multi-filter-button i {
+  color: #6b7280;
+  font-style: normal;
+  flex: 0 0 auto;
+}
+
+.multi-filter.open .multi-filter-button {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
+.multi-filter-menu {
+  display: none;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  width: min(260px, 84vw);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #d8e0ea;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.14);
+}
+
+.multi-filter.open .multi-filter-menu {
+  display: block;
+}
+
+.multi-filter-option {
+  min-height: 30px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #172033;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.multi-filter-option:hover {
+  background: #eef5ff;
+}
+
+.multi-filter-option input {
+  width: 14px;
+  height: 14px;
+  accent-color: #2f6fed;
+  flex: 0 0 auto;
+}
+
+.multi-filter-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .delivery-filter-bar {
+    grid-template-columns: repeat(4, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .delivery-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .delivery-heading-actions {

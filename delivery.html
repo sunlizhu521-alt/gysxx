@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>供应商交付信息 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260604-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -45,33 +45,15 @@
             </div>
             <button id="deliveryResetButton" type="button">重置筛选</button>
           </div>
-          <div class="delivery-filter-bar">
-            <select id="businessUnitFilter" aria-label="按事业部筛选">
-              <option value="all">全部事业部</option>
-            </select>
-            <select id="purchaseGroupFilter" aria-label="按采购分组筛选">
-              <option value="all">全部采购分组</option>
-            </select>
-            <select id="salesLineFilter" aria-label="按销售产品线筛选">
-              <option value="all">全部销售产品线</option>
-            </select>
-            <select id="salesSeriesFilter" aria-label="按销售系列筛选">
-              <option value="all">全部销售系列</option>
-            </select>
-            <select id="supplierShortFilter" aria-label="按供应商简称筛选">
-              <option value="all">全部供应商简称</option>
-            </select>
-            <select id="orderUserFilter" aria-label="按采购下单人筛选">
-              <option value="all">全部采购下单人</option>
-            </select>
-            <select id="dateFilter" aria-label="按时间筛选">
-              <option value="all">全部时间</option>
-            </select>
-            <select id="stockAgeFilter" aria-label="按超60天筛选">
-              <option value="all">全部库龄</option>
-              <option value="over60">超60天</option>
-              <option value="notOver60">未超60天</option>
-            </select>
+          <div class="delivery-filter-bar" id="deliveryFilterBar">
+            <div class="multi-filter" id="businessUnitFilter" data-filter-key="businessUnit"></div>
+            <div class="multi-filter" id="purchaseGroupFilter" data-filter-key="purchaseGroup"></div>
+            <div class="multi-filter" id="salesLineFilter" data-filter-key="salesLine"></div>
+            <div class="multi-filter" id="salesSeriesFilter" data-filter-key="salesSeries"></div>
+            <div class="multi-filter" id="supplierShortFilter" data-filter-key="supplierShort"></div>
+            <div class="multi-filter" id="orderUserFilter" data-filter-key="orderUser"></div>
+            <div class="multi-filter" id="dateFilter" data-filter-key="dateRange"></div>
+            <div class="multi-filter" id="stockAgeFilter" data-filter-key="stockAge"></div>
           </div>
         </section>
 
@@ -131,6 +113,6 @@
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260605-1"></script>
-    <script src="./delivery.js?v=20260605-6"></script>
+    <script src="./delivery.js?v=20260605-7"></script>
   </body>
 </html>
