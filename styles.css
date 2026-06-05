@@ -918,7 +918,7 @@ select {
 
 .admin-links {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -934,6 +934,11 @@ select {
   color: var(--muted);
   line-height: 1.7;
   margin: 10px 0 0;
+}
+
+.cache-clear-card {
+  border-color: #fecaca;
+  background: #fffafa;
 }
 
 .admin-reference-panel {
@@ -1402,7 +1407,8 @@ th {
   .toolbar,
   .metrics-grid,
   .nav-list,
-  .upload-actions {
+  .upload-actions,
+  .admin-links {
     grid-template-columns: 1fr;
   }
 

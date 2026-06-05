@@ -2,6 +2,7 @@ const ADMIN_KEY = "3.1415926";
 const ADMIN_SESSION_KEY = "supply-chain-admin-unlocked";
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
+const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 
 const referenceSlots = [
   { store: "dimension-files", id: "dimension-1", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-YL\u533b\u7597\u5668\u68b0\u5546\u54c1\u5206\u7c7b" },
@@ -30,6 +31,7 @@ const adminEls = {
   state: document.querySelector("#adminState"),
   referenceState: document.querySelector("#adminReferenceState"),
   referenceRows: document.querySelector("#adminReferenceRows"),
+  clearCacheButton: document.querySelector("#clearLibraryCacheButton"),
 };
 
 function unlockAdmin() {
@@ -64,6 +66,26 @@ async function loadReferenceTimes() {
     console.warn("reference table unavailable", error);
     adminEls.referenceState.textContent = "\u8bfb\u53d6\u5931\u8d25";
     adminEls.referenceRows.innerHTML = `<tr><td colspan="7" class="empty-table-cell">\u6682\u65e0\u6587\u4ef6\u5e93\u8bb0\u5f55</td></tr>`;
+  }
+}
+
+async function clearLibraryCache() {
+  const confirmed = window.confirm("确认清除当前浏览器里的所有文件库缓存吗？清除后需要重新上传并确认应用刷新。");
+  if (!confirmed) return;
+
+  adminEls.clearCacheButton.disabled = true;
+  adminEls.referenceState.textContent = "清除中";
+  try {
+    await deleteLibraryDatabase();
+    LIBRARY_UNLOCK_KEYS.forEach((key) => localStorage.removeItem(key));
+    adminEls.referenceState.textContent = "已清除缓存";
+    adminEls.referenceRows.innerHTML = `<tr><td colspan="7" class="empty-table-cell">文件库缓存已清除，请重新上传文件</td></tr>`;
+    await loadReferenceTimes();
+  } catch (error) {
+    console.warn("clear library cache failed", error);
+    adminEls.referenceState.textContent = "清除失败";
+  } finally {
+    adminEls.clearCacheButton.disabled = false;
   }
 }
 
@@ -108,6 +130,15 @@ function getRecord(db, storeName, key) {
   });
 }
 
+function deleteLibraryDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error("文件库正在被其他页面占用，请关闭其他看板页面后重试"));
+  });
+}
+
 function formatDateTime(value) {
   if (!value) return "--";
   const date = new Date(value);
@@ -140,6 +171,9 @@ if (adminEls.keyInput) {
   adminEls.keyInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") unlockAdmin();
   });
+}
+if (adminEls.clearCacheButton) {
+  adminEls.clearCacheButton.addEventListener("click", clearLibraryCache);
 }
 
 sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
