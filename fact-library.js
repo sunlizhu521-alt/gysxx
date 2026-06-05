@@ -6,6 +6,7 @@ const STORE_NAME = "fact-files";
 const SLOT_COUNT = 8;
 const MAINTAINER_KEY = "3.1415926";
 const UNLOCK_KEY = "fact-library-key-unlocked-v2";
+const LOCAL_LIBRARY_SOURCE = "local-upload";
 
 const factNames = [
   "采购订单跟进表",
@@ -92,6 +93,7 @@ async function saveFile(slotId, file) {
     pendingTypeLabel: getFileTypeLabel(file),
     pendingRefreshMonth: getMonthFromDate(savedAt),
     pendingSavedAt: savedAt,
+    pendingLibrarySource: LOCAL_LIBRARY_SOURCE,
   };
   const db = await openLibraryDb();
   await putRecord(db, record);
@@ -112,11 +114,13 @@ async function applySlot(slotId) {
         typeLabel: record.pendingTypeLabel,
         refreshMonth: record.pendingRefreshMonth,
         savedAt: record.pendingSavedAt,
+        librarySource: LOCAL_LIBRARY_SOURCE,
         applied: true,
         appliedAt,
       })
     : {
         ...record,
+        librarySource: record.librarySource || LOCAL_LIBRARY_SOURCE,
         applied: true,
         appliedAt,
       };
@@ -143,6 +147,7 @@ async function applyAllSlots() {
           typeLabel: record.pendingTypeLabel,
           refreshMonth: record.pendingRefreshMonth,
           savedAt: record.pendingSavedAt,
+          librarySource: LOCAL_LIBRARY_SOURCE,
           applied: true,
           appliedAt,
         })
@@ -181,6 +186,7 @@ async function purgeDeprecatedSharedRecords(db) {
 
 function isDeprecatedSharedRecord(record) {
   if (record.pendingFile) return false;
+  if (record.librarySource === LOCAL_LIBRARY_SOURCE) return false;
   if (isLegacySlotRecord(record, "fact-1", 804971, "2026-06-04T05:43:46+00:00")) return true;
   return deprecatedSharedRecords.some(
     (deprecatedRecord) =>
@@ -339,6 +345,7 @@ function clearPendingFields(record) {
   delete nextRecord.pendingTypeLabel;
   delete nextRecord.pendingRefreshMonth;
   delete nextRecord.pendingSavedAt;
+  delete nextRecord.pendingLibrarySource;
   return nextRecord;
 }
 
