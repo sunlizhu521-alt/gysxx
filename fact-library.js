@@ -3,26 +3,13 @@ const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const STORE_NAME = "fact-files";
-const SLOT_COUNT = 8;
 const MAINTAINER_KEY = "3.1415926";
 const UNLOCK_KEY = "fact-library-key-unlocked-v2";
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 
-const factNames = [
-  "采购订单跟进表",
-  "备货发货事实表 2",
-  "备货发货事实表 3",
-  "备货发货事实表 4",
-  "备货发货事实表 5",
-  "备货发货事实表 6",
-  "备货发货事实表 7",
-  "备货发货事实表 8",
+const slots = [
+  { id: "fact-1", name: "Fac-\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868" },
 ];
-
-const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
-  id: `fact-${index + 1}`,
-  name: factNames[index],
-}));
 
 const deprecatedSharedRecords = [
   { id: "fact-1", name: "Fac-采购订单跟进表.xlsx", size: 804971, savedAt: "2026-06-04T05:43:46+00:00" },

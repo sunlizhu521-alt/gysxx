@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>&#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</title>
-    <link rel="stylesheet" href="./styles.css?v=20260605-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260605-6" />
   </head>
   <body>
     <div class="app-shell">
@@ -37,33 +37,15 @@
           </div>
         </header>
 
-        <section class="admin-links" id="adminLinks">
-          <article class="panel admin-link-card">
+        <section class="panel admin-library-panel">
+          <div class="panel-heading">
             <div>
-              <p class="eyebrow">Dimension Library</p>
-              <h2>&#32500;&#24230;&#34920;&#25991;&#20214;&#24211;</h2>
-              <p>&#19978;&#20256;&#25110;&#26367;&#25442;&#32500;&#24230;&#34920;</p>
-            </div>
-            <a class="primary-button admin-link-button" href="./file-library.html">&#36827;&#20837;</a>
-          </article>
-
-          <article class="panel admin-link-card">
-            <div>
-              <p class="eyebrow">Fact Library</p>
-              <h2>&#22791;&#36135;&#20107;&#23454;&#34920;&#24211;</h2>
-              <p>&#19978;&#20256;&#25110;&#26367;&#25442;&#20107;&#23454;&#34920;</p>
-            </div>
-            <a class="primary-button admin-link-button" href="./fact-library.html">&#36827;&#20837;</a>
-          </article>
-
-          <article class="panel admin-link-card cache-clear-card">
-            <div>
-              <p class="eyebrow">Local Cache</p>
-              <h2>&#19968;&#38190;&#28165;&#38500;&#32531;&#23384;</h2>
-              <p>&#21024;&#38500;&#26412;&#22320;&#24050;&#19978;&#20256;&#25991;&#20214;</p>
+              <p class="eyebrow">Local Files</p>
+              <h2>&#25991;&#20214;&#19978;&#20256;&#19982;&#24212;&#29992;</h2>
             </div>
             <button id="clearLibraryCacheButton" class="danger-button admin-link-button" type="button">&#19968;&#38190;&#28165;&#38500;&#32531;&#23384;</button>
-          </article>
+          </div>
+          <div class="admin-library-grid" id="adminLibrarySlots"></div>
         </section>
 
         <section class="panel admin-reference-panel">
@@ -96,6 +78,6 @@
       </main>
     </div>
 
-    <script src="./admin.js?v=20260605-2"></script>
+    <script src="./admin.js?v=20260605-3"></script>
   </body>
 </html>

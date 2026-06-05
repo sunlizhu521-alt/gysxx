@@ -1,92 +1,195 @@
-const ADMIN_KEY = "3.1415926";
-const ADMIN_SESSION_KEY = "supply-chain-admin-unlocked";
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
+const LOCAL_LIBRARY_SOURCE = "local-upload";
 const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 
-const referenceSlots = [
-  { store: "dimension-files", id: "dimension-1", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-YL\u533b\u7597\u5668\u68b0\u5546\u54c1\u5206\u7c7b" },
-  { store: "dimension-files", id: "dimension-2", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-\u4ed3\u5e93_\u91d1\u8776\u3001\u65fa\u5e97\u901a\u3001\u9886\u661f" },
-  { store: "dimension-files", id: "dimension-3", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-\u4ed3\u5e93\u4e0e\u7269\u6599\u5bf9\u7167\u8868" },
-  { store: "dimension-files", id: "dimension-4", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-\u5e97\u94fa\u540d\u79f0\u6c47\u603b" },
-  { store: "dimension-files", id: "dimension-5", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "Dim-\u5ba2\u6237\u4e0e\u7269\u6599\u5bf9\u7167\u8868" },
-  { store: "dimension-files", id: "dimension-6", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6" },
-  { store: "dimension-files", id: "dimension-7", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "\u7ef4\u5ea67" },
-  { store: "dimension-files", id: "dimension-8", library: "\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93", label: "\u7ef4\u5ea68" },
-  { store: "fact-files", id: "fact-1", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868" },
-  { store: "fact-files", id: "fact-2", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88682" },
-  { store: "fact-files", id: "fact-3", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88683" },
-  { store: "fact-files", id: "fact-4", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88684" },
-  { store: "fact-files", id: "fact-5", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88685" },
-  { store: "fact-files", id: "fact-6", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88686" },
-  { store: "fact-files", id: "fact-7", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88687" },
-  { store: "fact-files", id: "fact-8", library: "\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93", label: "\u4e8b\u5b9e\u88688" },
+const librarySlots = [
+  {
+    store: "dimension-files",
+    id: "dimension-1",
+    library: "\u7ef4\u5ea6\u8868",
+    label: "Dim-YL\u533b\u7597\u5668\u68b0\u5546\u54c1\u5206\u7c7b",
+  },
+  {
+    store: "dimension-files",
+    id: "dimension-6",
+    library: "\u7ef4\u5ea6\u8868",
+    label: "Dim-\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6",
+  },
+  {
+    store: "fact-files",
+    id: "fact-1",
+    library: "\u4e8b\u5b9e\u8868",
+    label: "Fac-\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868",
+  },
 ];
 
 const adminEls = {
-  gatePanel: document.querySelector("#adminGatePanel"),
-  links: document.querySelector("#adminLinks"),
-  keyInput: document.querySelector("#adminKey"),
-  unlockButton: document.querySelector("#adminUnlockButton"),
-  state: document.querySelector("#adminState"),
+  slots: document.querySelector("#adminLibrarySlots"),
+  clearCacheButton: document.querySelector("#clearLibraryCacheButton"),
   referenceState: document.querySelector("#adminReferenceState"),
   referenceRows: document.querySelector("#adminReferenceRows"),
-  clearCacheButton: document.querySelector("#clearLibraryCacheButton"),
 };
 
-function unlockAdmin() {
-  const value = adminEls.keyInput.value.trim();
-  if (value !== ADMIN_KEY) {
-    adminEls.state.textContent = "\u79d8\u94a5\u9519\u8bef";
-    adminEls.keyInput.select();
-    return;
-  }
-  sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-  showAdminLinks();
-}
+const adminState = {
+  records: new Map(),
+};
 
-function showAdminLinks() {
-  if (adminEls.gatePanel) adminEls.gatePanel.classList.add("unlocked");
-  if (adminEls.links) adminEls.links.hidden = false;
-  if (adminEls.state) adminEls.state.textContent = "\u5df2\u9a8c\u8bc1";
-}
+function bindAdminEvents() {
+  adminEls.slots.addEventListener("change", async (event) => {
+    const input = event.target.closest("[data-admin-upload]");
+    if (!input) return;
+    await saveFile(input.dataset.adminUpload, input.files[0]);
+    input.value = "";
+  });
 
-async function loadReferenceTimes() {
-  try {
-    const db = await openAppDb();
-    const rows = [];
-    for (const slot of referenceSlots) {
-      const record = await getRecord(db, slot.store, slot.id);
-      rows.push(renderReferenceRow(slot, record));
+  adminEls.slots.addEventListener("click", async (event) => {
+    const applyButton = event.target.closest("[data-admin-apply]");
+    if (applyButton) {
+      await applySlot(applyButton.dataset.adminApply);
+      return;
     }
-    db.close();
-    adminEls.referenceRows.innerHTML = rows.join("");
-    adminEls.referenceState.textContent = "\u672c\u5730\u6587\u4ef6\u5e93";
-  } catch (error) {
-    console.warn("reference table unavailable", error);
-    adminEls.referenceState.textContent = "\u8bfb\u53d6\u5931\u8d25";
-    adminEls.referenceRows.innerHTML = `<tr><td colspan="7" class="empty-table-cell">\u6682\u65e0\u6587\u4ef6\u5e93\u8bb0\u5f55</td></tr>`;
-  }
+
+    const deleteButton = event.target.closest("[data-admin-delete]");
+    if (deleteButton) {
+      await deleteSlot(deleteButton.dataset.adminDelete);
+    }
+  });
+
+  adminEls.clearCacheButton.addEventListener("click", clearLibraryCache);
+}
+
+async function refreshAdmin() {
+  const db = await openAppDb();
+  const entries = await Promise.all(
+    librarySlots.map(async (slot) => [slot.id, await getRecord(db, slot.store, slot.id)])
+  );
+  db.close();
+  adminState.records = new Map(entries);
+  renderLibrarySlots();
+  renderReferenceRows();
+}
+
+async function saveFile(slotId, file) {
+  if (!file) return;
+  const slot = getSlot(slotId);
+  const savedAt = new Date().toISOString();
+  const existing = adminState.records.get(slotId) || { id: slotId };
+  const record = {
+    ...existing,
+    id: slotId,
+    pendingFile: file,
+    pendingName: file.name,
+    pendingSize: file.size,
+    pendingTypeLabel: getFileTypeLabel(file),
+    pendingRefreshMonth: getMonthFromDate(savedAt),
+    pendingSavedAt: savedAt,
+    pendingLibrarySource: LOCAL_LIBRARY_SOURCE,
+  };
+  const db = await openAppDb();
+  await putRecord(db, slot.store, record);
+  db.close();
+  await refreshAdmin();
+}
+
+async function applySlot(slotId) {
+  const slot = getSlot(slotId);
+  const record = adminState.records.get(slotId);
+  if (!record) return;
+  const appliedAt = new Date().toISOString();
+  const updatedRecord = record.pendingFile
+    ? clearPendingFields({
+        ...record,
+        file: record.pendingFile,
+        name: record.pendingName,
+        size: record.pendingSize,
+        typeLabel: record.pendingTypeLabel,
+        refreshMonth: record.pendingRefreshMonth,
+        savedAt: record.pendingSavedAt,
+        librarySource: LOCAL_LIBRARY_SOURCE,
+        applied: true,
+        appliedAt,
+      })
+    : {
+        ...record,
+        librarySource: record.librarySource || LOCAL_LIBRARY_SOURCE,
+        applied: true,
+        appliedAt,
+      };
+  const db = await openAppDb();
+  await putRecord(db, slot.store, updatedRecord);
+  db.close();
+  await refreshAdmin();
+}
+
+async function deleteSlot(slotId) {
+  const slot = getSlot(slotId);
+  const db = await openAppDb();
+  await deleteRecord(db, slot.store, slotId);
+  db.close();
+  await refreshAdmin();
 }
 
 async function clearLibraryCache() {
-  const confirmed = window.confirm("确认清除当前浏览器里的所有文件库缓存吗？清除后需要重新上传并确认应用刷新。");
+  const confirmed = window.confirm("\u786e\u8ba4\u6e05\u9664\u5f53\u524d\u6d4f\u89c8\u5668\u91cc\u7684\u6240\u6709\u6587\u4ef6\u5e93\u7f13\u5b58\u5417\uff1f\u6e05\u9664\u540e\u9700\u8981\u91cd\u65b0\u4e0a\u4f20\u5e76\u786e\u8ba4\u5e94\u7528\u5237\u65b0\u3002");
   if (!confirmed) return;
 
   adminEls.clearCacheButton.disabled = true;
-  adminEls.referenceState.textContent = "清除中";
+  adminEls.referenceState.textContent = "\u6e05\u9664\u4e2d";
   try {
     await deleteLibraryDatabase();
     LIBRARY_UNLOCK_KEYS.forEach((key) => localStorage.removeItem(key));
-    adminEls.referenceState.textContent = "已清除缓存";
-    adminEls.referenceRows.innerHTML = `<tr><td colspan="7" class="empty-table-cell">文件库缓存已清除，请重新上传文件</td></tr>`;
-    await loadReferenceTimes();
+    adminState.records = new Map();
+    renderLibrarySlots();
+    renderReferenceRows();
+    adminEls.referenceState.textContent = "\u5df2\u6e05\u9664\u7f13\u5b58";
   } catch (error) {
     console.warn("clear library cache failed", error);
-    adminEls.referenceState.textContent = "清除失败";
+    adminEls.referenceState.textContent = "\u6e05\u9664\u5931\u8d25";
   } finally {
     adminEls.clearCacheButton.disabled = false;
   }
+}
+
+function renderLibrarySlots() {
+  adminEls.slots.innerHTML = librarySlots.map(renderLibrarySlot).join("");
+}
+
+function renderLibrarySlot(slot) {
+  const record = adminState.records.get(slot.id);
+  const display = getDisplayRecord(record);
+  const isApplied = Boolean(record?.applied && !record.pendingFile);
+  const hasPending = Boolean(record?.pendingFile);
+  return `
+    <article class="admin-file-card ${isApplied ? "applied" : ""}">
+      <div class="admin-file-card-head">
+        <div>
+          <p class="eyebrow">${escapeHtml(slot.library)}</p>
+          <h2>${escapeHtml(slot.label)}</h2>
+        </div>
+        <span class="slot-status ${isApplied ? "applied" : "pending"}">${isApplied ? "\u5df2\u5f15\u7528" : hasPending ? "\u5f85\u5e94\u7528" : "\u672a\u4e0a\u4f20"}</span>
+      </div>
+      <div class="admin-file-meta">
+        <span>${escapeHtml(display?.name || "\u672a\u4e0a\u4f20\u6587\u4ef6")}</span>
+        <strong>${display ? `${escapeHtml(display.typeLabel || "\u6587\u4ef6")} / ${formatFileSize(display.size)}` : "--"}</strong>
+        <small>\u66f4\u65b0\uff1a${display ? formatDateTime(display.savedAt) : "--"}</small>
+      </div>
+      <div class="admin-file-actions">
+        <label class="admin-upload-button">
+          <input type="file" accept=".xlsx,.xls,.csv" data-admin-upload="${slot.id}" />
+          \u4e0a\u4f20/\u66ff\u6362
+        </label>
+        <button type="button" data-admin-apply="${slot.id}" ${hasPending || (record && !record.applied) ? "" : "disabled"}>\u786e\u8ba4\u5e94\u7528</button>
+        <button class="danger-button" type="button" data-admin-delete="${slot.id}" ${record ? "" : "disabled"}>\u5220\u9664</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderReferenceRows() {
+  const rows = librarySlots.map((slot) => renderReferenceRow(slot, adminState.records.get(slot.id)));
+  adminEls.referenceRows.innerHTML = rows.join("");
+  adminEls.referenceState.textContent = "\u672c\u5730\u6587\u4ef6\u5e93";
 }
 
 function renderReferenceRow(slot, record) {
@@ -98,10 +201,39 @@ function renderReferenceRow(slot, record) {
       <td>${escapeHtml(record?.name || "--")}</td>
       <td>${escapeHtml(record?.refreshMonth || "--")}</td>
       <td>${formatDateTime(record?.savedAt)}</td>
-      <td>${formatDateTime(record?.appliedAt || record?.savedAt)}</td>
+      <td>${formatDateTime(record?.appliedAt || "")}</td>
       <td><span class="slot-status ${applied ? "applied" : "pending"}">${applied ? "\u5df2\u5f15\u7528" : "\u672a\u5f15\u7528"}</span></td>
     </tr>
   `;
+}
+
+function getSlot(slotId) {
+  return librarySlots.find((slot) => slot.id === slotId);
+}
+
+function getDisplayRecord(record) {
+  if (!record) return null;
+  if (record.pendingFile) {
+    return {
+      name: record.pendingName,
+      size: record.pendingSize,
+      typeLabel: record.pendingTypeLabel,
+      savedAt: record.pendingSavedAt,
+    };
+  }
+  return record;
+}
+
+function clearPendingFields(record) {
+  const nextRecord = { ...record };
+  delete nextRecord.pendingFile;
+  delete nextRecord.pendingName;
+  delete nextRecord.pendingSize;
+  delete nextRecord.pendingTypeLabel;
+  delete nextRecord.pendingRefreshMonth;
+  delete nextRecord.pendingSavedAt;
+  delete nextRecord.pendingLibrarySource;
+  return nextRecord;
 }
 
 function openAppDb() {
@@ -121,9 +253,21 @@ function openAppDb() {
 }
 
 function getRecord(db, storeName, key) {
+  return runStoreRequest(db, storeName, "readonly", (store) => store.get(key));
+}
+
+function putRecord(db, storeName, record) {
+  return runStoreRequest(db, storeName, "readwrite", (store) => store.put(record));
+}
+
+function deleteRecord(db, storeName, key) {
+  return runStoreRequest(db, storeName, "readwrite", (store) => store.delete(key));
+}
+
+function runStoreRequest(db, storeName, mode, createRequest) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, "readonly");
-    const request = transaction.objectStore(storeName).get(key);
+    const transaction = db.transaction(storeName, mode);
+    const request = createRequest(transaction.objectStore(storeName));
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
@@ -135,8 +279,13 @@ function deleteLibraryDatabase() {
     const request = indexedDB.deleteDatabase(DB_NAME);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error("文件库正在被其他页面占用，请关闭其他看板页面后重试"));
+    request.onblocked = () => reject(new Error("\u6587\u4ef6\u5e93\u6b63\u5728\u88ab\u5176\u4ed6\u9875\u9762\u5360\u7528\uff0c\u8bf7\u5173\u95ed\u5176\u4ed6\u770b\u677f\u9875\u9762\u540e\u91cd\u8bd5"));
   });
+}
+
+function getMonthFromDate(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatDateTime(value) {
@@ -154,6 +303,26 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes)) return "--";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let size = bytes / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+function getFileTypeLabel(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "xlsx" || extension === "xls") return "Excel \u5de5\u4f5c\u7c3f";
+  if (extension === "csv") return "CSV \u6587\u4ef6";
+  return file.type || "\u672a\u77e5\u7c7b\u578b";
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -164,19 +333,8 @@ function escapeHtml(value) {
   })[char]);
 }
 
-if (adminEls.unlockButton) {
-  adminEls.unlockButton.addEventListener("click", unlockAdmin);
-}
-if (adminEls.keyInput) {
-  adminEls.keyInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") unlockAdmin();
-  });
-}
-if (adminEls.clearCacheButton) {
-  adminEls.clearCacheButton.addEventListener("click", clearLibraryCache);
-}
-
-sessionStorage.setItem(ADMIN_SESSION_KEY, "1");
-showAdminLinks();
-
-loadReferenceTimes();
+bindAdminEvents();
+refreshAdmin().catch((error) => {
+  console.error(error);
+  adminEls.referenceState.textContent = "\u8bfb\u53d6\u5931\u8d25";
+});

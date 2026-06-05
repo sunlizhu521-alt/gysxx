@@ -3,26 +3,14 @@ const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
-const SLOT_COUNT = 8;
 const MAINTAINER_KEY = "3.1415926";
 const UNLOCK_KEY = "dimension-library-key-unlocked-v2";
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 
-const dimensionNames = [
-  "Dim-YL医疗器械商品分类",
-  "Dim-仓库_金蝶、旺店通、领星",
-  "Dim-仓库与物料对照表",
-  "Dim-店铺名称汇总（金蝶&领星&简称）",
-  "Dim-客户与物料对照表",
-  "采购分工明细",
-  "维度 7",
-  "维度 8",
+const slots = [
+  { id: "dimension-1", name: "Dim-YL\u533b\u7597\u5668\u68b0\u5546\u54c1\u5206\u7c7b" },
+  { id: "dimension-6", name: "Dim-\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6" },
 ];
-
-const slots = Array.from({ length: SLOT_COUNT }, (_, index) => ({
-  id: `dimension-${index + 1}`,
-  name: dimensionNames[index],
-}));
 
 const deprecatedSharedRecords = [
   { id: "dimension-1", name: "Dim-YL医疗器械商品分类-2026年整理版.xlsx", size: 2194279, savedAt: "2026-06-02T23:31:33+00:00" },

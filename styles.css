@@ -943,6 +943,93 @@ select {
   background: #fffafa;
 }
 
+.admin-library-panel {
+  margin-bottom: 16px;
+}
+
+.admin-library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-file-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.admin-file-card.applied {
+  border-color: #bbf7d0;
+}
+
+.admin-file-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.admin-file-card-head h2 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.admin-file-meta {
+  display: grid;
+  gap: 5px;
+  min-height: 58px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-file-meta span,
+.admin-file-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-file-meta strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.admin-file-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.75fr;
+  gap: 8px;
+}
+
+.admin-file-actions button,
+.admin-upload-button {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-upload-button input {
+  display: none;
+}
+
+.admin-file-actions button[data-admin-apply]:not(:disabled) {
+  border-color: var(--blue);
+  color: #fff;
+  background: var(--blue);
+}
+
 .admin-reference-panel {
   margin-top: 16px;
 }
@@ -1410,7 +1497,8 @@ th {
   .metrics-grid,
   .nav-list,
   .upload-actions,
-  .admin-links {
+  .admin-links,
+  .admin-library-grid {
     grid-template-columns: 1fr;
   }
 
