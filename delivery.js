@@ -116,7 +116,13 @@ async function loadDeliverySource(options = {}) {
     }
 
     deliveryState.categoryMap = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : new Map();
-    deliveryState.records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap);
+    const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap);
+    if (!records.length) {
+      if (options.silent) return false;
+      resetDelivery("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868\u65e0\u53ef\u7528\u6570\u636e");
+      return false;
+    }
+    deliveryState.records = records;
     updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, appliedFactRecord);
     applyDeliveryFilters();
     return true;

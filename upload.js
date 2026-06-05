@@ -131,7 +131,13 @@ async function loadPurchaseAssignmentSource(options = {}) {
 
     supplierState.categoryMap = await readCategoryDimension(appliedCategoryRecord.file);
     const { records, divisionRows, divisionHeaders } = await readSupplierRecords(appliedPurchaseRecord.file);
-    supplierState.records = enrichSupplierRecords(records, supplierState.categoryMap);
+    const enrichedRecords = enrichSupplierRecords(records, supplierState.categoryMap);
+    if (!enrichedRecords.length) {
+      if (options.silent) return false;
+      resetDashboard("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u5206\u5de5\u660e\u7ec6\u65e0\u53ef\u7528\u6570\u636e");
+      return false;
+    }
+    supplierState.records = enrichedRecords;
     supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap, divisionHeaders);
     supplierState.divisionHeaders = divisionHeaders;
     updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, appliedPurchaseRecord);
