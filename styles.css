@@ -340,13 +340,6 @@ select {
   margin-bottom: 10px;
 }
 
-.delivery-dashboard {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding-top: 18px;
-  padding-bottom: 14px;
-}
-
 .delivery-filter-panel .panel-heading {
   align-items: center;
   margin-bottom: 10px;
