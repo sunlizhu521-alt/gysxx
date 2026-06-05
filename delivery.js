@@ -4,6 +4,7 @@ const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
+const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const DELIVERY_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93 / \u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
@@ -12,6 +13,7 @@ const deliveryState = {
   records: [],
   filtered: [],
   categoryMap: new Map(),
+  purchaseDetailMap: new Map(),
 };
 
 const deliveryEls = {
@@ -19,6 +21,8 @@ const deliveryEls = {
   purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
+  supplierShortFilter: document.querySelector("#supplierShortFilter"),
+  orderUserFilter: document.querySelector("#orderUserFilter"),
   dateFilter: document.querySelector("#dateFilter"),
   stockAgeFilter: document.querySelector("#stockAgeFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
@@ -39,6 +43,7 @@ const columnAliases = {
   orderedQty: ["下单数量-备货需求-OA申请为准"],
   shippedQty: ["发货数量"],
   remainingQty: ["未发货数量"],
+  completedQty: ["\u751f\u4ea7\u5b8c\u6210\u6570\u91cf"],
   stockAge: ["库龄＞60", "库龄>60", "库龄"],
 };
 
@@ -46,9 +51,6 @@ const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty"
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
-  if (window.ensureSharedLibraryLoaded) {
-    await window.ensureSharedLibraryLoaded();
-  }
   if (await loadDeliverySource({ silent: true })) {
     return;
   }
@@ -64,6 +66,8 @@ function bindDeliveryEvents() {
     deliveryEls.purchaseGroupFilter,
     deliveryEls.salesLineFilter,
     deliveryEls.salesSeriesFilter,
+    deliveryEls.supplierShortFilter,
+    deliveryEls.orderUserFilter,
     deliveryEls.dateFilter,
     deliveryEls.stockAgeFilter,
   ].forEach((select) => select.addEventListener("input", applyDeliveryFilters));
@@ -73,6 +77,8 @@ function bindDeliveryEvents() {
     deliveryEls.purchaseGroupFilter.value = "all";
     deliveryEls.salesLineFilter.value = "all";
     deliveryEls.salesSeriesFilter.value = "all";
+    deliveryEls.supplierShortFilter.value = "all";
+    deliveryEls.orderUserFilter.value = "all";
     deliveryEls.dateFilter.value = "all";
     deliveryEls.stockAgeFilter.value = "all";
     applyDeliveryFilters();
@@ -83,7 +89,7 @@ function bindDeliveryEvents() {
 
 async function loadPrebuiltDeliveryOrders() {
   try {
-    const response = await fetch("./data/delivery-orders.json?v=20260605-1", { cache: "no-store" });
+    const response = await fetch("./data/delivery-orders.json?v=20260605-2", { cache: "no-store" });
     if (!response.ok) return false;
     const payload = await response.json();
     if (!Array.isArray(payload.records) || !payload.records.length) return false;
@@ -101,13 +107,15 @@ async function loadPrebuiltDeliveryOrders() {
 async function loadDeliverySource(options = {}) {
   try {
     const db = await openAppDb();
-    const [factRecord, categoryRecord] = await Promise.all([
+    const [factRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
       getRecord(db, FACT_STORE_NAME, PURCHASE_ORDER_SLOT),
       getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
+      getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT),
     ]);
     db.close();
     const appliedFactRecord = getAppliedLibraryRecord(factRecord);
     const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
+    const appliedPurchaseAssignmentRecord = getAppliedLibraryRecord(purchaseAssignmentRecord);
 
     if (!appliedFactRecord?.file) {
       if (options.silent) return false;
@@ -116,7 +124,8 @@ async function loadDeliverySource(options = {}) {
     }
 
     deliveryState.categoryMap = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : new Map();
-    const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap);
+    deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file ? await readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file) : new Map();
+    const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
       if (options.silent) return false;
       resetDelivery("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868\u65e0\u53ef\u7528\u6570\u636e");
@@ -141,6 +150,7 @@ function getAppliedLibraryRecord(record) {
 function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
+  deliveryState.purchaseDetailMap = new Map();
   updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, null);
   updateFilterOptions();
   renderDelivery(message);
@@ -161,6 +171,22 @@ async function readCategoryDimension(file) {
   return map;
 }
 
+async function readPurchaseDetailMap(file) {
+  const rows = await readWorkbookRows(file, "\u4ea7\u54c1\u7ebf\u660e\u7ec6");
+  const map = new Map();
+  rows.slice(1).forEach((row) => {
+    const materialCode = normalizeMaterialCode(row[3]);
+    if (!materialCode) return;
+    const supplier = String(row[6] ?? "").trim();
+    map.set(materialCode, {
+      supplier,
+      supplierShort: String(row[7] ?? "").trim() || supplier,
+      orderUser: String(row[2] ?? "").trim() || "\u672a\u7ef4\u62a4",
+    });
+  });
+  return map;
+}
+
 async function readDeliveryWorkbook(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
@@ -176,7 +202,7 @@ async function readDeliveryWorkbook(file) {
   });
 }
 
-async function readWorkbookRows(file) {
+async function readWorkbookRows(file, preferredSheetName = "") {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
     return csvToRows(await file.text());
@@ -185,7 +211,8 @@ async function readWorkbookRows(file) {
     throw new Error("XLSX parser is not available.");
   }
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
-  return window.XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "" });
+  const sheetName = workbook.SheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || workbook.SheetNames[0];
+  return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
 }
 
 function getBusinessUnitFromSheetName(sheetName) {
@@ -253,6 +280,7 @@ function normalizeRow(row, headerMap, index, businessUnit) {
   const orderedQty = parseNumber(getValue("orderedQty"));
   const shippedQty = parseNumber(getValue("shippedQty"));
   const remainingQty = parseNumber(getValue("remainingQty"));
+  const completedQty = parseNumber(getValue("completedQty"));
   const stockAgeValue = getValue("stockAge");
 
   return {
@@ -263,20 +291,26 @@ function normalizeRow(row, headerMap, index, businessUnit) {
     itemName: getValue("itemName"),
     orderedQty,
     shippedQty,
+    completedQty,
     undeliveredQty: remainingQty,
     remainingQty,
     isOver60: isStockAgeOver60(stockAgeValue),
   };
 }
 
-function enrichDeliveryRecords(records, categoryMap) {
+function enrichDeliveryRecords(records, categoryMap, purchaseDetailMap = new Map()) {
   return records.map((record) => {
-    const matched = categoryMap.get(normalizeMaterialCode(record.materialCode));
+    const materialCode = normalizeMaterialCode(record.materialCode);
+    const matched = categoryMap.get(materialCode);
+    const detail = purchaseDetailMap.get(materialCode);
     return {
       ...record,
-      salesLine: matched?.salesLine || "未匹配",
-      salesSeries: matched?.salesSeries || "未匹配",
-      purchaseGroup: matched?.purchaseGroup || "未匹配",
+      salesLine: matched?.salesLine || record.salesLine || "\u672a\u5339\u914d",
+      salesSeries: matched?.salesSeries || record.salesSeries || "\u672a\u5339\u914d",
+      purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "\u672a\u5339\u914d",
+      supplier: detail?.supplier || record.supplier || "\u672a\u5339\u914d",
+      supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || "\u672a\u5339\u914d",
+      orderUser: detail?.orderUser || record.orderUser || "\u672a\u7ef4\u62a4",
     };
   });
 }
@@ -287,6 +321,8 @@ function getDeliveryFilterValues() {
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
     salesLine: deliveryEls.salesLineFilter.value,
     salesSeries: deliveryEls.salesSeriesFilter.value,
+    supplierShort: deliveryEls.supplierShortFilter.value,
+    orderUser: deliveryEls.orderUserFilter.value,
     dateRange: deliveryEls.dateFilter.value,
     stockAge: deliveryEls.stockAgeFilter.value,
   };
@@ -317,6 +353,18 @@ function updateFilterOptions() {
     uniqueValues(filterRecords({ ...getDeliveryFilterValues(), salesSeries: "all" }), "salesSeries"),
     "\u5168\u90e8\u9500\u552e\u7cfb\u5217",
     filters.salesSeries
+  );
+  syncSelect(
+    deliveryEls.supplierShortFilter,
+    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), supplierShort: "all" }), "supplierShort"),
+    "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0",
+    filters.supplierShort
+  );
+  syncSelect(
+    deliveryEls.orderUserFilter,
+    uniqueValues(filterRecords({ ...getDeliveryFilterValues(), orderUser: "all" }), "orderUser"),
+    "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba",
+    filters.orderUser
   );
   syncSelect(deliveryEls.dateFilter, [], "\u5168\u90e8\u65f6\u95f4", filters.dateRange);
   syncSelect(
@@ -349,6 +397,8 @@ function applyDeliveryFilters() {
     purchaseGroup: deliveryEls.purchaseGroupFilter.value,
     salesLine: deliveryEls.salesLineFilter.value,
     salesSeries: deliveryEls.salesSeriesFilter.value,
+    supplierShort: deliveryEls.supplierShortFilter.value,
+    orderUser: deliveryEls.orderUserFilter.value,
     dateRange: deliveryEls.dateFilter.value,
     stockAge: deliveryEls.stockAgeFilter.value,
   });
@@ -362,6 +412,8 @@ function filterRecords(filters) {
       (!filters.purchaseGroup || filters.purchaseGroup === "all" || record.purchaseGroup === filters.purchaseGroup) &&
       (!filters.salesLine || filters.salesLine === "all" || record.salesLine === filters.salesLine) &&
       (!filters.salesSeries || filters.salesSeries === "all" || record.salesSeries === filters.salesSeries) &&
+      (!filters.supplierShort || filters.supplierShort === "all" || record.supplierShort === filters.supplierShort) &&
+      (!filters.orderUser || filters.orderUser === "all" || record.orderUser === filters.orderUser) &&
       (!filters.stockAge ||
         filters.stockAge === "all" ||
         (filters.stockAge === "over60" && record.isOver60) ||
@@ -381,16 +433,18 @@ function renderDelivery(message) {
 
   deliveryEls.rows.innerHTML = detailRecords.length
     ? detailRecords.map(renderDeliveryRow).join("")
-    : `<tr><td colspan="6">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    : `<tr><td colspan="8">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
 }
 
 function renderDeliveryRow(record) {
   return `
     <tr>
+      <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
       <td>${escapeHtml(record.materialCode || "--")}</td>
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
+      <td>${formatNumber(record.completedQty)}</td>
       <td>${formatNumber(record.shippedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
@@ -428,6 +482,8 @@ function buildDeliveryDownloadName() {
     selectedText(deliveryEls.purchaseGroupFilter),
     selectedText(deliveryEls.salesLineFilter),
     selectedText(deliveryEls.salesSeriesFilter),
+    selectedText(deliveryEls.supplierShortFilter),
+    selectedText(deliveryEls.orderUserFilter),
     selectedText(deliveryEls.dateFilter),
     selectedText(deliveryEls.stockAgeFilter),
   ];

@@ -58,6 +58,12 @@
             <select id="salesSeriesFilter" aria-label="按销售系列筛选">
               <option value="all">全部销售系列</option>
             </select>
+            <select id="supplierShortFilter" aria-label="按供应商简称筛选">
+              <option value="all">全部供应商简称</option>
+            </select>
+            <select id="orderUserFilter" aria-label="按采购下单人筛选">
+              <option value="all">全部采购下单人</option>
+            </select>
             <select id="dateFilter" aria-label="按时间筛选">
               <option value="all">全部时间</option>
             </select>
@@ -107,10 +113,12 @@
             <table class="delivery-table">
               <thead>
                 <tr>
+                  <th>供应商简称</th>
                   <th>物料编码</th>
                   <th>SKU</th>
                   <th>物品名称</th>
                   <th>下单数量</th>
+                  <th>已完工数据</th>
                   <th>已发货数量</th>
                   <th>剩余数量</th>
                 </tr>
@@ -123,6 +131,6 @@
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260605-1"></script>
-    <script src="./delivery.js?v=20260605-5"></script>
+    <script src="./delivery.js?v=20260605-6"></script>
   </body>
 </html>

@@ -265,6 +265,31 @@ def build_supplier_directory(payload, category_map, group_map):
         temp_path.unlink(missing_ok=True)
 
 
+def build_purchase_detail_map(payload):
+    purchase_record = find_record(payload, "dimension-files", "dimension-6")
+    wb, temp_path = workbook_from_record(purchase_record)
+    try:
+        detail_sheet = find_sheet_name(wb, "\u4ea7\u54c1\u7ebf\u660e\u7ec6", "\u660e\u7ec6")
+        rows = rows_from_sheet(wb[detail_sheet])
+        detail_map = {}
+        for row in rows[1:]:
+            material_code = normalize_material_code(row[3] if len(row) > 3 else "")
+            if not material_code:
+                continue
+            supplier = text(row[6] if len(row) > 6 else "")
+            supplier_short = text(row[7] if len(row) > 7 else "") or supplier
+            order_user = text(row[2] if len(row) > 2 else "") or "\u672a\u7ef4\u62a4"
+            detail_map[material_code] = {
+                "supplier": supplier,
+                "supplierShort": supplier_short,
+                "orderUser": order_user,
+            }
+        return detail_map
+    finally:
+        wb.close()
+        temp_path.unlink(missing_ok=True)
+
+
 ORDER_ALIASES = {
     "materialCode": ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
     "sku": ["SKU", "sku", "领星SKU"],
@@ -272,6 +297,7 @@ ORDER_ALIASES = {
     "orderedQty": ["下单数量-备货需求-OA申请为准"],
     "shippedQty": ["发货数量"],
     "remainingQty": ["未发货数量"],
+    "completedQty": ["\u751f\u4ea7\u5b8c\u6210\u6570\u91cf"],
     "stockAge": ["库龄＞60", "库龄>60", "库龄"],
 }
 
@@ -361,6 +387,7 @@ def parse_order_rows(rows, business_unit):
         ordered_qty = number(cell("orderedQty"))
         shipped_qty = number(cell("shippedQty"))
         remaining_qty = number(cell("remainingQty"))
+        completed_qty = number(cell("completedQty"))
         records.append(
             {
                 "id": f"{business_unit}-{index}-{material_code}-{sku}",
@@ -370,6 +397,7 @@ def parse_order_rows(rows, business_unit):
                 "itemName": item_name,
                 "orderedQty": ordered_qty,
                 "shippedQty": shipped_qty,
+                "completedQty": completed_qty,
                 "undeliveredQty": remaining_qty,
                 "remainingQty": remaining_qty,
                 "isOver60": is_stock_age_over_60(cell("stockAge")),
@@ -383,7 +411,7 @@ def business_unit_from_sheet_name(sheet_name):
     return re.sub(r"[（(].*?[）)]", "", name).strip() or name or "未匹配"
 
 
-def build_delivery_orders(payload, category_map):
+def build_delivery_orders(payload, category_map, purchase_detail_map):
     fact_record = find_record(payload, "fact-files", "fact-1")
     wb, temp_path = workbook_from_record(fact_record)
     try:
@@ -395,6 +423,10 @@ def build_delivery_orders(payload, category_map):
                 record["salesLine"] = matched.get("salesLine") or "未匹配"
                 record["salesSeries"] = matched.get("salesSeries") or "未匹配"
                 record["purchaseGroup"] = matched.get("purchaseGroup") or "未匹配"
+                detail = purchase_detail_map.get(normalize_material_code(record["materialCode"]), {})
+                record["supplier"] = detail.get("supplier") or "\u672a\u5339\u914d"
+                record["supplierShort"] = detail.get("supplierShort") or detail.get("supplier") or "\u672a\u5339\u914d"
+                record["orderUser"] = detail.get("orderUser") or "\u672a\u7ef4\u62a4"
                 records.append(record)
         return {
             "version": 1,
@@ -402,6 +434,7 @@ def build_delivery_orders(payload, category_map):
             "source": {
                 "purchaseOrder": pick_manifest_fields(fact_record),
                 "categoryDimension": pick_manifest_fields(find_record(payload, "dimension-files", "dimension-1")),
+                "purchaseAssignment": pick_manifest_fields(find_record(payload, "dimension-files", "dimension-6")),
             },
             "records": records,
         }
@@ -456,7 +489,8 @@ def main():
     category_record = find_record(payload, "dimension-files", "dimension-1")
     category_map, group_map = build_category_map(category_record)
     supplier_payload = build_supplier_directory(payload, category_map, group_map)
-    delivery_payload = build_delivery_orders(payload, category_map)
+    purchase_detail_map = build_purchase_detail_map(payload)
+    delivery_payload = build_delivery_orders(payload, category_map, purchase_detail_map)
     manifest_payload = build_manifest(payload, supplier_payload, delivery_payload)
 
     write_json(DATA_DIR / "supplier-directory.json", supplier_payload)
