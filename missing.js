@@ -48,10 +48,11 @@ const missingFieldFilterConfig = {
 const missingFilterConfigs = [maintainTableFilterConfig, missingFieldFilterConfig];
 
 const orderColumnAliases = {
-  materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
+  materialCode: ["品号"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
   orderedQty: ["下单数量-备货需求-OA申请为准"],
+  completedQty: ["生产完成数量"],
   shippedQty: ["发货数量"],
   remainingQty: ["未发货数量"],
 };
@@ -234,11 +235,7 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
   const headerMap = createHeaderMap(headers);
-  if (headerMap.materialCode === undefined) {
-    const inferredColumn = inferMaterialCodeColumn(headers, rows.slice(headerIndex + 1), new Set(Object.values(headerMap)));
-    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
-  }
-  if (headerMap.materialCode === undefined) return [];
+  if (!isPurchaseOrderSheet(headerMap)) return [];
   return rows
     .slice(headerIndex + 1)
     .map((row) => ({
@@ -247,9 +244,15 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
       sku: getRowValue(row, headerMap.sku),
       itemName: getRowValue(row, headerMap.itemName),
       orderedQty: parseNumber(getRowValue(row, headerMap.orderedQty)),
+      completedQty: parseNumber(getRowValue(row, headerMap.completedQty)),
+      shippedQty: parseNumber(getRowValue(row, headerMap.shippedQty)),
       remainingQty: parseNumber(getRowValue(row, headerMap.remainingQty)),
     }))
     .filter((row) => row.materialCode || row.sku || row.itemName);
+}
+
+function isPurchaseOrderSheet(headerMap) {
+  return ["materialCode", "orderedQty", "completedQty", "shippedQty", "remainingQty"].every((key) => headerMap[key] !== undefined);
 }
 
 async function readWorkbookRows(file, preferredSheetName = "") {

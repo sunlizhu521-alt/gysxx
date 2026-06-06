@@ -59,17 +59,17 @@ const deliveryFilterConfigs = [
 ];
 
 const columnAliases = {
-  materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
+  materialCode: ["品号"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
   orderedQty: ["下单数量-备货需求-OA申请为准"],
   shippedQty: ["发货数量"],
   remainingQty: ["未发货数量"],
-  completedQty: ["\u751f\u4ea7\u5b8c\u6210\u6570\u91cf"],
+  completedQty: ["生产完成数量"],
   stockAge: ["库龄＞60", "库龄>60", "库龄"],
 };
 
-const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "shippedQty", "remainingQty"];
+const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "completedQty", "shippedQty", "remainingQty"];
 
 async function initDeliveryDashboard() {
   bindDeliveryEvents();
@@ -238,12 +238,6 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
   const headerMap = createHeaderMap(headers);
-  if (headerMap.materialCode === undefined) {
-    const inferredColumn = inferMaterialCodeColumn(headers, rows.slice(headerIndex + 1), new Set(Object.values(headerMap)));
-    if (inferredColumn !== undefined) {
-      headerMap.materialCode = inferredColumn;
-    }
-  }
   if (!isPurchaseOrderSheet(headerMap)) return [];
 
   return rows
@@ -487,11 +481,12 @@ function downloadDeliveryDetails() {
     SKU: record.sku || "",
     物品名称: record.itemName || "",
     下单数量: Number(record.orderedQty) || 0,
+    已完工数据: Number(record.completedQty) || 0,
     已发货数量: Number(record.shippedQty) || 0,
     剩余数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["物料编码", "SKU", "物品名称", "下单数量", "已发货数量", "剩余数量"],
+    header: ["物料编码", "SKU", "物品名称", "下单数量", "已完工数据", "已发货数量", "剩余数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
