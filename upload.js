@@ -22,12 +22,14 @@ const dashboardEls = {
   search: document.querySelector("#supplierSearch"),
   productLineFilter: document.querySelector("#productLineFilter"),
   ownerFilter: document.querySelector("#ownerFilter"),
+  orderUserFilter: document.querySelector("#orderUserFilter"),
   skuCount: document.querySelector("#skuCount"),
   activeSupplierCount: document.querySelector("#activeSupplierCount"),
   supplierInfoRows: document.querySelector("#supplierInfoRows"),
   divisionInfoHead: document.querySelector("#divisionInfoHead"),
   divisionInfoRows: document.querySelector("#divisionInfoRows"),
   productLineBars: document.querySelector("#productLineBars"),
+  orderUserSupplierBars: document.querySelector("#orderUserSupplierBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
   sourceNote: document.querySelector("#supplierSourceNote"),
@@ -65,7 +67,7 @@ async function initSupplierDashboard() {
 }
 
 function bindDashboardEvents() {
-  [dashboardEls.search, dashboardEls.productLineFilter, dashboardEls.ownerFilter].forEach((el) => {
+  [dashboardEls.search, dashboardEls.productLineFilter, dashboardEls.ownerFilter, dashboardEls.orderUserFilter].forEach((el) => {
     el.addEventListener("input", applyDashboardFilters);
   });
 
@@ -73,6 +75,7 @@ function bindDashboardEvents() {
     dashboardEls.search.value = "";
     dashboardEls.productLineFilter.value = "all";
     dashboardEls.ownerFilter.value = "all";
+    dashboardEls.orderUserFilter.value = "all";
     applyDashboardFilters();
     return true;
   });
@@ -301,6 +304,7 @@ function getDashboardFilterValues() {
     query: dashboardEls.search.value.trim().toLowerCase(),
     productLine: dashboardEls.productLineFilter.value,
     owner: dashboardEls.ownerFilter.value,
+    orderUser: dashboardEls.orderUserFilter.value,
   };
 }
 
@@ -316,6 +320,8 @@ function updateDashboardFilterOptions() {
     "\u5168\u90e8\u91c7\u8d2d\u7ec4",
     filters.owner
   );
+  const orderUserScoped = filterSupplierRecords({ ...getDashboardFilterValues(), orderUser: "all" });
+  syncDashboardSelect(dashboardEls.orderUserFilter, uniqueValues(orderUserScoped, "owner"), "全部采购下单人", filters.orderUser);
 }
 
 function syncDashboardSelect(select, values, label, preferredValue = select.value) {
@@ -350,7 +356,8 @@ function filterSupplierRecords(filters) {
     return (
       (!filters.query || searchable.includes(filters.query)) &&
       (filters.productLine === "all" || record.dimProductLine === filters.productLine) &&
-      (filters.owner === "all" || record.dimPurchaseGroup === filters.owner)
+      (filters.owner === "all" || record.dimPurchaseGroup === filters.owner) &&
+      (filters.orderUser === "all" || record.owner === filters.orderUser)
     );
   });
 }
@@ -380,6 +387,7 @@ function applyDashboardFilters() {
 function getProductLineDistributionRecords() {
   const query = dashboardEls.search.value.trim().toLowerCase();
   const owner = dashboardEls.ownerFilter.value;
+  const orderUser = dashboardEls.orderUserFilter.value;
   return supplierState.records.filter((record) => {
     const searchable = [
       record.primaryLine,
@@ -397,7 +405,11 @@ function getProductLineDistributionRecords() {
     ]
       .join(" ")
       .toLowerCase();
-    return (!query || searchable.includes(query)) && (owner === "all" || record.dimPurchaseGroup === owner);
+    return (
+      (!query || searchable.includes(query)) &&
+      (owner === "all" || record.dimPurchaseGroup === owner) &&
+      (orderUser === "all" || record.owner === orderUser)
+    );
   });
 }
 
@@ -414,6 +426,7 @@ function renderDashboard(message) {
   renderSupplierInfo(dashboardEls.supplierInfoRows, visible, message);
   renderDivisionInfo(dashboardEls.divisionInfoHead, dashboardEls.divisionInfoRows, getVisibleDivisionRows(), supplierState.divisionHeaders, message);
   renderBars(dashboardEls.productLineBars, countBy(productLineDistribution, "dimProductLine"), message || "暂无产品线数据");
+  renderBars(dashboardEls.orderUserSupplierBars, countSuppliersByOrderUser(visible), message || "暂无采购下单人数据");
   renderRows(visible, message);
 }
 
@@ -614,6 +627,18 @@ function renderBars(container, counts, emptyText) {
       `
     )
     .join("");
+}
+
+function countSuppliersByOrderUser(records) {
+  const groups = records.reduce((result, record) => {
+    const orderUser = record.owner || "未填写";
+    const supplier = record.supplierShort || record.supplier || "";
+    if (!supplier) return result;
+    if (!result.has(orderUser)) result.set(orderUser, new Set());
+    result.get(orderUser).add(supplier);
+    return result;
+  }, new Map());
+  return Object.fromEntries([...groups.entries()].map(([orderUser, suppliers]) => [orderUser, suppliers.size]));
 }
 
 function renderRows(records, message) {

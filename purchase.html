@@ -47,6 +47,9 @@
             <select id="ownerFilter" aria-label="按负责人筛选">
               <option value="all">全部采购组</option>
             </select>
+            <select id="orderUserFilter" aria-label="按采购下单人筛选">
+              <option value="all">全部采购下单人</option>
+            </select>
             <button id="resetButton" type="button">重置筛选</button>
           </div>
         </header>
@@ -109,6 +112,16 @@
             </div>
             <div id="productLineBars" class="bar-chart compact-bars"></div>
           </article>
+
+          <article class="panel actions-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Order Users</p>
+                <h2>采购下单人供应商数</h2>
+              </div>
+            </div>
+            <div id="orderUserSupplierBars" class="bar-chart compact-bars"></div>
+          </article>
         </section>
 
         <section class="panel table-panel supplier-table-panel">
@@ -144,6 +157,6 @@
     </div>
 
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./upload.js?v=20260606-1"></script>
+    <script src="./upload.js?v=20260606-2"></script>
   </body>
 </html>
