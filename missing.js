@@ -11,6 +11,7 @@ const missingEls = {
   sourceNote: document.querySelector("#missingSourceNote"),
   filterBar: document.querySelector("#missingFilterBar"),
   maintainTableFilter: document.querySelector("#maintainTableFilter"),
+  missingFieldFilter: document.querySelector("#missingFieldFilter"),
   state: document.querySelector("#missingState"),
   rows: document.querySelector("#missingRows"),
   downloadButton: document.querySelector("#missingDownloadButton"),
@@ -24,6 +25,7 @@ const missingState = {
   rows: [],
   filteredRows: [],
   selectedMaintainTables: new Set(),
+  selectedMissingFields: new Set(),
   message: "",
 };
 
@@ -31,7 +33,19 @@ const maintainTableFilterConfig = {
   key: "maintainTable",
   element: missingEls.maintainTableFilter,
   label: "全部建议维护表",
+  selectedKey: "selectedMaintainTables",
+  optionKey: "maintainTables",
 };
+
+const missingFieldFilterConfig = {
+  key: "missingField",
+  element: missingEls.missingFieldFilter,
+  label: "全部缺失字段",
+  selectedKey: "selectedMissingFields",
+  optionKey: "missingFields",
+};
+
+const missingFilterConfigs = [maintainTableFilterConfig, missingFieldFilterConfig];
 
 const orderColumnAliases = {
   materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "品号"],
@@ -43,10 +57,10 @@ const orderColumnAliases = {
 };
 
 async function initMissingDashboard() {
-  renderFilterShell(maintainTableFilterConfig);
+  missingFilterConfigs.forEach(renderFilterShell);
   missingEls.filterBar.addEventListener("click", handleFilterBarClick);
   document.addEventListener("click", (event) => {
-    if (!event.target.closest("#missingFilterBar")) closeFilterMenu();
+    if (!event.target.closest("#missingFilterBar")) closeFilterMenus();
   });
   missingEls.downloadButton.addEventListener("click", downloadMissingRows);
   await loadMissingData();
@@ -291,13 +305,16 @@ function scoreMaterialCodeCell(value) {
 function handleFilterBarClick(event) {
   const toggle = event.target.closest("[data-filter-toggle]");
   if (toggle) {
-    maintainTableFilterConfig.element.classList.toggle("open");
+    const config = getFilterConfig(toggle.dataset.filterToggle);
+    if (!config) return;
+    closeFilterMenus(config.key);
+    config.element.classList.toggle("open");
     return;
   }
 
   const option = event.target.closest("[data-filter-option]");
   if (!option) return;
-  toggleMaintainTableFilter(option.dataset.filterOption);
+  toggleFilterOption(option.dataset.filterKey, option.dataset.filterOption);
   applyMissingFilters();
 }
 
@@ -311,27 +328,34 @@ function renderFilterShell(config) {
   `;
 }
 
-function updateMaintainTableFilter() {
-  const options = getMaintainTableOptions();
+function updateMissingFilterOptions() {
+  syncFilterOptions(maintainTableFilterConfig, getOptionRowsForFilter(maintainTableFilterConfig));
+  syncFilterOptions(missingFieldFilterConfig, getOptionRowsForFilter(missingFieldFilterConfig));
+  syncFilterOptions(maintainTableFilterConfig, getOptionRowsForFilter(maintainTableFilterConfig));
+}
+
+function syncFilterOptions(config, scopedRows) {
+  const options = getOptionsFromRows(scopedRows, config.optionKey);
+  const selectedSet = missingState[config.selectedKey];
   const availableValues = new Set(options.map((option) => option.value));
-  [...missingState.selectedMaintainTables].forEach((value) => {
-    if (!availableValues.has(value)) missingState.selectedMaintainTables.delete(value);
+  [...selectedSet].forEach((value) => {
+    if (!availableValues.has(value)) selectedSet.delete(value);
   });
 
-  const button = maintainTableFilterConfig.element.querySelector(".multi-filter-button span");
-  const menu = maintainTableFilterConfig.element.querySelector(".multi-filter-menu");
-  const selectedValues = [...missingState.selectedMaintainTables];
-  button.textContent = getFilterButtonLabel(maintainTableFilterConfig, selectedValues);
+  const button = config.element.querySelector(".multi-filter-button span");
+  const menu = config.element.querySelector(".multi-filter-menu");
+  const selectedValues = [...selectedSet];
+  button.textContent = getFilterButtonLabel(config, selectedValues);
   menu.innerHTML = `
-    <label class="multi-filter-option ${selectedValues.length ? "" : "selected"}" data-filter-option="all">
+    <label class="multi-filter-option ${selectedValues.length ? "" : "selected"}" data-filter-key="${config.key}" data-filter-option="all">
       <input type="checkbox" ${selectedValues.length ? "" : "checked"} />
-      <span>${maintainTableFilterConfig.label}</span>
+      <span>${config.label}</span>
     </label>
     ${options
       .map(
         (option) => `
-          <label class="multi-filter-option ${missingState.selectedMaintainTables.has(option.value) ? "selected" : ""}" data-filter-option="${escapeAttribute(option.value)}">
-            <input type="checkbox" ${missingState.selectedMaintainTables.has(option.value) ? "checked" : ""} />
+          <label class="multi-filter-option ${selectedSet.has(option.value) ? "selected" : ""}" data-filter-key="${config.key}" data-filter-option="${escapeAttribute(option.value)}">
+            <input type="checkbox" ${selectedSet.has(option.value) ? "checked" : ""} />
             <span>${escapeHtml(option.label)}</span>
           </label>`
       )
@@ -339,8 +363,16 @@ function updateMaintainTableFilter() {
   `;
 }
 
-function getMaintainTableOptions() {
-  return [...new Set(missingState.rows.flatMap((row) => row.maintainTables).filter(Boolean))]
+function getOptionRowsForFilter(config) {
+  const filters = getMissingFilterValues();
+  return filterMissingRows({
+    ...filters,
+    [config.key]: [],
+  });
+}
+
+function getOptionsFromRows(rows, optionKey) {
+  return [...new Set(rows.flatMap((row) => row[optionKey] || []).filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b), "zh-CN"))
     .map((value) => ({ value, label: value }));
 }
@@ -352,18 +384,27 @@ function getFilterButtonLabel(config, selectedValues) {
   return `已选${selectedValues.length}项`;
 }
 
-function toggleMaintainTableFilter(value) {
+function toggleFilterOption(key, value) {
+  const config = getFilterConfig(key);
+  if (!config) return;
+  const selectedSet = missingState[config.selectedKey];
   if (value === "all") {
-    missingState.selectedMaintainTables.clear();
-  } else if (missingState.selectedMaintainTables.has(value)) {
-    missingState.selectedMaintainTables.delete(value);
+    selectedSet.clear();
+  } else if (selectedSet.has(value)) {
+    selectedSet.delete(value);
   } else {
-    missingState.selectedMaintainTables.add(value);
+    selectedSet.add(value);
   }
 }
 
-function closeFilterMenu() {
-  maintainTableFilterConfig.element.classList.remove("open");
+function getFilterConfig(key) {
+  return missingFilterConfigs.find((config) => config.key === key);
+}
+
+function closeFilterMenus(activeKey = "") {
+  missingFilterConfigs.forEach((config) => {
+    if (config.key !== activeKey) config.element.classList.remove("open");
+  });
 }
 
 function renderMissing(rows, message = "") {
@@ -373,12 +414,28 @@ function renderMissing(rows, message = "") {
 }
 
 function applyMissingFilters() {
-  updateMaintainTableFilter();
-  const selectedTables = [...missingState.selectedMaintainTables];
-  missingState.filteredRows = selectedTables.length
-    ? missingState.rows.filter((row) => selectedTables.some((table) => row.maintainTables.includes(table)))
-    : [...missingState.rows];
+  updateMissingFilterOptions();
+  missingState.filteredRows = filterMissingRows(getMissingFilterValues());
   renderMissingView();
+}
+
+function getMissingFilterValues() {
+  return {
+    maintainTable: [...missingState.selectedMaintainTables],
+    missingField: [...missingState.selectedMissingFields],
+  };
+}
+
+function filterMissingRows(filters) {
+  return missingState.rows.filter(
+    (row) =>
+      matchesArrayFilter(row.maintainTables, filters.maintainTable) &&
+      matchesArrayFilter(row.missingFields, filters.missingField)
+  );
+}
+
+function matchesArrayFilter(values = [], selectedValues = []) {
+  return !selectedValues?.length || selectedValues.some((value) => values.includes(value));
 }
 
 function renderMissingView() {

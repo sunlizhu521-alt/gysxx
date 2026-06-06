@@ -542,7 +542,7 @@ select {
 
 .missing-filter-bar {
   display: grid;
-  grid-template-columns: minmax(180px, 240px);
+  grid-template-columns: repeat(2, minmax(180px, 240px));
   gap: 8px;
   align-items: start;
   overflow: visible;
