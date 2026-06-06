@@ -542,14 +542,14 @@ select {
 
 .missing-filter-bar {
   display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 240px));
+  grid-template-columns: minmax(180px, 260px);
   gap: 8px;
   align-items: start;
   overflow: visible;
 }
 
 .missing-table {
-  min-width: 1280px;
+  min-width: 640px;
 }
 
 .missing-table th,
@@ -561,9 +561,7 @@ select {
   vertical-align: middle;
 }
 
-.missing-table td:nth-child(5),
-.missing-table td:nth-child(6),
-.missing-table td:nth-child(7) {
+.missing-table td:nth-child(3) {
   text-align: left;
 }
 
