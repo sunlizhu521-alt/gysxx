@@ -5,7 +5,8 @@
 ## 文件结构
 
 - `index.html`：看板页面
-- `upload.html`：供应商信息页面
+- `purchase.html`：采购分工信息页面
+- `upload.html`：旧分享链接入口，自动跳转到供应商交付信息页面
 - `delivery.html`：供应商交付信息页面
 - `file-library.html`：月度维度表文件库页面
 - `fact-library.html`：备货事实表库页面
