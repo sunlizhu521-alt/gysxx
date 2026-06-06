@@ -528,6 +528,26 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.missing-filter-panel {
+  margin-bottom: 10px;
+  overflow: visible;
+  position: relative;
+  z-index: 70;
+}
+
+.missing-filter-panel .panel-heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.missing-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px);
+  gap: 8px;
+  align-items: start;
+  overflow: visible;
+}
+
 .missing-table {
   min-width: 1280px;
 }

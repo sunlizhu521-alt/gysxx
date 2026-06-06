@@ -9,6 +9,8 @@ const SOURCE_LABEL = "数据来源：本地文件库 / 信息缺失";
 
 const missingEls = {
   sourceNote: document.querySelector("#missingSourceNote"),
+  filterBar: document.querySelector("#missingFilterBar"),
+  maintainTableFilter: document.querySelector("#maintainTableFilter"),
   state: document.querySelector("#missingState"),
   rows: document.querySelector("#missingRows"),
   downloadButton: document.querySelector("#missingDownloadButton"),
@@ -20,6 +22,15 @@ const missingEls = {
 
 const missingState = {
   rows: [],
+  filteredRows: [],
+  selectedMaintainTables: new Set(),
+  message: "",
+};
+
+const maintainTableFilterConfig = {
+  key: "maintainTable",
+  element: missingEls.maintainTableFilter,
+  label: "全部建议维护表",
 };
 
 const orderColumnAliases = {
@@ -32,6 +43,11 @@ const orderColumnAliases = {
 };
 
 async function initMissingDashboard() {
+  renderFilterShell(maintainTableFilterConfig);
+  missingEls.filterBar.addEventListener("click", handleFilterBarClick);
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#missingFilterBar")) closeFilterMenu();
+  });
   missingEls.downloadButton.addEventListener("click", downloadMissingRows);
   await loadMissingData();
 }
@@ -272,8 +288,102 @@ function scoreMaterialCodeCell(value) {
   return score;
 }
 
+function handleFilterBarClick(event) {
+  const toggle = event.target.closest("[data-filter-toggle]");
+  if (toggle) {
+    maintainTableFilterConfig.element.classList.toggle("open");
+    return;
+  }
+
+  const option = event.target.closest("[data-filter-option]");
+  if (!option) return;
+  toggleMaintainTableFilter(option.dataset.filterOption);
+  applyMissingFilters();
+}
+
+function renderFilterShell(config) {
+  config.element.innerHTML = `
+    <button class="multi-filter-button" type="button" data-filter-toggle="${config.key}">
+      <span>${config.label}</span>
+      <i aria-hidden="true">\u25be</i>
+    </button>
+    <div class="multi-filter-menu" role="menu"></div>
+  `;
+}
+
+function updateMaintainTableFilter() {
+  const options = getMaintainTableOptions();
+  const availableValues = new Set(options.map((option) => option.value));
+  [...missingState.selectedMaintainTables].forEach((value) => {
+    if (!availableValues.has(value)) missingState.selectedMaintainTables.delete(value);
+  });
+
+  const button = maintainTableFilterConfig.element.querySelector(".multi-filter-button span");
+  const menu = maintainTableFilterConfig.element.querySelector(".multi-filter-menu");
+  const selectedValues = [...missingState.selectedMaintainTables];
+  button.textContent = getFilterButtonLabel(maintainTableFilterConfig, selectedValues);
+  menu.innerHTML = `
+    <label class="multi-filter-option ${selectedValues.length ? "" : "selected"}" data-filter-option="all">
+      <input type="checkbox" ${selectedValues.length ? "" : "checked"} />
+      <span>${maintainTableFilterConfig.label}</span>
+    </label>
+    ${options
+      .map(
+        (option) => `
+          <label class="multi-filter-option ${missingState.selectedMaintainTables.has(option.value) ? "selected" : ""}" data-filter-option="${escapeAttribute(option.value)}">
+            <input type="checkbox" ${missingState.selectedMaintainTables.has(option.value) ? "checked" : ""} />
+            <span>${escapeHtml(option.label)}</span>
+          </label>`
+      )
+      .join("")}
+  `;
+}
+
+function getMaintainTableOptions() {
+  return [...new Set(missingState.rows.flatMap((row) => row.maintainTables).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), "zh-CN"))
+    .map((value) => ({ value, label: value }));
+}
+
+function getFilterButtonLabel(config, selectedValues) {
+  if (!selectedValues.length) return config.label;
+  if (selectedValues.length === 1) return selectedValues[0];
+  if (selectedValues.length === 2) return selectedValues.join("、");
+  return `已选${selectedValues.length}项`;
+}
+
+function toggleMaintainTableFilter(value) {
+  if (value === "all") {
+    missingState.selectedMaintainTables.clear();
+  } else if (missingState.selectedMaintainTables.has(value)) {
+    missingState.selectedMaintainTables.delete(value);
+  } else {
+    missingState.selectedMaintainTables.add(value);
+  }
+}
+
+function closeFilterMenu() {
+  maintainTableFilterConfig.element.classList.remove("open");
+}
+
 function renderMissing(rows, message = "") {
   missingState.rows = rows;
+  missingState.message = message;
+  applyMissingFilters();
+}
+
+function applyMissingFilters() {
+  updateMaintainTableFilter();
+  const selectedTables = [...missingState.selectedMaintainTables];
+  missingState.filteredRows = selectedTables.length
+    ? missingState.rows.filter((row) => selectedTables.some((table) => row.maintainTables.includes(table)))
+    : [...missingState.rows];
+  renderMissingView();
+}
+
+function renderMissingView() {
+  const rows = missingState.filteredRows;
+  const message = missingState.message;
   const categoryRows = rows.filter((row) => row.maintainTables.includes("Dim-YL医疗器械商品分类"));
   const purchaseRows = rows.filter((row) => row.maintainTables.includes("Dim-采购分工明细"));
   missingEls.materialCount.textContent = formatNumber(rows.length);
@@ -305,8 +415,8 @@ function renderMissingRow(row) {
 }
 
 function downloadMissingRows() {
-  if (!missingState.rows.length || !window.XLSX) return;
-  const exportRows = missingState.rows.map((row) => ({
+  if (!missingState.filteredRows.length || !window.XLSX) return;
+  const exportRows = missingState.filteredRows.map((row) => ({
     涉及看板: row.dashboards.join("、"),
     事业部: row.businessUnits,
     物料编码: row.materialCode,
@@ -417,6 +527,10 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;",
   })[char]);
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }
 
 initMissingDashboard();
