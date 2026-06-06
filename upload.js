@@ -30,6 +30,7 @@ const dashboardEls = {
   divisionInfoRows: document.querySelector("#divisionInfoRows"),
   productLineBars: document.querySelector("#productLineBars"),
   orderUserSupplierBars: document.querySelector("#orderUserSupplierBars"),
+  purchaseGroupSupplierBars: document.querySelector("#purchaseGroupSupplierBars"),
   rows: document.querySelector("#supplierRows"),
   recordState: document.querySelector("#recordState"),
   sourceNote: document.querySelector("#supplierSourceNote"),
@@ -40,7 +41,7 @@ const dashboardEls = {
 const columnAliases = {
   primaryLine: ["一级产品线", "产品线", "销售产品线", "大类"],
   secondaryLine: ["二级产品线", "细分产品线", "品类", "商品分类"],
-  owner: ["对接人", "采购负责人", "采购员", "采购", "组员", "事业部唯一对接人", "负责人"],
+  owner: ["采购订单下单人", "采购下单人", "下单人", "对接人", "采购负责人", "采购员", "采购", "组员", "事业部唯一对接人", "负责人"],
   group: ["采购组别", "采购组", "组名", "小组"],
   materialCode: ["物料编码", "商品编码", "存货编码", "产品编码", "货品编号"],
   sku: ["SKU", "sku"],
@@ -427,6 +428,7 @@ function renderDashboard(message) {
   renderDivisionInfo(dashboardEls.divisionInfoHead, dashboardEls.divisionInfoRows, getVisibleDivisionRows(), supplierState.divisionHeaders, message);
   renderBars(dashboardEls.productLineBars, countBy(productLineDistribution, "dimProductLine"), message || "暂无产品线数据");
   renderBars(dashboardEls.orderUserSupplierBars, countSuppliersByOrderUser(visible), message || "暂无采购下单人数据");
+  renderBars(dashboardEls.purchaseGroupSupplierBars, countSuppliersByPurchaseGroup(visible), message || "暂无采购组数据");
   renderRows(visible, message);
 }
 
@@ -639,6 +641,18 @@ function countSuppliersByOrderUser(records) {
     return result;
   }, new Map());
   return Object.fromEntries([...groups.entries()].map(([orderUser, suppliers]) => [orderUser, suppliers.size]));
+}
+
+function countSuppliersByPurchaseGroup(records) {
+  const groups = records.reduce((result, record) => {
+    const purchaseGroup = record.dimPurchaseGroup || record.group || "未分组";
+    const supplier = record.supplierShort || record.supplier || "";
+    if (!supplier) return result;
+    if (!result.has(purchaseGroup)) result.set(purchaseGroup, new Set());
+    result.get(purchaseGroup).add(supplier);
+    return result;
+  }, new Map());
+  return Object.fromEntries([...groups.entries()].map(([purchaseGroup, suppliers]) => [purchaseGroup, suppliers.size]));
 }
 
 function renderRows(records, message) {

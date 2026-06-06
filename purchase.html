@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>供应商信息 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260605-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260606-8" />
   </head>
   <body>
     <div class="app-shell">
@@ -29,14 +29,14 @@
         </nav>
       </aside>
 
-      <main class="dashboard">
+      <main class="dashboard purchase-dashboard">
         <header class="topbar">
           <div>
             <p class="eyebrow">Purchase Division Master Data</p>
             <h1>采购分工信息</h1>
             <small class="source-note" id="supplierSourceNote">数据来源：维度表文件库 / 采购分工明细｜引用时间：--</small>
           </div>
-          <div class="toolbar" role="search">
+          <div class="toolbar purchase-toolbar" role="search">
             <label class="search-box">
               <span>搜索</span>
               <input id="supplierSearch" type="search" placeholder="物料编码、SKU、供应商、产品线" />
@@ -122,6 +122,16 @@
             </div>
             <div id="orderUserSupplierBars" class="bar-chart compact-bars"></div>
           </article>
+
+          <article class="panel actions-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Purchase Groups</p>
+                <h2>采购组负责供应商数</h2>
+              </div>
+            </div>
+            <div id="purchaseGroupSupplierBars" class="bar-chart compact-bars"></div>
+          </article>
         </section>
 
         <section class="panel table-panel supplier-table-panel">
@@ -157,6 +167,6 @@
     </div>
 
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./upload.js?v=20260606-2"></script>
+    <script src="./upload.js?v=20260606-3"></script>
   </body>
 </html>

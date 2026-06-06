@@ -247,6 +247,15 @@ select {
   white-space: nowrap;
 }
 
+.purchase-dashboard .topbar {
+  align-items: start;
+}
+
+.purchase-toolbar {
+  grid-template-columns: minmax(220px, 1.3fr) repeat(3, minmax(135px, 0.75fr)) auto;
+  width: min(1120px, 100%);
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -320,7 +329,8 @@ select {
 
 .supplier-work-area {
   --supplier-summary-body-height: 300px;
-  grid-template-columns: minmax(260px, 0.9fr) minmax(360px, 1.15fr) minmax(300px, 0.85fr);
+  grid-template-columns: minmax(180px, 0.85fr) minmax(250px, 1.05fr) repeat(3, minmax(190px, 0.8fr));
+  gap: 10px;
 }
 
 .supplier-work-area > .panel {
