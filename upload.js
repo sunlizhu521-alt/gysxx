@@ -337,6 +337,7 @@ function syncDashboardSelect(select, values, label, preferredValue = select.valu
 }
 
 function filterSupplierRecords(filters) {
+  const selectedGroupKey = normalizeGroupKey(filters.owner);
   return supplierState.records.filter((record) => {
     const searchable = [
       record.primaryLine,
@@ -357,7 +358,7 @@ function filterSupplierRecords(filters) {
     return (
       (!filters.query || searchable.includes(filters.query)) &&
       (filters.productLine === "all" || record.dimProductLine === filters.productLine) &&
-      (filters.owner === "all" || record.dimPurchaseGroup === filters.owner) &&
+      (filters.owner === "all" || normalizeGroupKey(record.dimPurchaseGroup) === selectedGroupKey) &&
       (filters.orderUser === "all" || record.owner === filters.orderUser)
     );
   });
@@ -389,6 +390,7 @@ function getProductLineDistributionRecords() {
   const query = dashboardEls.search.value.trim().toLowerCase();
   const owner = dashboardEls.ownerFilter.value;
   const orderUser = dashboardEls.orderUserFilter.value;
+  const selectedGroupKey = normalizeGroupKey(owner);
   return supplierState.records.filter((record) => {
     const searchable = [
       record.primaryLine,
@@ -408,7 +410,7 @@ function getProductLineDistributionRecords() {
       .toLowerCase();
     return (
       (!query || searchable.includes(query)) &&
-      (owner === "all" || record.dimPurchaseGroup === owner) &&
+      (owner === "all" || normalizeGroupKey(record.dimPurchaseGroup) === selectedGroupKey) &&
       (orderUser === "all" || record.owner === orderUser)
     );
   });
@@ -468,6 +470,8 @@ function renderSupplierInfo(container, records, message) {
 
 function getVisibleDivisionRows() {
   if (!supplierState.filtered.length) return [];
+  const selectedGroup = dashboardEls.ownerFilter.value;
+  const hasGroupFilter = selectedGroup && selectedGroup !== "all";
   const visibleGroupKeys = new Set(
     supplierState.filtered
       .map((record) => normalizeGroupKey(record.dimPurchaseGroup || record.group || record.owner))
@@ -479,12 +483,13 @@ function getVisibleDivisionRows() {
       .filter(Boolean)
   );
   const showAllGroups = [...visibleProductLines].some(isAllGroupDivisionLine);
+  const allowAllGroupsByLine = !hasGroupFilter && showAllGroups;
 
   return supplierState.divisionRows.filter((row) => {
     const rowGroupKey = normalizeGroupKey(row.matchedPurchaseGroup || row.groupName);
     const rowText = normalizeDivisionMatchText([row.key, row.groupName, row.matchedPurchaseGroup, ...(row.cells || [])].join(" "));
     const rowTokens = getDivisionLineTokens(row.key || row.cells?.[0] || "");
-    const groupMatched = showAllGroups || !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
+    const groupMatched = allowAllGroupsByLine || !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
     const productLineMatched =
       showAllGroups ||
       !visibleProductLines.size ||
