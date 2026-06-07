@@ -89,9 +89,10 @@ function buildMissingRows(orderRows, categoryMap, purchaseMap) {
   orderRows.forEach((row) => {
     const materialKey = normalizeMaterialCode(row.materialCode);
     if (!materialKey) return;
-    const rowKey = [materialKey, row.supplier, row.sku].map((value) => String(value || "").trim()).join("||");
+    const rowKey = [row.sheetName, materialKey, row.supplier, row.sku].map((value) => String(value || "").trim()).join("||");
     if (!grouped.has(rowKey)) {
       grouped.set(rowKey, {
+        sheetName: row.sheetName,
         materialCode: row.materialCode,
         sku: row.sku,
         itemName: row.itemName,
@@ -103,6 +104,7 @@ function buildMissingRows(orderRows, categoryMap, purchaseMap) {
       });
     }
     const item = grouped.get(rowKey);
+    item.sheetName ||= row.sheetName;
     item.sku ||= row.sku;
     item.itemName ||= row.itemName;
     item.supplier ||= row.supplier;
@@ -171,11 +173,11 @@ async function readPurchaseOrderWorkbook(file) {
   const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
   return workbook.SheetNames.flatMap((sheetName) => {
     const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
-    return parsePurchaseOrderSheet(rows);
+    return parsePurchaseOrderSheet(rows, sheetName);
   });
 }
 
-function parsePurchaseOrderSheet(rows) {
+function parsePurchaseOrderSheet(rows, sheetName = "CSV") {
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell)));
   if (headerIndex < 0) return [];
   const dataRows = rows.slice(headerIndex + 1);
@@ -183,6 +185,7 @@ function parsePurchaseOrderSheet(rows) {
   if (headerMap.materialCode === undefined) return [];
   return dataRows
     .map((row) => ({
+      sheetName,
       materialCode: getRowValue(row, headerMap.materialCode),
       sku: getRowValue(row, headerMap.sku),
       itemName: getRowValue(row, headerMap.itemName),
@@ -289,12 +292,13 @@ function renderMissingView() {
   missingEls.downloadButton.disabled = Boolean(message) || !rows.length;
   missingEls.rows.innerHTML = rows.length
     ? rows.map(renderMissingRow).join("")
-    : `<tr><td colspan="4" class="empty-table-cell">${escapeHtml(message || "暂无缺失")}</td></tr>`;
+    : `<tr><td colspan="5" class="empty-table-cell">${escapeHtml(message || "暂无缺失")}</td></tr>`;
 }
 
 function renderMissingRow(row) {
   return `
     <tr>
+      <td>${escapeHtml(row.sheetName || "--")}</td>
       <td>${escapeHtml(row.supplier || "--")}</td>
       <td>${escapeHtml(row.materialCode || "--")}</td>
       <td>${escapeHtml(row.sku || "--")}</td>
@@ -306,6 +310,7 @@ function renderMissingRow(row) {
 function downloadMissingRows() {
   if (!missingState.filteredRows.length || !window.XLSX) return;
   const exportRows = missingState.filteredRows.map((row) => ({
+    来源Sheet: row.sheetName || "",
     供应商: row.supplier || "",
     物料编码: row.materialCode || "",
     SKU: row.sku || "",
