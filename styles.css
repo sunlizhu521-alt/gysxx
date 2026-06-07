@@ -575,6 +575,69 @@ select {
   text-align: left;
 }
 
+.kingdee-filter-panel {
+  margin-bottom: 10px;
+  overflow: visible;
+  position: relative;
+  z-index: 70;
+}
+
+.kingdee-filter-panel .panel-heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.kingdee-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.35fr) repeat(6, minmax(118px, 1fr));
+  gap: 6px;
+  align-items: start;
+  overflow: visible;
+}
+
+.kingdee-search-box {
+  min-height: 42px;
+}
+
+.kingdee-table {
+  min-width: 980px;
+}
+
+.kingdee-table-wrap {
+  max-height: calc(100vh - 260px);
+  min-height: 360px;
+}
+
+.kingdee-compare-table {
+  min-width: 980px;
+}
+
+.kingdee-compare-table th,
+.kingdee-compare-table td {
+  padding: 10px 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.kingdee-compare-table th:nth-child(5),
+.kingdee-compare-table td:nth-child(5) {
+  text-align: left;
+}
+
+@media (max-width: 1280px) {
+  .kingdee-filter-bar {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .kingdee-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
 .supplier-table {
   min-width: 1120px;
 }

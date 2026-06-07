@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>金蝶采购订单对比 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-4" />
   </head>
   <body>
     <div class="app-shell">
@@ -30,26 +30,67 @@
         </nav>
       </aside>
 
-      <main class="dashboard">
+      <main class="dashboard kingdee-compare-dashboard">
         <header class="topbar">
           <div>
             <p class="eyebrow">Kingdee Purchase Orders</p>
             <h1>金蝶采购订单对比</h1>
-            <small class="source-note">数据来源：本地文件库｜引用时间：--</small>
+            <small class="source-note" id="kingdeeCompareSourceNote">数据来源：本地文件库｜引用时间：--</small>
           </div>
         </header>
 
-        <section class="panel upload-panel upload-page-panel">
+        <section class="panel kingdee-filter-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Compare</p>
-              <h2>金蝶采购订单对比看板</h2>
+              <p class="eyebrow">Filters</p>
+              <h2>筛选条件</h2>
             </div>
-            <span class="upload-state">待配置</span>
+            <button id="kingdeeResetButton" type="button">重置筛选</button>
           </div>
-          <div class="empty-state">后续可在这里接入金蝶采购订单、采购未交付表和订单差异分析。</div>
+          <div class="kingdee-filter-bar" id="kingdeeFilterBar">
+            <label class="search-box kingdee-search-box">
+              <span>搜索</span>
+              <input id="kingdeeSearch" type="search" placeholder="物料编码、SKU、物料名称、供应商" />
+            </label>
+            <div class="multi-filter" id="orderUserCompareFilter" data-filter-key="orderUser"></div>
+            <div class="multi-filter" id="businessUnitCompareFilter" data-filter-key="businessUnit"></div>
+            <div class="multi-filter" id="supplierShortCompareFilter" data-filter-key="supplierShort"></div>
+            <div class="multi-filter" id="salesLineCompareFilter" data-filter-key="salesLine"></div>
+            <div class="multi-filter" id="salesSeriesCompareFilter" data-filter-key="salesSeries"></div>
+            <div class="multi-filter" id="compareMetricFilter" data-filter-key="compareMetric"></div>
+          </div>
+        </section>
+
+        <section class="panel table-panel kingdee-table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Data Compare</p>
+              <h2>数据对比</h2>
+            </div>
+            <span class="upload-state" id="kingdeeCompareState">等待数据</span>
+          </div>
+          <div class="table-wrap kingdee-table-wrap">
+            <table class="kingdee-compare-table">
+              <thead>
+                <tr>
+                  <th>事业部</th>
+                  <th>供应商简称</th>
+                  <th>物料编码</th>
+                  <th>SKU</th>
+                  <th>物料名称</th>
+                  <th id="kingdeeDataHeader">下单数量-金蝶数据</th>
+                  <th id="undeliveredDataHeader">下单数量-未交付表数据</th>
+                  <th id="differenceDataHeader">下单数量-差异数据</th>
+                </tr>
+              </thead>
+              <tbody id="kingdeeCompareRows">
+                <tr><td colspan="8" class="empty-table-cell">等待数据来源规则</td></tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </main>
     </div>
+    <script src="./kingdee-purchase-compare.js?v=20260608-1"></script>
   </body>
 </html>
