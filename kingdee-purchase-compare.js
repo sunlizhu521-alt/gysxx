@@ -1,8 +1,20 @@
+const DB_NAME = "supply-chain-library";
+const DB_VERSION = 3;
+const UPLOAD_STORE_NAME = "uploaded-files";
+const DIMENSION_STORE_NAME = "dimension-files";
+const FACT_STORE_NAME = "fact-files";
+const CATEGORY_DIMENSION_SLOT = "dimension-1";
+const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
+const PURCHASE_ORDER_SLOT = "fact-1";
+const KINGDEE_ORDER_SLOT = "fact-2";
+
 const compareEls = {
   filterBar: document.querySelector("#kingdeeFilterBar"),
   search: document.querySelector("#kingdeeSearch"),
   resetButton: document.querySelector("#kingdeeResetButton"),
+  downloadButton: document.querySelector("#kingdeeDownloadButton"),
   state: document.querySelector("#kingdeeCompareState"),
+  sourceNote: document.querySelector("#kingdeeCompareSourceNote"),
   rows: document.querySelector("#kingdeeCompareRows"),
   kingdeeHeader: document.querySelector("#kingdeeDataHeader"),
   undeliveredHeader: document.querySelector("#undeliveredDataHeader"),
@@ -10,11 +22,11 @@ const compareEls = {
 };
 
 const compareFilterConfigs = [
-  { key: "orderUser", id: "orderUserCompareFilter", label: "全部采购订单下单人", options: [] },
-  { key: "businessUnit", id: "businessUnitCompareFilter", label: "全部事业部", options: [] },
-  { key: "supplierShort", id: "supplierShortCompareFilter", label: "全部供应商简称", options: [] },
-  { key: "salesLine", id: "salesLineCompareFilter", label: "全部销售产品线", options: [] },
-  { key: "salesSeries", id: "salesSeriesCompareFilter", label: "全部销售系列", options: [] },
+  { key: "orderUser", id: "orderUserCompareFilter", label: "全部采购订单下单人", field: "orderUsers" },
+  { key: "businessUnit", id: "businessUnitCompareFilter", label: "全部事业部", field: "businessUnit" },
+  { key: "supplierShort", id: "supplierShortCompareFilter", label: "全部供应商简称", field: "supplierShort" },
+  { key: "salesLine", id: "salesLineCompareFilter", label: "全部销售产品线", field: "salesLine" },
+  { key: "salesSeries", id: "salesSeriesCompareFilter", label: "全部销售系列", field: "salesSeries" },
   {
     key: "compareMetric",
     id: "compareMetricFilter",
@@ -24,16 +36,53 @@ const compareFilterConfigs = [
   },
 ];
 
+const kingdeeAliases = {
+  materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
+  sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
+  itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
+  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
+  creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
+  businessUnit: ["事业部", "部门", "业务部门"],
+  purchaseQty: ["采购数量", "数量", "订单数量"],
+  remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
+};
+
+const deliveryAliases = {
+  materialCode: ["品号", "物料编码", "商品编码", "存货编码", "产品编码"],
+  sku: ["SKU", "sku", "领星SKU"],
+  itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
+  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
+  orderedQty: ["下单数量-备货需求-OA申请为准"],
+  remainingQty: ["未发货数量"],
+};
+
+const categoryAliases = {
+  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
+  sku: ["SKU", "sku", "领星SKU"],
+  itemName: ["金蝶名称", "物料名称", "物品名称", "商品名称", "品名"],
+  salesLine: ["销售产品线"],
+  salesSeries: ["销售系列"],
+};
+
+const purchaseAssignmentAliases = {
+  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
+  supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
+  supplierShort: ["供应商简称", "简称", "供应商简名"],
+  orderUser: ["采购下单人"],
+};
+
 const compareState = {
+  records: [],
+  filtered: [],
   selectedFilters: Object.fromEntries(compareFilterConfigs.map((config) => [config.key, new Set()])),
 };
 
-function initKingdeeComparePage() {
+async function initKingdeeComparePage() {
   compareFilterConfigs.forEach(renderCompareFilter);
   compareState.selectedFilters.compareMetric.add("下单数量");
-  updateCompareFilters();
-  updateCompareHeaders();
   bindCompareEvents();
+  updateCompareHeaders();
+  await loadCompareData();
 }
 
 function bindCompareEvents() {
@@ -48,10 +97,12 @@ function bindCompareEvents() {
     const option = event.target.closest("[data-filter-option]");
     if (!option) return;
     event.preventDefault();
+    event.stopPropagation();
     toggleCompareOption(option.dataset.filterKey, option.dataset.filterOption);
-    updateCompareFilters();
-    updateCompareHeaders();
+    applyCompareFilters();
   });
+
+  compareEls.search.addEventListener("input", applyCompareFilters);
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#kingdeeFilterBar")) closeCompareFilters();
@@ -61,9 +112,64 @@ function bindCompareEvents() {
     compareEls.search.value = "";
     Object.values(compareState.selectedFilters).forEach((set) => set.clear());
     compareState.selectedFilters.compareMetric.add("下单数量");
-    updateCompareFilters();
-    updateCompareHeaders();
+    applyCompareFilters();
   });
+
+  compareEls.downloadButton?.addEventListener("click", downloadCompareRows);
+}
+
+async function loadCompareData() {
+  try {
+    setCompareMessage("正在读取本地文件库");
+    const db = await openAppDb();
+    const [kingdeeRecord, deliveryRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
+      getRecord(db, FACT_STORE_NAME, KINGDEE_ORDER_SLOT),
+      getRecord(db, FACT_STORE_NAME, PURCHASE_ORDER_SLOT),
+      getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
+      getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT),
+    ]);
+    db.close();
+
+    const appliedKingdeeRecord = getAppliedLibraryRecord(kingdeeRecord);
+    const appliedDeliveryRecord = getAppliedLibraryRecord(deliveryRecord);
+    const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
+    const appliedPurchaseAssignmentRecord = getAppliedLibraryRecord(purchaseAssignmentRecord);
+
+    updateSourceNote(compareEls.sourceNote, "数据来源：本地文件库", [
+      { name: "Fac-金蝶采购订单列表", record: appliedKingdeeRecord },
+      { name: "Fac-采购订单跟进表", record: appliedDeliveryRecord },
+      { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
+      { name: "Dim-采购分工明细", record: appliedPurchaseAssignmentRecord },
+    ]);
+
+    if (!appliedKingdeeRecord?.file || !appliedDeliveryRecord?.file) {
+      resetCompare("请先在文件库更新上传并确认应用 Fac-金蝶采购订单列表 和 Fac-采购订单跟进表");
+      return;
+    }
+
+    const [categoryMap, assignmentMaps, kingdeeRows, deliveryRows] = await Promise.all([
+      appliedCategoryRecord?.file ? readCategoryDimension(appliedCategoryRecord.file) : Promise.resolve(new Map()),
+      appliedPurchaseAssignmentRecord?.file ? readPurchaseAssignment(appliedPurchaseAssignmentRecord.file) : Promise.resolve(createEmptyAssignmentMaps()),
+      readKingdeeWorkbook(appliedKingdeeRecord.file),
+      readDeliveryWorkbook(appliedDeliveryRecord.file),
+    ]);
+
+    compareState.records = mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps);
+    if (!compareState.records.length) {
+      resetCompare("已应用文件暂无可对比数据");
+      return;
+    }
+    applyCompareFilters();
+  } catch (error) {
+    console.error(error);
+    resetCompare("金蝶采购订单对比读取失败");
+  }
+}
+
+function resetCompare(message) {
+  compareState.records = [];
+  compareState.filtered = [];
+  applyCompareFilters(message);
 }
 
 function renderCompareFilter(config) {
@@ -77,37 +183,61 @@ function renderCompareFilter(config) {
   `;
 }
 
+function applyCompareFilters(message = "") {
+  updateCompareHeaders();
+  updateCompareFilters();
+  compareState.filtered = message ? [] : filterCompareRows(getCompareFilterValues(), compareEls.search.value);
+  renderCompareRows(message);
+}
+
 function updateCompareFilters() {
+  const filters = getCompareFilterValues();
   compareFilterConfigs.forEach((config) => {
     const element = getFilterElement(config.key);
     const selected = compareState.selectedFilters[config.key] || new Set();
     const button = element.querySelector(".multi-filter-button span");
     const menu = element.querySelector(".multi-filter-menu");
-    button.textContent = getCompareFilterLabel(config, selected);
-    menu.innerHTML = renderCompareOptions(config, selected);
+    const options = getCompareOptionItems(config, filters);
+    syncSelectedValues(config, options);
+    button.textContent = getCompareFilterLabel(config, compareState.selectedFilters[config.key]);
+    menu.innerHTML = renderCompareOptions(config, compareState.selectedFilters[config.key], options);
   });
 }
 
-function renderCompareOptions(config, selected) {
-  const allSelected = !selected.size;
+function getCompareOptionItems(config, filters) {
+  if (config.options) return config.options.map((value) => ({ value, label: value }));
+  const optionRows = filterCompareRows({ ...filters, [config.key]: [] }, compareEls.search.value);
+  return uniqueFilterValues(optionRows, config.field).map((value) => ({ value, label: value }));
+}
+
+function syncSelectedValues(config, options) {
+  if (config.single) return;
+  const availableValues = new Set(options.map((option) => option.value));
+  const selected = compareState.selectedFilters[config.key] || new Set();
+  [...selected].forEach((value) => {
+    if (!availableValues.has(value)) selected.delete(value);
+  });
+}
+
+function renderCompareOptions(config, selected, options) {
   const allOption = config.single
     ? ""
     : `
-      <label class="multi-filter-option ${allSelected ? "selected" : ""}" data-filter-key="${config.key}" data-filter-option="all">
-        <input type="checkbox" ${allSelected ? "checked" : ""} />
+      <label class="multi-filter-option ${selected.size ? "" : "selected"}" data-filter-key="${config.key}" data-filter-option="all">
+        <input type="checkbox" ${selected.size ? "" : "checked"} />
         <span>${escapeHtml(config.label)}</span>
       </label>`;
-  const options = config.options.length ? config.options : ["等待数据"];
+  const optionList = options.length ? options : [{ value: "等待数据", label: "等待数据", disabled: true }];
   return `
     ${allOption}
-    ${options
-      .map((value) => {
-        const disabled = value === "等待数据";
-        const checked = selected.has(value);
+    ${optionList
+      .map((option) => {
+        const disabled = option.disabled || option.value === "等待数据";
+        const checked = selected.has(option.value);
         return `
-          <label class="multi-filter-option ${checked ? "selected" : ""}" data-filter-key="${config.key}" data-filter-option="${escapeAttribute(value)}">
+          <label class="multi-filter-option ${checked ? "selected" : ""}" data-filter-key="${config.key}" data-filter-option="${escapeAttribute(option.value)}">
             <input type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} />
-            <span>${escapeHtml(value)}</span>
+            <span>${escapeHtml(option.label)}</span>
           </label>`;
       })
       .join("")}
@@ -132,18 +262,389 @@ function toggleCompareOption(key, value) {
 }
 
 function updateCompareHeaders() {
-  const metric = [...compareState.selectedFilters.compareMetric][0] || "下单数量";
+  const metric = getSelectedMetric();
   compareEls.kingdeeHeader.textContent = `${metric}-金蝶数据`;
   compareEls.undeliveredHeader.textContent = `${metric}-未交付表数据`;
   compareEls.differenceHeader.textContent = `${metric}-差异数据`;
-  compareEls.state.textContent = "等待数据来源规则";
-  compareEls.rows.innerHTML = `<tr><td colspan="8" class="empty-table-cell">等待数据来源规则</td></tr>`;
+}
+
+function renderCompareRows(message = "") {
+  const rows = compareState.filtered;
+  const metric = getSelectedMetric();
+  compareEls.downloadButton.disabled = Boolean(message) || !rows.length || !window.XLSX;
+  compareEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
+
+  if (message || !rows.length) {
+    compareEls.rows.innerHTML = `<tr><td colspan="8" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    return;
+  }
+
+  compareEls.rows.innerHTML = rows.map((record) => renderCompareRow(record, metric)).join("");
+}
+
+function renderCompareRow(record, metric) {
+  const values = getMetricValues(record, metric);
+  return `
+    <tr>
+      <td>${escapeHtml(record.businessUnit || "--")}</td>
+      <td>${escapeHtml(record.supplierShort || "--")}</td>
+      <td>${escapeHtml(record.materialCode || "--")}</td>
+      <td>${escapeHtml(record.sku || "--")}</td>
+      <td>${escapeHtml(record.itemName || "--")}</td>
+      <td>${formatNumber(values.kingdee)}</td>
+      <td>${formatNumber(values.undelivered)}</td>
+      <td>${formatNumber(values.difference)}</td>
+    </tr>
+  `;
+}
+
+function getMetricValues(record, metric) {
+  const kingdee = metric === "剩余数量" ? record.kingdeeRemainingQty : record.kingdeeOrderedQty;
+  const undelivered = metric === "剩余数量" ? record.deliveryRemainingQty : record.deliveryOrderedQty;
+  return {
+    kingdee,
+    undelivered,
+    difference: kingdee - undelivered,
+  };
+}
+
+function downloadCompareRows() {
+  if (!compareState.filtered.length || !window.XLSX) return;
+  const metric = getSelectedMetric();
+  const exportRows = compareState.filtered.map((record) => {
+    const values = getMetricValues(record, metric);
+    return {
+      事业部: record.businessUnit || "",
+      供应商简称: record.supplierShort || "",
+      物料编码: record.materialCode || "",
+      SKU: record.sku || "",
+      物料名称: record.itemName || "",
+      [`${metric}-金蝶数据`]: values.kingdee,
+      [`${metric}-未交付表数据`]: values.undelivered,
+      [`${metric}-差异数据`]: values.difference,
+    };
+  });
+  const headers = ["事业部", "供应商简称", "物料编码", "SKU", "物料名称", `${metric}-金蝶数据`, `${metric}-未交付表数据`, `${metric}-差异数据`];
+  const worksheet = window.XLSX.utils.json_to_sheet(exportRows, { header: headers });
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "数据对比");
+  window.XLSX.writeFile(workbook, `${buildCompareDownloadName(metric)}.xlsx`);
+}
+
+function buildCompareDownloadName(metric) {
+  const parts = [
+    "金蝶采购订单对比",
+    metric,
+    compareEls.search.value ? `搜索-${compareEls.search.value}` : "",
+    ...compareFilterConfigs
+      .filter((config) => config.key !== "compareMetric")
+      .map((config) => selectedText(config)),
+    formatDateCompact(new Date()),
+  ];
+  return parts.map(sanitizeFileNamePart).filter(Boolean).join("_");
+}
+
+async function readCategoryDimension(file) {
+  const rows = await readWorkbookRows(file, "Dim-YL医疗器械商品分类");
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, categoryAliases)));
+  const map = new Map();
+  if (headerIndex >= 0) {
+    const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), categoryAliases);
+    rows.slice(headerIndex + 1).forEach((row) => {
+      const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
+      if (!materialCode) return;
+      map.set(materialCode, {
+        materialCode,
+        sku: getRowValue(row, headerMap.sku),
+        itemName: getRowValue(row, headerMap.itemName),
+        salesLine: getRowValue(row, headerMap.salesLine) || "未匹配",
+        salesSeries: getRowValue(row, headerMap.salesSeries) || "未匹配",
+      });
+    });
+    return map;
+  }
+
+  rows.slice(1).forEach((row) => {
+    const materialCode = normalizeMaterialCode(row[0]);
+    if (!materialCode) return;
+    map.set(materialCode, {
+      materialCode,
+      sku: String(row[2] ?? "").trim(),
+      itemName: String(row[3] ?? "").trim(),
+      salesLine: String(row[6] ?? "").trim() || "未匹配",
+      salesSeries: String(row[7] ?? "").trim() || "未匹配",
+    });
+  });
+  return map;
+}
+
+async function readPurchaseAssignment(file) {
+  const rows = await readWorkbookRows(file, "产品线明细");
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, purchaseAssignmentAliases)));
+  const maps = createEmptyAssignmentMaps();
+  if (headerIndex < 0) return maps;
+
+  const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseAssignmentAliases);
+  rows.slice(headerIndex + 1).forEach((row) => {
+    const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
+    const supplier = getRowValue(row, headerMap.supplier);
+    const supplierShort = getRowValue(row, headerMap.supplierShort) || supplier;
+    const orderUser = getRowValue(row, headerMap.orderUser);
+    if (materialCode) {
+      maps.byMaterial.set(materialCode, {
+        supplier,
+        supplierShort,
+        orderUser,
+      });
+    }
+    if (supplier) {
+      maps.bySupplier.set(normalizeTextKey(supplier), {
+        supplier,
+        supplierShort,
+        orderUser,
+      });
+    }
+    if (supplierShort) {
+      maps.bySupplierShort.set(normalizeTextKey(supplierShort), {
+        supplier,
+        supplierShort,
+        orderUser,
+      });
+    }
+    if (orderUser) maps.orderUsers.add(orderUser);
+  });
+  return maps;
+}
+
+function createEmptyAssignmentMaps() {
+  return {
+    byMaterial: new Map(),
+    bySupplier: new Map(),
+    bySupplierShort: new Map(),
+    orderUsers: new Set(),
+  };
+}
+
+async function readKingdeeWorkbook(file) {
+  const workbookRows = await readAllWorkbookSheets(file);
+  return workbookRows.flatMap(({ rows }) => parseKingdeeSheet(rows));
+}
+
+function parseKingdeeSheet(rows) {
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, kingdeeAliases)));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createHeaderMap(headers, dataRows, kingdeeAliases);
+  if (headerMap.purchaseQty === undefined && headerMap.remainingInboundQty === undefined) return [];
+
+  return dataRows
+    .map((row, index) => {
+      const materialCode = getRowValue(row, headerMap.materialCode);
+      const sku = getRowValue(row, headerMap.sku);
+      const itemName = getRowValue(row, headerMap.itemName);
+      const supplier = getRowValue(row, headerMap.supplier);
+      return {
+        id: `kingdee-${index}-${materialCode}-${sku}-${supplier}`,
+        materialCode,
+        sku,
+        itemName,
+        supplier,
+        creator: getRowValue(row, headerMap.creator),
+        businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
+        purchaseQty: parseNumber(getRowValue(row, headerMap.purchaseQty)),
+        remainingInboundQty: parseNumber(getRowValue(row, headerMap.remainingInboundQty)),
+      };
+    })
+    .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
+}
+
+async function readDeliveryWorkbook(file) {
+  const workbookRows = await readAllWorkbookSheets(file);
+  return workbookRows.flatMap(({ sheetName, rows }) => parseDeliverySheet(rows, getBusinessUnitFromSheetName(sheetName)));
+}
+
+function parseDeliverySheet(rows, businessUnit) {
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, deliveryAliases)));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createHeaderMap(headers, dataRows, deliveryAliases);
+  if (headerMap.orderedQty === undefined && headerMap.remainingQty === undefined) return [];
+
+  return dataRows
+    .map((row, index) => {
+      const materialCode = getRowValue(row, headerMap.materialCode);
+      const sku = getRowValue(row, headerMap.sku);
+      const itemName = getRowValue(row, headerMap.itemName);
+      const supplier = getRowValue(row, headerMap.supplier);
+      return {
+        id: `delivery-${businessUnit}-${index}-${materialCode}-${sku}-${supplier}`,
+        businessUnit: normalizeBusinessUnit(businessUnit),
+        materialCode,
+        sku,
+        itemName,
+        supplier,
+        orderedQty: parseNumber(getRowValue(row, headerMap.orderedQty)),
+        remainingQty: parseNumber(getRowValue(row, headerMap.remainingQty)),
+      };
+    })
+    .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
+}
+
+function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps) {
+  const rowMap = new Map();
+
+  kingdeeRows.forEach((row) => {
+    const enriched = enrichKingdeeRow(row, categoryMap, assignmentMaps);
+    const target = getOrCreateCompareRow(rowMap, enriched);
+    target.kingdeeOrderedQty += row.purchaseQty;
+    target.kingdeeRemainingQty += row.remainingInboundQty;
+    addSetValues(target.orderUsers, enriched.orderUsers);
+  });
+
+  deliveryRows.forEach((row) => {
+    const enriched = enrichDeliveryRow(row, categoryMap, assignmentMaps);
+    const target = getOrCreateCompareRow(rowMap, enriched);
+    target.deliveryOrderedQty += row.orderedQty;
+    target.deliveryRemainingQty += row.remainingQty;
+    addSetValues(target.orderUsers, enriched.orderUsers);
+  });
+
+  return [...rowMap.values()].sort(sortCompareRows).map((record) => ({
+    ...record,
+    orderUsers: [...record.orderUsers].filter(Boolean),
+  }));
+}
+
+function enrichKingdeeRow(row, categoryMap, assignmentMaps) {
+  const materialCode = normalizeMaterialCode(row.materialCode);
+  const category = categoryMap.get(materialCode);
+  const supplierMatch = matchSupplier(row.supplier, assignmentMaps);
+  const materialMatch = assignmentMaps.byMaterial.get(materialCode);
+  const supplierShort = supplierMatch?.supplierShort || materialMatch?.supplierShort || row.supplier || "未匹配";
+  const orderUser = row.creator || supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
+  return {
+    businessUnit: normalizeBusinessUnit(row.businessUnit),
+    supplierShort,
+    materialCode: row.materialCode || materialCode || "未匹配",
+    materialKey: materialCode,
+    sku: category?.sku || row.sku,
+    itemName: category?.itemName || row.itemName,
+    salesLine: category?.salesLine || "未匹配",
+    salesSeries: category?.salesSeries || "未匹配",
+    orderUsers: [orderUser],
+  };
+}
+
+function enrichDeliveryRow(row, categoryMap, assignmentMaps) {
+  const materialCode = normalizeMaterialCode(row.materialCode);
+  const category = categoryMap.get(materialCode);
+  const supplierMatch = matchSupplier(row.supplier, assignmentMaps);
+  const materialMatch = assignmentMaps.byMaterial.get(materialCode);
+  const supplierShort = supplierMatch?.supplierShort || materialMatch?.supplierShort || row.supplier || "未匹配";
+  const orderUser = supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
+  return {
+    businessUnit: normalizeBusinessUnit(row.businessUnit),
+    supplierShort,
+    materialCode: row.materialCode || materialCode || "未匹配",
+    materialKey: materialCode,
+    sku: category?.sku || row.sku,
+    itemName: category?.itemName || row.itemName,
+    salesLine: category?.salesLine || "未匹配",
+    salesSeries: category?.salesSeries || "未匹配",
+    orderUsers: [orderUser],
+  };
+}
+
+function getOrCreateCompareRow(rowMap, enriched) {
+  const key = [enriched.businessUnit, normalizeTextKey(enriched.supplierShort), enriched.materialKey || normalizeMaterialCode(enriched.materialCode)].join("|");
+  if (!rowMap.has(key)) {
+    rowMap.set(key, {
+      businessUnit: enriched.businessUnit || "未匹配",
+      supplierShort: enriched.supplierShort || "未匹配",
+      materialCode: enriched.materialCode || "",
+      sku: enriched.sku || "",
+      itemName: enriched.itemName || "",
+      salesLine: enriched.salesLine || "未匹配",
+      salesSeries: enriched.salesSeries || "未匹配",
+      orderUsers: new Set(enriched.orderUsers || []),
+      kingdeeOrderedQty: 0,
+      kingdeeRemainingQty: 0,
+      deliveryOrderedQty: 0,
+      deliveryRemainingQty: 0,
+    });
+  } else {
+    const existing = rowMap.get(key);
+    existing.sku ||= enriched.sku || "";
+    existing.itemName ||= enriched.itemName || "";
+    existing.salesLine = existing.salesLine === "未匹配" ? enriched.salesLine : existing.salesLine;
+    existing.salesSeries = existing.salesSeries === "未匹配" ? enriched.salesSeries : existing.salesSeries;
+  }
+  return rowMap.get(key);
+}
+
+function matchSupplier(value, assignmentMaps) {
+  const key = normalizeTextKey(value);
+  if (!key) return null;
+  return assignmentMaps.bySupplier.get(key) || assignmentMaps.bySupplierShort.get(key) || null;
+}
+
+function filterCompareRows(filters, searchText = "") {
+  const query = normalizeTextKey(searchText);
+  return compareState.records.filter((record) => {
+    if (!matchesMulti(record.orderUsers, filters.orderUser)) return false;
+    if (!matchesFilter(record.businessUnit, filters.businessUnit)) return false;
+    if (!matchesFilter(record.supplierShort, filters.supplierShort)) return false;
+    if (!matchesFilter(record.salesLine, filters.salesLine)) return false;
+    if (!matchesFilter(record.salesSeries, filters.salesSeries)) return false;
+    if (!query) return true;
+    return [record.businessUnit, record.supplierShort, record.materialCode, record.sku, record.itemName, record.salesLine, record.salesSeries, ...(record.orderUsers || [])]
+      .some((value) => normalizeTextKey(value).includes(query));
+  });
+}
+
+function getCompareFilterValues() {
+  return Object.fromEntries(
+    compareFilterConfigs.map((config) => [config.key, [...(compareState.selectedFilters[config.key] || new Set())]])
+  );
+}
+
+function uniqueFilterValues(rows, field) {
+  const values = new Set();
+  rows.forEach((row) => {
+    const raw = row[field];
+    const items = Array.isArray(raw) ? raw : [raw];
+    items.forEach((value) => {
+      if (value) values.add(value);
+    });
+  });
+  return [...values].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+}
+
+function matchesFilter(value, selectedValues = []) {
+  return !selectedValues?.length || selectedValues.includes(value);
+}
+
+function matchesMulti(values, selectedValues = []) {
+  if (!selectedValues?.length) return true;
+  const valueSet = new Set(Array.isArray(values) ? values : [values]);
+  return selectedValues.some((value) => valueSet.has(value));
+}
+
+function getSelectedMetric() {
+  return [...compareState.selectedFilters.compareMetric][0] || "下单数量";
 }
 
 function getCompareFilterLabel(config, selected) {
   if (!selected.size) return config.label;
   if (selected.size === 1) return [...selected][0];
+  if (selected.size === 2) return [...selected].join("、");
   return `已选${selected.size}项`;
+}
+
+function selectedText(config) {
+  return getCompareFilterLabel(config, compareState.selectedFilters[config.key] || new Set());
 }
 
 function getFilterElement(key) {
@@ -157,6 +658,251 @@ function closeCompareFilters(exceptKey = "") {
   });
 }
 
+async function readAllWorkbookSheets(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return [{ sheetName: file.name, rows: csvToRows(await file.text()) }];
+  }
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  return workbook.SheetNames.map((sheetName) => ({
+    sheetName,
+    rows: window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" }),
+  }));
+}
+
+async function readWorkbookRows(file, preferredSheetName = "") {
+  const sheets = await readAllWorkbookSheets(file);
+  const matched = sheets.find((sheet) => preferredSheetName && sheet.sheetName.includes(preferredSheetName)) || sheets[0];
+  return matched?.rows || [];
+}
+
+function createHeaderMap(headers, dataRows, aliasesByKey) {
+  const headerMap = createAliasHeaderMap(headers, aliasesByKey);
+  if (headerMap.materialCode === undefined) {
+    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
+    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
+  }
+  return headerMap;
+}
+
+function createAliasHeaderMap(headers, aliasesByKey) {
+  return Object.fromEntries(
+    Object.entries(aliasesByKey)
+      .map(([key, aliases]) => {
+        const index = headers.findIndex((header) => aliases.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
+        return [key, index >= 0 ? index : undefined];
+      })
+      .filter(([, index]) => index !== undefined)
+  );
+}
+
+function hasKnownHeader(value, aliasesByKey) {
+  const header = normalizeHeader(value);
+  return Object.values(aliasesByKey).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
+}
+
+function inferMaterialCodeColumn(headers, dataRows, usedColumns) {
+  const candidates = headers.map((_, index) => index).filter((index) => !usedColumns.has(index));
+  let bestColumn;
+  let bestScore = 0;
+  candidates.forEach((column) => {
+    const score = dataRows.slice(0, 60).reduce((sum, row) => sum + scoreMaterialCodeCell(row[column]), 0);
+    if (score > bestScore) {
+      bestColumn = column;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 3 ? bestColumn : undefined;
+}
+
+function scoreMaterialCodeCell(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const normalized = normalizeMaterialCode(raw);
+  if (normalized.length < 4 || /[\u4e00-\u9fff]/.test(normalized)) return 0;
+  let score = 1;
+  if (/\d/.test(normalized)) score += 2;
+  if (/^[a-z0-9._-]+$/i.test(normalized)) score += 1;
+  return score;
+}
+
+function getBusinessUnitFromSheetName(sheetName) {
+  const name = String(sheetName || "").trim();
+  return normalizeBusinessUnit(name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配");
+}
+
+function normalizeBusinessUnit(value) {
+  const text = String(value || "").trim().split("*")[0].trim().replace(/[（(].*?[）)]/g, "").trim();
+  if (!text) return "未匹配";
+  if (text === "全球招商事业部") return "全球招商部";
+  return text;
+}
+
+function normalizeHeader(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[()（）]/g, "")
+    .toLowerCase();
+}
+
+function normalizeMaterialCode(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\.0$/, "")
+    .toLowerCase();
+}
+
+function normalizeTextKey(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function addSetValues(target, values) {
+  (values || []).forEach((value) => {
+    if (value) target.add(value);
+  });
+}
+
+function sortCompareRows(a, b) {
+  return (
+    String(a.businessUnit).localeCompare(String(b.businessUnit), "zh-CN") ||
+    String(a.supplierShort).localeCompare(String(b.supplierShort), "zh-CN") ||
+    String(a.materialCode).localeCompare(String(b.materialCode), "zh-CN")
+  );
+}
+
+function getRowValue(row, index) {
+  return index === undefined ? "" : String(row[index] ?? "").trim();
+}
+
+function parseNumber(value) {
+  const number = Number(String(value || "").replace(/,/g, "").trim());
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value) || 0);
+}
+
+function updateSourceNote(element, label, sourceRecord) {
+  if (!element) return;
+  if (Array.isArray(sourceRecord)) {
+    const parts = sourceRecord.map((item) => {
+      const time = getReferenceTime(item.record);
+      return `${item.name}：${time ? formatReferenceTime(time) : "--"}`;
+    });
+    element.textContent = `${label}｜${parts.join("；")}`;
+    return;
+  }
+  const time = getReferenceTime(sourceRecord);
+  element.textContent = `${label}｜引用时间：${time ? formatReferenceTime(time) : "--"}`;
+}
+
+function getReferenceTime(sourceRecord) {
+  return sourceRecord?.appliedAt || sourceRecord?.savedAt || sourceRecord?.generatedAt || "";
+}
+
+function formatReferenceTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function formatDateCompact(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function sanitizeFileNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "");
+}
+
+function getAppliedLibraryRecord(record) {
+  return record?.applied && record?.file ? record : null;
+}
+
+function setCompareMessage(message) {
+  compareEls.state.textContent = message;
+  compareEls.rows.innerHTML = `<tr><td colspan="8" class="empty-table-cell">${escapeHtml(message)}</td></tr>`;
+  if (compareEls.downloadButton) compareEls.downloadButton.disabled = true;
+}
+
+function openAppDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, FACT_STORE_NAME].forEach((storeName) => {
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName, { keyPath: "id" });
+        }
+      });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function getRecord(db, storeName, key) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, "readonly");
+    const request = transaction.objectStore(storeName).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function csvToRows(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      value += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(value);
+      value = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(value);
+      rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += char;
+    }
+  }
+  if (value || row.length) {
+    row.push(value);
+    rows.push(row);
+  }
+  return rows;
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -168,7 +914,10 @@ function escapeHtml(value) {
 }
 
 function escapeAttribute(value) {
-  return escapeHtml(value);
+  return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-initKingdeeComparePage();
+initKingdeeComparePage().catch((error) => {
+  console.error(error);
+  setCompareMessage("金蝶采购订单对比异常");
+});

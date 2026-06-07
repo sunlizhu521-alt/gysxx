@@ -67,7 +67,10 @@
               <p class="eyebrow">Data Compare</p>
               <h2>数据对比</h2>
             </div>
-            <span class="upload-state" id="kingdeeCompareState">等待数据</span>
+            <div class="table-actions">
+              <button id="kingdeeDownloadButton" type="button" disabled>下载当前结果</button>
+              <span class="upload-state" id="kingdeeCompareState">等待数据</span>
+            </div>
           </div>
           <div class="table-wrap kingdee-table-wrap">
             <table class="kingdee-compare-table">
@@ -91,6 +94,7 @@
         </section>
       </main>
     </div>
-    <script src="./kingdee-purchase-compare.js?v=20260608-1"></script>
+    <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
+    <script src="./kingdee-purchase-compare.js?v=20260608-2"></script>
   </body>
 </html>
