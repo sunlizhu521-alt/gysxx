@@ -389,49 +389,18 @@ function applyDashboardFilters() {
   renderDashboard();
 }
 
-function getProductLineDistributionRecords() {
-  const query = dashboardEls.search.value.trim().toLowerCase();
-  const owner = dashboardEls.ownerFilter.value;
-  const orderUser = dashboardEls.orderUserFilter.value;
-  const selectedGroupKey = normalizeGroupKey(owner);
-  return supplierState.records.filter((record) => {
-    const searchable = [
-      record.primaryLine,
-      record.secondaryLine,
-      record.group,
-      record.dimProductLine,
-      record.dimPurchaseGroup,
-      record.owner,
-      record.materialCode,
-      record.sku,
-      record.materialName,
-      record.supplier,
-      record.supplierShort,
-      record.paymentTerm,
-    ]
-      .join(" ")
-      .toLowerCase();
-    return (
-      (!query || searchable.includes(query)) &&
-      (owner === "all" || normalizeGroupKey(record.dimPurchaseGroup) === selectedGroupKey) &&
-      (orderUser === "all" || record.owner === orderUser)
-    );
-  });
-}
-
 function renderDashboard(message) {
   const all = supplierState.records;
   const visible = supplierState.filtered;
-  const productLineDistribution = getProductLineDistributionRecords();
 
-  dashboardEls.skuCount.textContent = visible.length || all.length || 0;
-  dashboardEls.activeSupplierCount.textContent = uniqueSuppliers(visible.length ? visible : all).length;
+  dashboardEls.skuCount.textContent = visible.length;
+  dashboardEls.activeSupplierCount.textContent = uniqueSuppliers(visible).length;
   dashboardEls.recordState.textContent = message || (all.length ? `当前 ${visible.length} / ${all.length} 条` : "等待数据");
   dashboardEls.downloadButton.disabled = Boolean(message) || !visible.length;
 
   renderSupplierInfo(dashboardEls.supplierInfoRows, visible, message);
   renderDivisionInfo(dashboardEls.divisionInfoHead, dashboardEls.divisionInfoRows, getVisibleDivisionRows(), supplierState.divisionHeaders, message);
-  renderBars(dashboardEls.productLineBars, countBy(productLineDistribution, "dimProductLine"), message || "暂无产品线数据");
+  renderBars(dashboardEls.productLineBars, countBy(visible, "dimProductLine"), message || "暂无产品线数据");
   renderBars(dashboardEls.orderUserSupplierBars, countSuppliersByOrderUser(visible), message || "暂无采购下单人数据");
   renderBars(dashboardEls.purchaseGroupSupplierBars, countSuppliersByPurchaseGroup(visible), message || "暂无采购组数据");
   renderRows(visible, message);
@@ -494,7 +463,6 @@ function getVisibleDivisionRows() {
     const rowTokens = getDivisionLineTokens(row.key || row.cells?.[0] || "");
     const groupMatched = allowAllGroupsByLine || !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
     const productLineMatched =
-      showAllGroups ||
       !visibleProductLines.size ||
       [...visibleProductLines].some((line) => matchesDivisionProductLine(line, rowText, rowTokens));
     return groupMatched && productLineMatched;
