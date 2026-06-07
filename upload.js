@@ -244,7 +244,8 @@ function normalizeRow(row, headerMap, index) {
   const owner = getValue("owner", 2);
   const group = getValue("group") || extractGroup(owner);
   const supplier = getValue("supplier", 6);
-  const supplierShort = getValue("supplierShort", 7) || supplier;
+  const sourceSupplierShort = getValue("supplierShort", 8);
+  const supplierShort = sourceSupplierShort || supplier;
   const moq = parseNumber(getValue("moq", 8));
   const leadTime = parseNumber(getValue("leadTime", 9));
   const hasContract = parseBoolean(getValue("hasContract", 12));
@@ -261,6 +262,7 @@ function normalizeRow(row, headerMap, index) {
     materialName: getValue("materialName", 5),
     supplier,
     supplierShort,
+    sourceSupplierShort,
     purchasePrice: 0,
     unitPrice: 0,
     moq,
@@ -283,6 +285,7 @@ function enrichSupplierRecords(records, categoryMap) {
     return {
       ...record,
       sourcePurchaseGroup: record.sourcePurchaseGroup || record.group || "",
+      sourceSupplierShort: record.sourceSupplierShort || "",
       dimProductLine,
       dimPurchaseGroup,
       displayPurchaseGroup: getDisplayPurchaseGroup(record.sourcePurchaseGroup || record.group, dimPurchaseGroup),
@@ -416,7 +419,7 @@ function renderSupplierInfo(container, records, message) {
   }
 
   const suppliers = [...records.reduce((result, record) => {
-    const key = record.supplierShort || record.supplier || "未填写";
+    const key = record.sourceSupplierShort || "未填写";
     if (!result.has(key)) {
       result.set(key, {
         supplierShort: key,
@@ -779,7 +782,7 @@ function uniqueGroupOptions(records) {
 }
 
 function uniqueSuppliers(records) {
-  return [...new Set(records.map((record) => record.supplierShort || record.supplier).filter(Boolean))];
+  return [...new Set(records.map((record) => record.sourceSupplierShort || record.supplierShort || record.supplier).filter(Boolean))];
 }
 
 function uniqueValues(items, key) {
