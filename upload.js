@@ -442,8 +442,6 @@ function renderSupplierInfo(container, records, message) {
 
 function getVisibleDivisionRows() {
   if (!supplierState.filtered.length) return [];
-  const selectedGroup = dashboardEls.ownerFilter.value;
-  const hasGroupFilter = selectedGroup && selectedGroup !== "all";
   const visibleGroupKeys = new Set(
     supplierState.filtered
       .map((record) => normalizeGroupKey(record.dimPurchaseGroup || record.group || record.owner))
@@ -454,23 +452,17 @@ function getVisibleDivisionRows() {
       .map((record) => normalizeDivisionMatchText(record.dimProductLine || record.primaryLine))
       .filter(Boolean)
   );
-  const showAllGroups = [...visibleProductLines].some(isAllGroupDivisionLine);
-  const allowAllGroupsByLine = !hasGroupFilter && showAllGroups;
 
   return supplierState.divisionRows.filter((row) => {
     const rowGroupKey = normalizeGroupKey(row.matchedPurchaseGroup || row.groupName);
     const rowText = normalizeDivisionMatchText([row.key, row.groupName, row.matchedPurchaseGroup, ...(row.cells || [])].join(" "));
     const rowTokens = getDivisionLineTokens(row.key || row.cells?.[0] || "");
-    const groupMatched = allowAllGroupsByLine || !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
+    const groupMatched = !visibleGroupKeys.size || visibleGroupKeys.has(rowGroupKey);
     const productLineMatched =
       !visibleProductLines.size ||
       [...visibleProductLines].some((line) => matchesDivisionProductLine(line, rowText, rowTokens));
     return groupMatched && productLineMatched;
   });
-}
-
-function isAllGroupDivisionLine(line) {
-  return ["其他成品", "其他配件"].includes(line);
 }
 
 function matchesDivisionProductLine(line, rowText, rowTokens) {
