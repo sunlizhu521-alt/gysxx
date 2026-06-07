@@ -542,7 +542,6 @@ function renderDivisionInfo(head, body, rows, headers, message) {
       `
     )
     .join("");
-  fitDivisionTable();
 }
 
 function getDivisionColumnIndexes(headers) {
@@ -550,32 +549,6 @@ function getDivisionColumnIndexes(headers) {
   return DIVISION_DISPLAY_COLUMNS.map((label, index) => {
     const matchedIndex = headers.findIndex((header) => normalizeHeader(header) === normalizeHeader(label));
     return matchedIndex >= 0 ? matchedIndex : index;
-  });
-}
-
-function fitDivisionTable() {
-  window.requestAnimationFrame(() => {
-    const wrap = document.querySelector(".division-info-wrap");
-    const table = document.querySelector(".division-info-table");
-    if (!wrap || !table) return;
-
-    table.style.removeProperty("font-size");
-    table.style.removeProperty("transform");
-    table.style.removeProperty("width");
-
-    const maxFont = 12;
-    const minFont = 8;
-    for (let size = maxFont; size >= minFont; size -= 1) {
-      table.style.fontSize = `${size}px`;
-      if (table.scrollWidth <= wrap.clientWidth + 1) {
-        return;
-      }
-    }
-
-    const ratio = Math.max(0.72, Math.min(1, wrap.clientWidth / Math.max(table.scrollWidth, 1)));
-    table.style.transformOrigin = "left top";
-    table.style.transform = `scaleX(${ratio})`;
-    table.style.width = `${100 / ratio}%`;
   });
 }
 

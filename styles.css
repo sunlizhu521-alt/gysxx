@@ -641,16 +641,41 @@ select {
 
 .division-info-table {
   font-size: 12px;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .division-info-table th,
 .division-info-table td {
   min-width: 0;
-  overflow: visible;
-  padding: 10px 6px;
-  text-overflow: clip;
+  overflow: hidden;
+  padding: 7px 8px;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.division-info-table th:nth-child(1),
+.division-info-table td:nth-child(1) {
+  width: 14%;
+}
+
+.division-info-table th:nth-child(2),
+.division-info-table td:nth-child(2) {
+  width: 18%;
+}
+
+.division-info-table th:nth-child(3),
+.division-info-table td:nth-child(3) {
+  width: 24%;
+}
+
+.division-info-table th:nth-child(4),
+.division-info-table td:nth-child(4) {
+  width: 24%;
+}
+
+.division-info-table th:nth-child(5),
+.division-info-table td:nth-child(5) {
+  width: 20%;
 }
 
 .bar-chart,
