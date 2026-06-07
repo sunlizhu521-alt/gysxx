@@ -8,7 +8,7 @@ const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const SUPPLIER_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93 / \u91c7\u8d2d\u5206\u5de5\u660e\u7ec6";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
 const BAR_COLORS = ["#2f6fed", "#159a9c", "#6957d6", "#2f9e44", "#d98b11", "#d64545", "#0f766e", "#7c3aed", "#2563eb", "#ea580c"];
-const DIVISION_DISPLAY_COLUMNS = ["组名", "事业部唯一对接人", "组员", "负责事项"];
+const DIVISION_DISPLAY_COLUMNS = ["组名", "事业部唯一对接人", "组员", "产品线", "负责事项"];
 
 const supplierState = {
   records: [],
