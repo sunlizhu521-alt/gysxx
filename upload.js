@@ -6,7 +6,7 @@ const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const SUPPLIER_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u7ef4\u5ea6\u8868\u6587\u4ef6\u5e93 / \u91c7\u8d2d\u5206\u5de5\u660e\u7ec6";
-const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他配件"];
+const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他/配件", "其他配件"];
 const BAR_COLORS = ["#2f6fed", "#159a9c", "#6957d6", "#2f9e44", "#d98b11", "#d64545", "#0f766e", "#7c3aed", "#2563eb", "#ea580c"];
 const DIVISION_DISPLAY_COLUMNS = ["组名", "事业部唯一对接人", "组员", "产品线", "负责事项"];
 
@@ -254,6 +254,7 @@ function normalizeRow(row, headerMap, index) {
     primaryLine: getValue("primaryLine", 0) || "未分类",
     secondaryLine: getValue("secondaryLine", 1),
     group: group || "未分组",
+    sourcePurchaseGroup: group || "未分组",
     owner: owner || "未分配",
     materialCode: getValue("materialCode", 3),
     sku: getValue("sku", 4),
@@ -281,8 +282,10 @@ function enrichSupplierRecords(records, categoryMap) {
     const dimMaterialName = matched?.materialName || "";
     return {
       ...record,
+      sourcePurchaseGroup: record.sourcePurchaseGroup || record.group || "",
       dimProductLine,
       dimPurchaseGroup,
+      displayPurchaseGroup: getDisplayPurchaseGroup(record.sourcePurchaseGroup || record.group, dimPurchaseGroup),
       primaryLine: dimProductLine || "未匹配",
       group: dimPurchaseGroup || "未匹配",
       sku: dimSku,
@@ -320,7 +323,7 @@ function updateDashboardFilterOptions() {
   const ownerScoped = filterSupplierRecords({ ...getDashboardFilterValues(), owner: "all" });
   syncDashboardSelect(
     dashboardEls.ownerFilter,
-    sortPurchaseGroups(uniqueValues(ownerScoped, "dimPurchaseGroup")),
+    sortPurchaseGroups(uniqueValues(ownerScoped, "displayPurchaseGroup")),
     "\u5168\u90e8\u91c7\u8d2d\u7ec4",
     filters.owner
   );
@@ -361,7 +364,7 @@ function filterSupplierRecords(filters) {
     return (
       (!filters.query || searchable.includes(filters.query)) &&
       (filters.productLine === "all" || record.dimProductLine === filters.productLine) &&
-      (filters.owner === "all" || normalizeGroupKey(record.dimPurchaseGroup) === selectedGroupKey) &&
+      (filters.owner === "all" || normalizeGroupKey(record.displayPurchaseGroup) === selectedGroupKey) &&
       (filters.orderUser === "all" || record.owner === filters.orderUser)
     );
   });
@@ -444,7 +447,7 @@ function getVisibleDivisionRows() {
   if (!supplierState.filtered.length) return [];
   const visibleGroupKeys = new Set(
     supplierState.filtered
-      .map((record) => normalizeGroupKey(record.dimPurchaseGroup || record.group || record.owner))
+      .map((record) => normalizeGroupKey(record.sourcePurchaseGroup || record.displayPurchaseGroup || record.dimPurchaseGroup || record.group))
       .filter(Boolean)
   );
   const visibleProductLines = new Set(
@@ -586,7 +589,7 @@ function countSuppliersByOrderUser(records) {
 
 function countSuppliersByPurchaseGroup(records) {
   const groups = records.reduce((result, record) => {
-    const purchaseGroup = record.dimPurchaseGroup || record.group || "未分组";
+    const purchaseGroup = record.displayPurchaseGroup || record.sourcePurchaseGroup || record.dimPurchaseGroup || record.group || "未分组";
     const supplier = record.supplierShort || record.supplier || "";
     if (!supplier) return result;
     if (!result.has(purchaseGroup)) result.set(purchaseGroup, new Set());
@@ -822,6 +825,14 @@ function normalizeMaterialCode(value) {
     .toLowerCase();
 }
 
+function getDisplayPurchaseGroup(sourceGroup, dimensionGroup) {
+  const dimensionKey = normalizeGroupKey(dimensionGroup);
+  if (dimensionKey === "其他配件") return "其他/配件";
+  const sourceKey = normalizeGroupKey(sourceGroup);
+  if (sourceKey && sourceKey !== "未分组") return sourceKey;
+  return dimensionGroup || sourceGroup || "";
+}
+
 function normalizeGroupKey(value) {
   const text = String(value || "")
     .trim()
@@ -829,7 +840,7 @@ function normalizeGroupKey(value) {
     .replace(/[()（）【】\\[\\]_-]/g, "")
     .toLowerCase();
   if (!text) return "";
-  if (text.includes("其他配件")) return "其他配件";
+  if (text.includes("其他配件") || text.includes("其他/配件")) return "其他配件";
   if (text.includes("一组") || text.includes("1组")) return "采购一组";
   if (text.includes("二组") || text.includes("2组")) return "采购二组";
   if (text.includes("三组") || text.includes("3组")) return "采购三组";

@@ -329,7 +329,7 @@ select {
 
 .supplier-work-area {
   --supplier-summary-body-height: 300px;
-  grid-template-columns: minmax(180px, 0.85fr) minmax(250px, 1.05fr) repeat(3, minmax(190px, 0.8fr));
+  grid-template-columns: minmax(150px, 0.58fr) minmax(520px, 2.2fr) repeat(3, minmax(120px, 0.46fr));
   gap: 10px;
 }
 
@@ -581,8 +581,10 @@ select {
 
 .compact-bars .bar-row,
 .supplier-work-area .bar-row {
-  grid-template-columns: minmax(120px, 120px) minmax(0, 1fr) 42px;
+  grid-template-columns: minmax(72px, 84px) minmax(0, 1fr) 30px;
   min-width: 0;
+  gap: 5px;
+  font-size: 11px;
 }
 
 .compact-bars .bar-row span:first-child,
@@ -647,35 +649,37 @@ select {
 .division-info-table th,
 .division-info-table td {
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 7px 8px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.25;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .division-info-table th:nth-child(1),
 .division-info-table td:nth-child(1) {
-  width: 14%;
+  width: 9%;
 }
 
 .division-info-table th:nth-child(2),
 .division-info-table td:nth-child(2) {
-  width: 18%;
+  width: 14%;
 }
 
 .division-info-table th:nth-child(3),
 .division-info-table td:nth-child(3) {
-  width: 24%;
+  width: 22%;
 }
 
 .division-info-table th:nth-child(4),
 .division-info-table td:nth-child(4) {
-  width: 24%;
+  width: 29%;
 }
 
 .division-info-table th:nth-child(5),
 .division-info-table td:nth-child(5) {
-  width: 20%;
+  width: 26%;
 }
 
 .bar-chart,
