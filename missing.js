@@ -31,7 +31,10 @@ const missingState = {
 
 const orderColumnAliases = {
   materialCode: ["品号"],
+  sku: ["SKU", "货品编号", "商品编码"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
+  supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
+  remainingQty: ["未发货数量", "剩余数量"],
 };
 
 async function initMissingDashboard() {
@@ -77,20 +80,28 @@ async function loadMissingData() {
 function buildMissingRows(orderRows, categoryMap, purchaseMap) {
   const grouped = new Map();
   orderRows.forEach((row) => {
-    const key = normalizeMaterialCode(row.materialCode);
-    if (!key) return;
-    if (!grouped.has(key)) {
-      grouped.set(key, {
+    const materialKey = normalizeMaterialCode(row.materialCode);
+    if (!materialKey) return;
+    const rowKey = [materialKey, row.supplier, row.sku].map((value) => String(value || "").trim()).join("||");
+    if (!grouped.has(rowKey)) {
+      grouped.set(rowKey, {
         materialCode: row.materialCode,
+        sku: row.sku,
         itemName: row.itemName,
         rowCount: 0,
-        supplierShort: "",
+        supplier: row.supplier,
+        remainingQty: 0,
+        hasRemainingQty: false,
         maintainTables: new Set(),
       });
     }
-    const item = grouped.get(key);
+    const item = grouped.get(rowKey);
+    item.sku ||= row.sku;
     item.itemName ||= row.itemName;
+    item.supplier ||= row.supplier;
     item.rowCount += 1;
+    item.remainingQty += Number(row.remainingQty) || 0;
+    item.hasRemainingQty = item.hasRemainingQty || Number(row.remainingQty) > 0;
   });
 
   grouped.forEach((item) => {
@@ -98,13 +109,12 @@ function buildMissingRows(orderRows, categoryMap, purchaseMap) {
     const category = categoryMap.get(key);
     const purchase = purchaseMap.get(key);
     const deliveryFilterBlockedByCategory = !category?.salesLine || !category?.salesSeries || !category?.purchaseGroup;
-    const deliveryFilterBlockedByPurchase = !purchase?.supplierShort || !purchase?.orderUser;
+    const purchaseAssignmentMissing = !purchase && item.hasRemainingQty;
 
     if (deliveryFilterBlockedByCategory) item.maintainTables.add(CATEGORY_TABLE);
-    if (deliveryFilterBlockedByPurchase) item.maintainTables.add(PURCHASE_TABLE);
+    if (purchaseAssignmentMissing) item.maintainTables.add(PURCHASE_TABLE);
 
     item.itemName = category?.itemName || item.itemName;
-    item.supplierShort = purchase?.supplierShort || "";
     item.maintainTables = [...item.maintainTables];
   });
 
@@ -163,7 +173,10 @@ function parsePurchaseOrderSheet(rows) {
     .slice(headerIndex + 1)
     .map((row) => ({
       materialCode: getRowValue(row, headerMap.materialCode),
+      sku: getRowValue(row, headerMap.sku),
       itemName: getRowValue(row, headerMap.itemName),
+      supplier: getRowValue(row, headerMap.supplier),
+      remainingQty: parseNumber(getRowValue(row, headerMap.remainingQty)),
     }))
     .filter((row) => row.materialCode || row.itemName);
 }
@@ -265,14 +278,15 @@ function renderMissingView() {
   missingEls.downloadButton.disabled = Boolean(message) || !rows.length;
   missingEls.rows.innerHTML = rows.length
     ? rows.map(renderMissingRow).join("")
-    : `<tr><td colspan="3" class="empty-table-cell">${escapeHtml(message || "暂无缺失")}</td></tr>`;
+    : `<tr><td colspan="4" class="empty-table-cell">${escapeHtml(message || "暂无缺失")}</td></tr>`;
 }
 
 function renderMissingRow(row) {
   return `
     <tr>
-      <td>${escapeHtml(row.supplierShort || "--")}</td>
+      <td>${escapeHtml(row.supplier || "--")}</td>
       <td>${escapeHtml(row.materialCode || "--")}</td>
+      <td>${escapeHtml(row.sku || "--")}</td>
       <td>${escapeHtml(row.itemName || "--")}</td>
     </tr>
   `;
@@ -281,8 +295,9 @@ function renderMissingRow(row) {
 function downloadMissingRows() {
   if (!missingState.filteredRows.length || !window.XLSX) return;
   const exportRows = missingState.filteredRows.map((row) => ({
-    供应商简称: row.supplierShort || "",
+    供应商: row.supplier || "",
     物料编码: row.materialCode || "",
+    SKU: row.sku || "",
     物品名称: row.itemName || "",
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows);
@@ -363,6 +378,11 @@ function normalizeHeader(value) {
 
 function normalizeMaterialCode(value) {
   return String(value || "").trim().replace(/\.0$/, "").toLowerCase();
+}
+
+function parseNumber(value) {
+  const number = Number(String(value ?? "").replace(/,/g, "").trim());
+  return Number.isFinite(number) ? number : 0;
 }
 
 function sumBy(items, key) {
