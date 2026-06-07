@@ -3,9 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>跨境备货 - 供应链信息库</title>
-    <script>window.location.replace("./admin.html");</script>
-    <link rel="stylesheet" href="./styles.css?v=20260605-3" />
+    <title>金蝶采购订单对比 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css?v=20260608-3" />
   </head>
   <body>
     <div class="app-shell">
@@ -25,27 +24,30 @@
         <nav class="nav-list">
           <a href="./purchase.html">采购分工信息</a>
           <a href="./delivery.html">供应商交付信息</a>
-          <a href="./kingdee-purchase-compare.html">金蝶采购订单对比</a>
+          <a class="active" href="./kingdee-purchase-compare.html">金蝶采购订单对比</a>
+          <a href="./admin.html">文件库更新</a>
+          <a href="./missing.html">信息缺失</a>
         </nav>
       </aside>
 
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Cross-Border Stock</p>
-            <h1>跨境备货</h1>
+            <p class="eyebrow">Kingdee Purchase Orders</p>
+            <h1>金蝶采购订单对比</h1>
+            <small class="source-note">数据来源：本地文件库｜引用时间：--</small>
           </div>
         </header>
 
         <section class="panel upload-panel upload-page-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Cross-Border Stock</p>
-              <h2>跨境备货看板</h2>
+              <p class="eyebrow">Compare</p>
+              <h2>金蝶采购订单对比看板</h2>
             </div>
             <span class="upload-state">待配置</span>
           </div>
-          <div class="empty-state">后续可在这里接入跨境备货、海外仓、在途、销量预测和补货节奏等分析。</div>
+          <div class="empty-state">后续可在这里接入金蝶采购订单、采购未交付表和订单差异分析。</div>
         </section>
       </main>
     </div>
