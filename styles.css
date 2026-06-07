@@ -643,7 +643,7 @@ select {
 
 .division-info-table {
   font-size: 12px;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .division-info-table th,
@@ -655,31 +655,6 @@ select {
   text-overflow: clip;
   white-space: normal;
   word-break: break-word;
-}
-
-.division-info-table th:nth-child(1),
-.division-info-table td:nth-child(1) {
-  width: 9%;
-}
-
-.division-info-table th:nth-child(2),
-.division-info-table td:nth-child(2) {
-  width: 14%;
-}
-
-.division-info-table th:nth-child(3),
-.division-info-table td:nth-child(3) {
-  width: 22%;
-}
-
-.division-info-table th:nth-child(4),
-.division-info-table td:nth-child(4) {
-  width: 29%;
-}
-
-.division-info-table th:nth-child(5),
-.division-info-table td:nth-child(5) {
-  width: 26%;
 }
 
 .bar-chart,
