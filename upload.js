@@ -118,7 +118,10 @@ async function loadPurchaseAssignmentSource(options = {}) {
     supplierState.records = enrichedRecords;
     supplierState.divisionRows = enrichDivisionRows(divisionRows, supplierState.categoryMap, divisionHeaders);
     supplierState.divisionHeaders = divisionHeaders;
-    updateSourceNote(dashboardEls.sourceNote, SUPPLIER_SOURCE_LABEL, appliedPurchaseRecord);
+    updateSourceNote(dashboardEls.sourceNote, "数据来源：本地文件库", [
+      { name: "Dim-采购分工明细", record: appliedPurchaseRecord },
+      { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
+    ]);
     hydrateFilters();
     applyDashboardFilters();
     return true;
@@ -743,6 +746,14 @@ function formatDownloadDate(date) {
 
 function updateSourceNote(element, label, sourceRecord) {
   if (!element) return;
+  if (Array.isArray(sourceRecord)) {
+    const parts = sourceRecord.map((item) => {
+      const time = getReferenceTime(item.record);
+      return `${item.name}：${time ? formatReferenceTime(time) : "--"}`;
+    });
+    element.textContent = `${label}｜${parts.join("；")}`;
+    return;
+  }
   const time = getReferenceTime(sourceRecord);
   element.textContent = `${label}\uff5c\u5f15\u7528\u65f6\u95f4\uff1a${time ? formatReferenceTime(time) : "--"}`;
 }

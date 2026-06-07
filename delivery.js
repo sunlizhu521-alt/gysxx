@@ -69,6 +69,13 @@ const columnAliases = {
   stockAge: ["库龄＞60", "库龄>60", "库龄"],
 };
 
+const purchaseDetailAliases = {
+  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
+  supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
+  supplierShort: ["供应商简称", "简称", "供应商简名"],
+  orderUser: ["采购下单人"],
+};
+
 const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "completedQty", "shippedQty", "remainingQty"];
 
 async function initDeliveryDashboard() {
@@ -145,7 +152,11 @@ async function loadDeliverySource(options = {}) {
       return false;
     }
     deliveryState.records = records;
-    updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, appliedFactRecord);
+    updateSourceNote(deliveryEls.sourceNote, "数据来源：本地文件库", [
+      { name: "Fac-采购订单跟进表", record: appliedFactRecord },
+      { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
+      { name: "Dim-采购分工明细", record: appliedPurchaseAssignmentRecord },
+    ]);
     applyDeliveryFilters();
     return true;
   } catch (error) {
@@ -186,15 +197,18 @@ async function readCategoryDimension(file) {
 
 async function readPurchaseDetailMap(file) {
   const rows = await readWorkbookRows(file, "\u4ea7\u54c1\u7ebf\u660e\u7ec6");
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownPurchaseDetailHeader(cell)));
+  if (headerIndex < 0) return new Map();
+  const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseDetailAliases);
   const map = new Map();
-  rows.slice(1).forEach((row) => {
-    const materialCode = normalizeMaterialCode(row[3]);
+  rows.slice(headerIndex + 1).forEach((row) => {
+    const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
     if (!materialCode) return;
-    const supplier = String(row[6] ?? "").trim();
+    const supplier = getRowValue(row, headerMap.supplier);
     map.set(materialCode, {
       supplier,
-      supplierShort: String(row[7] ?? "").trim() || supplier,
-      orderUser: String(row[2] ?? "").trim() || "\u672a\u7ef4\u62a4",
+      supplierShort: getRowValue(row, headerMap.supplierShort) || supplier,
+      orderUser: getRowValue(row, headerMap.orderUser) || "\u672a\u7ef4\u62a4",
     });
   });
   return map;
@@ -237,11 +251,11 @@ function parsePurchaseOrderSheet(rows, businessUnit) {
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell)));
   if (headerIndex < 0) return [];
   const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
-  const headerMap = createHeaderMap(headers);
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createHeaderMap(headers, dataRows);
   if (!isPurchaseOrderSheet(headerMap)) return [];
 
-  return rows
-    .slice(headerIndex + 1)
+  return dataRows
     .map((row, index) => normalizeRow(row, headerMap, index, businessUnit))
     .filter((record) => record.materialCode || record.sku || record.itemName);
 }
@@ -516,9 +530,18 @@ function escapeAttribute(value) {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-function createHeaderMap(headers) {
+function createHeaderMap(headers, dataRows = []) {
+  const headerMap = createAliasHeaderMap(headers, columnAliases);
+  if (headerMap.materialCode === undefined) {
+    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
+    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
+  }
+  return headerMap;
+}
+
+function createAliasHeaderMap(headers, aliasesByKey) {
   return Object.fromEntries(
-    Object.entries(columnAliases)
+    Object.entries(aliasesByKey)
       .map(([key, aliases]) => {
         const index = headers.findIndex((header) => aliases.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
         return [key, index >= 0 ? index : undefined];
@@ -530,6 +553,11 @@ function createHeaderMap(headers) {
 function hasKnownHeader(value) {
   const header = normalizeHeader(value);
   return Object.values(columnAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
+}
+
+function hasKnownPurchaseDetailHeader(value) {
+  const header = normalizeHeader(value);
+  return Object.values(purchaseDetailAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
 }
 
 function uniqueValues(items, key) {
@@ -563,6 +591,10 @@ function isStockAgeOver60(value) {
   return parseNumber(text) > 60;
 }
 
+function getRowValue(row, index) {
+  return index === undefined ? "" : String(row[index] ?? "").trim();
+}
+
 function parseNumber(value) {
   const number = Number(String(value || "").replace(/,/g, "").trim());
   return Number.isFinite(number) ? number : 0;
@@ -574,6 +606,14 @@ function formatNumber(value) {
 
 function updateSourceNote(element, label, sourceRecord) {
   if (!element) return;
+  if (Array.isArray(sourceRecord)) {
+    const parts = sourceRecord.map((item) => {
+      const time = getReferenceTime(item.record);
+      return `${item.name}：${time ? formatReferenceTime(time) : "--"}`;
+    });
+    element.textContent = `${label}｜${parts.join("；")}`;
+    return;
+  }
   const time = getReferenceTime(sourceRecord);
   element.textContent = `${label}\uff5c\u5f15\u7528\u65f6\u95f4\uff1a${time ? formatReferenceTime(time) : "--"}`;
 }

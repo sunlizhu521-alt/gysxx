@@ -37,6 +37,13 @@ const orderColumnAliases = {
   remainingQty: ["未发货数量", "剩余数量"],
 };
 
+const purchaseAssignmentAliases = {
+  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
+  supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
+  supplierShort: ["供应商简称", "简称", "供应商简名"],
+  orderUser: ["采购下单人"],
+};
+
 async function initMissingDashboard() {
   renderFilterShell();
   missingEls.filterBar.addEventListener("click", handleFilterBarClick);
@@ -141,13 +148,17 @@ async function readCategoryDimension(file) {
 
 async function readPurchaseAssignment(file) {
   const rows = await readWorkbookRows(file, "产品线明细");
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownPurchaseAssignmentHeader(cell)));
+  if (headerIndex < 0) return new Map();
+  const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseAssignmentAliases);
   const map = new Map();
-  rows.slice(1).forEach((row) => {
-    const materialCode = normalizeMaterialCode(row[3]);
+  rows.slice(headerIndex + 1).forEach((row) => {
+    const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
     if (!materialCode) return;
     map.set(materialCode, {
-      supplierShort: String(row[7] ?? "").trim(),
-      orderUser: String(row[2] ?? "").trim(),
+      supplier: getRowValue(row, headerMap.supplier),
+      supplierShort: getRowValue(row, headerMap.supplierShort),
+      orderUser: getRowValue(row, headerMap.orderUser),
     });
   });
   return map;
@@ -167,10 +178,10 @@ async function readPurchaseOrderWorkbook(file) {
 function parsePurchaseOrderSheet(rows) {
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell)));
   if (headerIndex < 0) return [];
-  const headerMap = createHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()));
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), dataRows);
   if (headerMap.materialCode === undefined) return [];
-  return rows
-    .slice(headerIndex + 1)
+  return dataRows
     .map((row) => ({
       materialCode: getRowValue(row, headerMap.materialCode),
       sku: getRowValue(row, headerMap.sku),
@@ -320,9 +331,18 @@ function formatAppliedTime(record) {
   return time ? formatDateTime(time) : "--";
 }
 
-function createHeaderMap(headers) {
+function createHeaderMap(headers, dataRows = []) {
+  const headerMap = createAliasHeaderMap(headers, orderColumnAliases);
+  if (headerMap.materialCode === undefined) {
+    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
+    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
+  }
+  return headerMap;
+}
+
+function createAliasHeaderMap(headers, aliasesByKey) {
   return Object.fromEntries(
-    Object.entries(orderColumnAliases)
+    Object.entries(aliasesByKey)
       .map(([key, aliases]) => {
         const index = headers.findIndex((header) => aliases.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
         return [key, index >= 0 ? index : undefined];
@@ -334,6 +354,40 @@ function createHeaderMap(headers) {
 function hasKnownHeader(value) {
   const header = normalizeHeader(value);
   return Object.values(orderColumnAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
+}
+
+function hasKnownPurchaseAssignmentHeader(value) {
+  const header = normalizeHeader(value);
+  return Object.values(purchaseAssignmentAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
+}
+
+function inferMaterialCodeColumn(headers, dataRows, usedColumns) {
+  const blankColumns = headers
+    .map((header, index) => ({ header, index }))
+    .filter(({ header, index }) => !usedColumns.has(index) && !String(header || "").trim())
+    .map(({ index }) => index);
+  const candidates = blankColumns.length ? blankColumns : headers.map((_, index) => index).filter((index) => !usedColumns.has(index));
+  let bestColumn;
+  let bestScore = 0;
+  candidates.forEach((column) => {
+    const score = dataRows.slice(0, 50).reduce((sum, row) => sum + scoreMaterialCodeCell(row[column]), 0);
+    if (score > bestScore) {
+      bestColumn = column;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 3 ? bestColumn : undefined;
+}
+
+function scoreMaterialCodeCell(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return 0;
+  const normalized = normalizeMaterialCode(raw);
+  if (normalized.length < 4 || /[\u4e00-\u9fff]/.test(normalized)) return 0;
+  let score = 1;
+  if (/\d/.test(normalized)) score += 2;
+  if (/^[a-z0-9._-]+$/i.test(normalized)) score += 1;
+  return score;
 }
 
 function openAppDb() {
