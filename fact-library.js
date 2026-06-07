@@ -9,6 +9,7 @@ const LOCAL_LIBRARY_SOURCE = "local-upload";
 
 const slots = [
   { id: "fact-1", name: "Fac-\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868" },
+  { id: "fact-2", name: "Fac-\u91d1\u8776\u91c7\u8d2d\u8ba2\u5355\u5217\u8868" },
 ];
 
 const deprecatedSharedRecords = [

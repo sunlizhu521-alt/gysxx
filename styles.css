@@ -327,6 +327,13 @@ select {
   max-width: 980px;
 }
 
+.admin-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .supplier-work-area {
   --supplier-summary-body-height: 300px;
   grid-template-columns: minmax(150px, 0.58fr) minmax(520px, 2.2fr) repeat(3, minmax(120px, 0.46fr));

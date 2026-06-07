@@ -22,10 +22,17 @@ const librarySlots = [
     library: "\u4e8b\u5b9e\u8868",
     label: "Fac-\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868",
   },
+  {
+    store: "fact-files",
+    id: "fact-2",
+    library: "\u4e8b\u5b9e\u8868",
+    label: "Fac-\u91d1\u8776\u91c7\u8d2d\u8ba2\u5355\u5217\u8868",
+  },
 ];
 
 const adminEls = {
   slots: document.querySelector("#adminLibrarySlots"),
+  applyAllButton: document.querySelector("#applyAllButton"),
   clearCacheButton: document.querySelector("#clearLibraryCacheButton"),
   referenceState: document.querySelector("#adminReferenceState"),
   referenceRows: document.querySelector("#adminReferenceRows"),
@@ -79,6 +86,7 @@ function bindAdminEvents() {
   });
 
   adminEls.clearCacheButton.addEventListener("click", clearLibraryCache);
+  adminEls.applyAllButton.addEventListener("click", applyAllSlots);
 }
 
 async function refreshAdmin() {
@@ -114,7 +122,7 @@ async function saveFile(slotId, file) {
   await refreshAdmin();
 }
 
-async function applySlot(slotId) {
+async function applySlot(slotId, options = {}) {
   const slot = getSlot(slotId);
   const record = adminState.records.get(slotId);
   if (!record) return;
@@ -141,7 +149,31 @@ async function applySlot(slotId) {
   const db = await openAppDb();
   await putRecord(db, slot.store, updatedRecord);
   db.close();
-  await refreshAdmin();
+  if (!options.skipRefresh) await refreshAdmin();
+}
+
+async function applyAllSlots() {
+  const slotIds = librarySlots
+    .filter((slot) => {
+      const record = adminState.records.get(slot.id);
+      return record?.pendingFile || (record && !record.applied);
+    })
+    .map((slot) => slot.id);
+  if (!slotIds.length) return;
+  adminEls.applyAllButton.disabled = true;
+  adminEls.referenceState.textContent = "\u5e94\u7528\u4e2d";
+  try {
+    for (const slotId of slotIds) {
+      await applySlot(slotId, { skipRefresh: true });
+    }
+    await refreshAdmin();
+    adminEls.referenceState.textContent = "\u5df2\u4e00\u952e\u5e94\u7528";
+  } catch (error) {
+    console.warn("apply all slots failed", error);
+    adminEls.referenceState.textContent = "\u4e00\u952e\u5e94\u7528\u5931\u8d25";
+  } finally {
+    updateApplyAllButton();
+  }
 }
 
 async function deleteSlot(slotId) {
@@ -175,6 +207,7 @@ async function clearLibraryCache() {
 
 function renderLibrarySlots() {
   adminEls.slots.innerHTML = librarySlots.map(renderLibrarySlot).join("");
+  updateApplyAllButton();
 }
 
 function renderLibrarySlot(slot) {
@@ -213,6 +246,7 @@ function renderReferenceRows() {
   const rows = librarySlots.map((slot) => renderReferenceRow(slot, adminState.records.get(slot.id)));
   adminEls.referenceRows.innerHTML = rows.join("");
   adminEls.referenceState.textContent = "\u672c\u5730\u6587\u4ef6\u5e93";
+  updateApplyAllButton();
 }
 
 function renderReferenceRow(slot, record) {
@@ -245,6 +279,15 @@ function getDisplayRecord(record) {
     };
   }
   return record;
+}
+
+function updateApplyAllButton() {
+  if (!adminEls.applyAllButton) return;
+  const hasApplicableRecord = librarySlots.some((slot) => {
+    const record = adminState.records.get(slot.id);
+    return record?.pendingFile || (record && !record.applied);
+  });
+  adminEls.applyAllButton.disabled = !hasApplicableRecord;
 }
 
 function clearPendingFields(record) {
