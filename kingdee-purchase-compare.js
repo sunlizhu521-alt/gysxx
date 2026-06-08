@@ -183,9 +183,12 @@ async function readRequiredSource(label, file, reader) {
 async function readKingdeeRowsFromRecord(record) {
   const cachedRows = getFreshKingdeeCompareCache(record);
   if (cachedRows) return cachedRows;
-  const rows = await readRequiredSource("Fac-金蝶采购订单列表", record.file, readKingdeeWorkbook);
-  saveKingdeeCompareCache(record, rows).catch((error) => console.warn("save kingdee compare cache failed", error));
-  return rows;
+  const extractError = record?.kingdeeCompareExtractError;
+  throw new Error(
+    extractError
+      ? `Fac-金蝶采购订单列表轻量数据生成失败：${extractError}`
+      : "Fac-金蝶采购订单列表未生成轻量数据，请到文件库更新重新上传该表并点击确认应用"
+  );
 }
 
 function getFreshKingdeeCompareCache(record) {
