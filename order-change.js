@@ -3,6 +3,7 @@ const DB_VERSION = 3;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
+const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const ORDER_CHANGE_SLOT = "fact-3";
 const MAX_ORDER_CHANGE_SHEET_ROWS = 120000;
@@ -13,7 +14,12 @@ const orderChangeEls = {
   filterBar: document.querySelector("#orderChangeFilterBar"),
   nFilter: document.querySelector("#orderChangeNFilter"),
   oFilter: document.querySelector("#orderChangeOFilter"),
+  salesLineFilter: document.querySelector("#orderChangeSalesLineFilter"),
+  salesSeriesFilter: document.querySelector("#orderChangeSalesSeriesFilter"),
   resetButton: document.querySelector("#orderChangeResetButton"),
+  downloadButton: document.querySelector("#orderChangeDownloadButton"),
+  businessUnitTotal: document.querySelector("#orderChangeBusinessUnitTotal"),
+  feedbackTotal: document.querySelector("#orderChangeFeedbackTotal"),
   nBars: document.querySelector("#orderChangeNBars"),
   oBars: document.querySelector("#orderChangeOBars"),
   rows: document.querySelector("#orderChangeRows"),
@@ -24,6 +30,8 @@ const orderChangeEls = {
 const orderChangeFilterConfigs = [
   { key: "nValue", element: orderChangeEls.nFilter, label: "全部事业部", field: "nValue" },
   { key: "oValue", element: orderChangeEls.oFilter, label: "全部", field: "oValue" },
+  { key: "salesLine", element: orderChangeEls.salesLineFilter, label: "全部销售产品线", field: "salesLine" },
+  { key: "salesSeries", element: orderChangeEls.salesSeriesFilter, label: "全部销售系列", field: "salesSeries" },
 ];
 
 const orderChangeAliases = {
@@ -74,37 +82,43 @@ function bindOrderChangeEvents() {
     Object.values(orderChangeState.selectedFilters).forEach((set) => set.clear());
     applyOrderChangeFilters();
   });
+
+  orderChangeEls.downloadButton.addEventListener("click", downloadOrderChangeRows);
 }
 
 async function loadOrderChangeData() {
   try {
     setOrderChangeMessage("正在读取本地文件库");
     const db = await openAppDb();
-    const [orderChangeRecord, purchaseOrderRecord] = await Promise.all([
+    const [orderChangeRecord, purchaseOrderRecord, categoryRecord] = await Promise.all([
       getRecord(db, FACT_STORE_NAME, ORDER_CHANGE_SLOT),
       getRecord(db, FACT_STORE_NAME, PURCHASE_ORDER_SLOT),
+      getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
     ]);
     db.close();
 
     const appliedOrderChangeRecord = getAppliedLibraryRecord(orderChangeRecord);
     const appliedPurchaseOrderRecord = getAppliedLibraryRecord(purchaseOrderRecord);
+    const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
 
     updateSourceNote(orderChangeEls.sourceNote, "数据来源：本地文件库", [
       { name: "订单变更", record: appliedOrderChangeRecord },
       { name: "Fac-采购订单跟进表", record: appliedPurchaseOrderRecord },
+      { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
     ]);
 
-    if (!appliedOrderChangeRecord?.file || !appliedPurchaseOrderRecord?.file) {
-      resetOrderChange("请先在文件库更新上传并确认应用 订单变更 和 Fac-采购订单跟进表");
+    if (!appliedOrderChangeRecord?.file || !appliedPurchaseOrderRecord?.file || !appliedCategoryRecord?.file) {
+      resetOrderChange("请先在文件库更新上传并确认应用 订单变更、Fac-采购订单跟进表 和 Dim-YL医疗器械商品分类");
       return;
     }
 
-    const [orderRows, priceMap] = await Promise.all([
+    const [orderRows, priceMap, categoryMap] = await Promise.all([
       readOrderChangeWorkbook(appliedOrderChangeRecord.file),
       readDeliveryPriceMap(appliedPurchaseOrderRecord.file),
+      readCategoryDimension(appliedCategoryRecord.file),
     ]);
 
-    orderChangeState.records = enrichOrderChangeRows(orderRows, priceMap);
+    orderChangeState.records = enrichOrderChangeRows(orderRows, priceMap, categoryMap);
     if (!orderChangeState.records.length) {
       resetOrderChange("已应用的订单变更表暂无可用数据");
       return;
@@ -144,6 +158,7 @@ function parseOrderChangeSheet(rows, sheetName) {
         id: `${sheetName}-${index}-${sequence}-${materialCode}`,
         sheetName,
         sequence,
+        supplier: getRowValue(row, 3),
         materialCode,
         itemName: getRowValue(row, headerMap.itemName) || getRowValue(row, 5),
         remainingQty,
@@ -153,6 +168,25 @@ function parseOrderChangeSheet(rows, sheetName) {
       };
     })
     .filter((record) => isUsableOrderChangeRecord(record));
+}
+
+async function readCategoryDimension(file) {
+  const sheets = await readAllWorkbookSheets(file);
+  const targetSheet =
+    sheets.find(({ sheetName }) => String(sheetName || "").includes("Dim-YL医疗器械商品分类")) ||
+    sheets.find(({ sheetName }) => String(sheetName || "").includes("商品分类")) ||
+    sheets[0];
+  const map = new Map();
+  (targetSheet?.rows || []).forEach((row) => {
+    const materialCode = normalizeMaterialCode(row[0]);
+    if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
+    map.set(materialCode, {
+      salesLine: getRowValue(row, 6) || "未匹配",
+      salesSeries: getRowValue(row, 7) || "未匹配",
+      purchaseGroup: getRowValue(row, 20) || "未匹配",
+    });
+  });
+  return map;
 }
 
 function findOrderChangeHeaderIndex(rows) {
@@ -200,13 +234,17 @@ function parseDeliveryPriceSheet(rows) {
     .filter((record) => record.sequence && record.materialCode);
 }
 
-function enrichOrderChangeRows(rows, priceMap) {
+function enrichOrderChangeRows(rows, priceMap, categoryMap) {
   return rows.map((row) => {
     const matched = priceMap.get(makeCompositeKey(row.sequence, row.materialCode));
+    const category = categoryMap.get(normalizeMaterialCode(row.materialCode));
     const unitPrice = Number(matched?.unitPrice) || 0;
     return {
       ...row,
       unitPrice,
+      salesLine: category?.salesLine || "未匹配",
+      salesSeries: category?.salesSeries || "未匹配",
+      purchaseGroup: category?.purchaseGroup || "未匹配",
       stockValue: unitPrice * (Number(row.remainingQty) || 0),
     };
   });
@@ -303,7 +341,11 @@ function getFilterValues() {
 
 function filterOrderChangeRows(filters) {
   return orderChangeState.records.filter(
-    (record) => matchesFilter(record.nValue, filters.nValue) && matchesFilter(record.oValue, filters.oValue)
+    (record) =>
+      matchesFilter(record.nValue, filters.nValue) &&
+      matchesFilter(record.oValue, filters.oValue) &&
+      matchesFilter(record.salesLine, filters.salesLine) &&
+      matchesFilter(record.salesSeries, filters.salesSeries)
   );
 }
 
@@ -313,12 +355,18 @@ function matchesFilter(value, selectedValues = []) {
 
 function renderOrderChange(message = "") {
   const rows = orderChangeState.filtered;
+  const totalStockValue = sumBy(rows, "stockValue");
   orderChangeEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
+  orderChangeEls.downloadButton.disabled = Boolean(message) || !rows.length || !window.XLSX;
+  orderChangeEls.businessUnitTotal.textContent = `合计金额：${formatCurrencyShort(totalStockValue)}`;
+  orderChangeEls.businessUnitTotal.title = formatCurrency(totalStockValue);
+  orderChangeEls.feedbackTotal.textContent = `合计金额：${formatCurrencyShort(totalStockValue)}`;
+  orderChangeEls.feedbackTotal.title = formatCurrency(totalStockValue);
   renderValueBars(orderChangeEls.nBars, rows, "nValue", "暂无事业部库存货值");
   renderValueBars(orderChangeEls.oBars, rows, "oValue", "暂无运营反馈库存货值");
 
   if (message || !rows.length) {
-    orderChangeEls.rows.innerHTML = `<tr><td colspan="6" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    orderChangeEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
     return;
   }
 
@@ -330,12 +378,47 @@ function renderOrderChangeRow(record) {
     <tr>
       <td>${escapeHtml(record.nValue || "--")}</td>
       <td>${escapeHtml(record.oValue || "--")}</td>
+      <td>${escapeHtml(record.supplier || "--")}</td>
+      <td>${escapeHtml(record.purchaseGroup || "--")}</td>
+      <td>${escapeHtml(record.salesLine || "--")}</td>
       <td>${escapeHtml(record.materialCode || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${formatNumber(record.remainingQty)}</td>
+      <td>${formatCurrencyShort(record.stockValue)}</td>
       <td title="${escapeAttribute(record.operationRemark || "")}">${escapeHtml(record.operationRemark || "--")}</td>
     </tr>
   `;
+}
+
+function downloadOrderChangeRows() {
+  const rows = orderChangeState.filtered;
+  if (!rows.length || !window.XLSX) return;
+  const headers = ["事业部", "运营反馈", "供应商", "采购组", "销售产品线", "品号", "物品名称", "未发货数量", "货值", "运营备注"];
+  const exportRows = rows.map((record) => ({
+    事业部: record.nValue || "",
+    运营反馈: record.oValue || "",
+    供应商: record.supplier || "",
+    采购组: record.purchaseGroup || "",
+    销售产品线: record.salesLine || "",
+    品号: record.materialCode || "",
+    物品名称: record.itemName || "",
+    未发货数量: Number(record.remainingQty) || 0,
+    货值: Number(record.stockValue) || 0,
+    运营备注: record.operationRemark || "",
+  }));
+  const worksheet = window.XLSX.utils.json_to_sheet(exportRows, { header: headers });
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, worksheet, "订单变更明细");
+  window.XLSX.writeFile(workbook, `${buildOrderChangeDownloadName()}.xlsx`);
+}
+
+function buildOrderChangeDownloadName() {
+  const suppliers = uniqueValues(orderChangeState.filtered, "supplier");
+  const supplierPart = suppliers.length === 1 ? suppliers[0] : suppliers.length ? "多供应商" : "未填写供应商";
+  const filterParts = orderChangeFilterConfigs.map((config) =>
+    getFilterButtonLabel(config, orderChangeState.selectedFilters[config.key] || new Set())
+  );
+  return [supplierPart, ...filterParts].map(sanitizeFileNamePart).filter(Boolean).join("_");
 }
 
 function renderValueBars(container, rows, field, emptyText) {
@@ -361,6 +444,10 @@ function renderValueBars(container, rows, field, emptyText) {
       `
     )
     .join("");
+}
+
+function sumBy(items, key) {
+  return items.reduce((sum, item) => sum + (Number(item[key]) || 0), 0);
 }
 
 async function readAllWorkbookSheets(file) {
@@ -518,6 +605,13 @@ function formatCurrencyShort(value) {
   return formatNumber(number);
 }
 
+function sanitizeFileNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "");
+}
+
 function updateSourceNote(element, label, sourceRecord) {
   if (!element) return;
   if (Array.isArray(sourceRecord)) {
@@ -556,7 +650,7 @@ function getAppliedLibraryRecord(record) {
 
 function setOrderChangeMessage(message) {
   orderChangeEls.state.textContent = message;
-  orderChangeEls.rows.innerHTML = `<tr><td colspan="6" class="empty-table-cell">${escapeHtml(message)}</td></tr>`;
+  orderChangeEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message)}</td></tr>`;
 }
 
 function openAppDb() {

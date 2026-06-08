@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>订单变更 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-8" />
   </head>
   <body>
     <div class="app-shell">
@@ -51,6 +51,8 @@
           <div class="order-change-filter-bar" id="orderChangeFilterBar">
             <div class="multi-filter" id="orderChangeNFilter" data-filter-key="nValue"></div>
             <div class="multi-filter" id="orderChangeOFilter" data-filter-key="oValue"></div>
+            <div class="multi-filter" id="orderChangeSalesLineFilter" data-filter-key="salesLine"></div>
+            <div class="multi-filter" id="orderChangeSalesSeriesFilter" data-filter-key="salesSeries"></div>
           </div>
         </section>
 
@@ -59,7 +61,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">N Column</p>
-                <h2>事业部</h2>
+                <h2>事业部 <span class="chart-total" id="orderChangeBusinessUnitTotal">合计金额：--</span></h2>
               </div>
             </div>
             <div id="orderChangeNBars" class="order-change-column-chart"></div>
@@ -69,7 +71,7 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">O Column</p>
-                <h2>运营反馈</h2>
+                <h2>运营反馈 <span class="chart-total" id="orderChangeFeedbackTotal">合计金额：--</span></h2>
               </div>
             </div>
             <div id="orderChangeOBars" class="order-change-column-chart"></div>
@@ -82,22 +84,29 @@
               <p class="eyebrow">Details</p>
               <h2>订单变更明细</h2>
             </div>
-            <span class="upload-state" id="orderChangeState">等待数据</span>
+            <div class="table-actions">
+              <button id="orderChangeDownloadButton" type="button" disabled>下载当前结果</button>
+              <span class="upload-state" id="orderChangeState">等待数据</span>
+            </div>
           </div>
           <div class="table-wrap order-change-table-wrap">
             <table class="order-change-table">
               <thead>
                 <tr>
-                  <th>N列内容</th>
-                  <th>O列内容</th>
+                  <th>事业部</th>
+                  <th>运营反馈</th>
+                  <th>供应商</th>
+                  <th>采购组</th>
+                  <th>销售产品线</th>
                   <th>品号</th>
                   <th>物品名称</th>
                   <th>未发货数量</th>
+                  <th>货值</th>
                   <th>运营备注</th>
                 </tr>
               </thead>
               <tbody id="orderChangeRows">
-                <tr><td colspan="6" class="empty-table-cell">等待数据来源规则</td></tr>
+                <tr><td colspan="10" class="empty-table-cell">等待数据来源规则</td></tr>
               </tbody>
             </table>
           </div>
@@ -105,6 +114,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./order-change.js?v=20260608-2"></script>
+    <script src="./order-change.js?v=20260608-3"></script>
   </body>
 </html>
