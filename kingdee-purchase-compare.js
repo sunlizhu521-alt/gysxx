@@ -8,6 +8,7 @@ const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const KINGDEE_ORDER_SLOT = "fact-2";
 const MAX_COMPARE_SHEET_ROWS = 120000;
+const MAX_COMPARE_SHEET_COLUMNS = 80;
 
 const compareEls = {
   filterBar: document.querySelector("#kingdeeFilterBar"),
@@ -151,7 +152,7 @@ async function loadCompareData() {
     const [categoryResult, assignmentResult, kingdeeRows, deliveryRows] = await Promise.all([
       readOptionalSource("Dim-YL医疗器械商品分类", appliedCategoryRecord?.file, readCategoryDimension, new Map()),
       readOptionalSource("Dim-采购分工明细", appliedPurchaseAssignmentRecord?.file, readPurchaseAssignment, createEmptyAssignmentMaps()),
-      readRequiredSource("Fac-金蝶采购订单列表", appliedKingdeeRecord.file, readKingdeeWorkbook),
+      readKingdeeRowsFromRecord(appliedKingdeeRecord),
       readRequiredSource("Fac-采购订单跟进表", appliedDeliveryRecord.file, readDeliveryWorkbook),
     ]);
 
@@ -177,6 +178,47 @@ async function readRequiredSource(label, file, reader) {
   } catch (error) {
     throw new Error(`${label} 读取失败：${error.message || "文件解析异常"}`);
   }
+}
+
+async function readKingdeeRowsFromRecord(record) {
+  const cachedRows = getFreshKingdeeCompareCache(record);
+  if (cachedRows) return cachedRows;
+  const rows = await readRequiredSource("Fac-金蝶采购订单列表", record.file, readKingdeeWorkbook);
+  saveKingdeeCompareCache(record, rows).catch((error) => console.warn("save kingdee compare cache failed", error));
+  return rows;
+}
+
+function getFreshKingdeeCompareCache(record) {
+  const rows = record?.kingdeeCompareRows;
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const source = record.kingdeeCompareCacheSource || {};
+  if (!source.name && !source.size && !source.appliedAt) return null;
+  if (source.name && source.name !== record.name) return null;
+  if (source.size && Number(source.size) !== Number(record.size)) return null;
+  if (source.appliedAt && source.appliedAt !== record.appliedAt) return null;
+  return rows;
+}
+
+async function saveKingdeeCompareCache(record, rows) {
+  if (!record?.id || !Array.isArray(rows)) return;
+  const db = await openAppDb();
+  const latestRecord = await getRecord(db, FACT_STORE_NAME, record.id);
+  if (!latestRecord?.applied || latestRecord.appliedAt !== record.appliedAt) {
+    db.close();
+    return;
+  }
+  await putRecord(db, FACT_STORE_NAME, {
+    ...latestRecord,
+    kingdeeCompareRows: rows,
+    kingdeeCompareCachedAt: new Date().toISOString(),
+    kingdeeCompareExtractError: "",
+    kingdeeCompareCacheSource: {
+      name: latestRecord.name,
+      size: latestRecord.size,
+      appliedAt: latestRecord.appliedAt,
+    },
+  });
+  db.close();
 }
 
 async function readOptionalSource(label, file, reader, fallback) {
@@ -738,7 +780,25 @@ async function readWorkbook(file, options = {}) {
 
 function sheetToRows(sheet) {
   if (!sheet) return [];
-  return window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
+  return window.XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+    range: getSafeSheetRange(sheet),
+  });
+}
+
+function getSafeSheetRange(sheet) {
+  const rawRange = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
+  const maxRow = rawRange.s.r + MAX_COMPARE_SHEET_ROWS - 1;
+  const maxColumn = rawRange.s.c + MAX_COMPARE_SHEET_COLUMNS - 1;
+  return {
+    s: rawRange.s,
+    e: {
+      r: Math.min(rawRange.e.r, maxRow),
+      c: Math.min(rawRange.e.c, maxColumn),
+    },
+  };
 }
 
 async function readFileArrayBuffer(file) {
@@ -956,6 +1016,16 @@ function getRecord(db, storeName, key) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(storeName, "readonly");
     const request = transaction.objectStore(storeName).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function putRecord(db, storeName, record) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, "readwrite");
+    const request = transaction.objectStore(storeName).put(record);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
