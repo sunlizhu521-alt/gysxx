@@ -633,6 +633,96 @@ select {
   text-align: left;
 }
 
+.order-change-filter-panel {
+  margin-bottom: 10px;
+  overflow: visible;
+  position: relative;
+  z-index: 70;
+}
+
+.order-change-filter-panel .panel-heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.order-change-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 240px));
+  gap: 8px;
+  align-items: start;
+  overflow: visible;
+}
+
+.order-change-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.order-change-dashboard .panel {
+  padding: 13px;
+}
+
+.order-change-chart-panel .panel-heading {
+  margin-bottom: 10px;
+}
+
+.order-change-bars {
+  gap: 10px;
+}
+
+.order-change-bars .bar-row {
+  grid-template-columns: minmax(120px, 150px) minmax(0, 1fr) 62px;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.order-change-bars .bar-row > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-change-bars .bar-row strong {
+  border-radius: 6px;
+}
+
+.order-change-table-wrap {
+  max-height: calc(100vh - 430px);
+  min-height: 320px;
+}
+
+.order-change-table {
+  min-width: 940px;
+}
+
+.order-change-table th,
+.order-change-table td {
+  padding: 10px 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.order-change-table th:nth-child(4),
+.order-change-table td:nth-child(4),
+.order-change-table th:nth-child(6),
+.order-change-table td:nth-child(6) {
+  text-align: left;
+}
+
+@media (max-width: 980px) {
+  .order-change-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-change-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1280px) {
   .kingdee-filter-bar {
     grid-template-columns: repeat(3, minmax(140px, 1fr));
