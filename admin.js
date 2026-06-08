@@ -3,6 +3,7 @@ const DB_VERSION = 3;
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 const KINGDEE_ORDER_SLOT = "fact-2";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260608-4";
 const MAX_EXTRACT_SHEET_ROWS = 120000;
 const MAX_EXTRACT_SHEET_COLUMNS = 80;
 
@@ -206,6 +207,7 @@ async function buildSlotExtractFields(slotId, record, appliedAt) {
         name: record.pendingName,
         size: record.pendingSize,
         appliedAt,
+        build: KINGDEE_COMPARE_BUILD,
       },
     };
   } catch (error) {
@@ -377,6 +379,7 @@ function clearKingdeeExtractFields(errorMessage = "") {
 }
 
 const kingdeeAliases = {
+  documentNumber: ["单据编号", "单据号", "采购订单号", "采购订单编号", "订单编号", "采购单号"],
   materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
   sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
   itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
@@ -416,6 +419,7 @@ function parseKingdeeSheet(rows) {
       const supplier = getRowValue(row, headerMap.supplier);
       return {
         id: `kingdee-${index}-${materialCode}-${sku}-${supplier}`,
+        documentNumber: getRowValue(row, headerMap.documentNumber),
         materialCode,
         sku,
         itemName,

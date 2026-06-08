@@ -616,7 +616,7 @@ select {
 }
 
 .kingdee-compare-table {
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 .kingdee-compare-table th,
@@ -628,8 +628,8 @@ select {
   vertical-align: middle;
 }
 
-.kingdee-compare-table th:nth-child(5),
-.kingdee-compare-table td:nth-child(5) {
+.kingdee-compare-table th:nth-child(6),
+.kingdee-compare-table td:nth-child(6) {
   text-align: left;
 }
 
