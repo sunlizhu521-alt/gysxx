@@ -147,22 +147,44 @@ async function loadCompareData() {
       return;
     }
 
-    const [categoryMap, assignmentMaps, kingdeeRows, deliveryRows] = await Promise.all([
-      appliedCategoryRecord?.file ? readCategoryDimension(appliedCategoryRecord.file) : Promise.resolve(new Map()),
-      appliedPurchaseAssignmentRecord?.file ? readPurchaseAssignment(appliedPurchaseAssignmentRecord.file) : Promise.resolve(createEmptyAssignmentMaps()),
-      readKingdeeWorkbook(appliedKingdeeRecord.file),
-      readDeliveryWorkbook(appliedDeliveryRecord.file),
+    const [categoryResult, assignmentResult, kingdeeRows, deliveryRows] = await Promise.all([
+      readOptionalSource("Dim-YL医疗器械商品分类", appliedCategoryRecord?.file, readCategoryDimension, new Map()),
+      readOptionalSource("Dim-采购分工明细", appliedPurchaseAssignmentRecord?.file, readPurchaseAssignment, createEmptyAssignmentMaps()),
+      readRequiredSource("Fac-金蝶采购订单列表", appliedKingdeeRecord.file, readKingdeeWorkbook),
+      readRequiredSource("Fac-采购订单跟进表", appliedDeliveryRecord.file, readDeliveryWorkbook),
     ]);
 
-    compareState.records = mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps);
+    compareState.records = mergeCompareRows(kingdeeRows, deliveryRows, categoryResult.value, assignmentResult.value);
     if (!compareState.records.length) {
       resetCompare("已应用文件暂无可对比数据");
       return;
     }
     applyCompareFilters();
+    const optionalWarnings = [categoryResult, assignmentResult].filter((result) => result.warning).map((result) => result.warning);
+    if (optionalWarnings.length) {
+      compareEls.state.textContent = `已匹配 ${compareState.filtered.length} 行｜${optionalWarnings.join("；")}`;
+    }
   } catch (error) {
     console.error(error);
-    resetCompare("金蝶采购订单对比读取失败");
+    resetCompare(`金蝶采购订单对比读取失败：${error.message || "请检查已应用文件"}`);
+  }
+}
+
+async function readRequiredSource(label, file, reader) {
+  try {
+    return await reader(file);
+  } catch (error) {
+    throw new Error(`${label} 读取失败：${error.message || "文件解析异常"}`);
+  }
+}
+
+async function readOptionalSource(label, file, reader, fallback) {
+  if (!file) return { value: fallback, warning: `${label}未应用` };
+  try {
+    return { value: await reader(file), warning: "" };
+  } catch (error) {
+    console.warn(`${label} read failed`, error);
+    return { value: fallback, warning: `${label}读取失败，已按未匹配展示` };
   }
 }
 
@@ -659,18 +681,31 @@ function closeCompareFilters(exceptKey = "") {
 }
 
 async function readAllWorkbookSheets(file) {
-  const extension = file.name.split(".").pop()?.toLowerCase();
+  const fileName = String(file?.name || "");
+  const extension = fileName.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
-    return [{ sheetName: file.name, rows: csvToRows(await file.text()) }];
+    return [{ sheetName: fileName || "CSV", rows: csvToRows(await readFileText(file)) }];
   }
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook = window.XLSX.read(await readFileArrayBuffer(file), { type: "array" });
   return workbook.SheetNames.map((sheetName) => ({
     sheetName,
     rows: window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" }),
   }));
+}
+
+async function readFileArrayBuffer(file) {
+  if (file?.arrayBuffer) return file.arrayBuffer();
+  if (file instanceof Blob) return file.arrayBuffer();
+  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
+}
+
+async function readFileText(file) {
+  if (file?.text) return file.text();
+  if (file instanceof Blob) return file.text();
+  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
 }
 
 async function readWorkbookRows(file, preferredSheetName = "") {
