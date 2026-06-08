@@ -127,6 +127,13 @@ button:disabled {
   margin-bottom: 22px;
 }
 
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: var(--blue);
@@ -262,6 +269,18 @@ h2 {
 .primary-button:hover:not(:disabled) {
   color: #fff;
   background: #245bd1;
+}
+
+.secondary-button:not(:disabled) {
+  border-color: var(--teal);
+  color: #fff;
+  background: var(--teal);
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: #0f7f80;
+  color: #fff;
+  background: #0f7f80;
 }
 
 .upload-state {
@@ -421,6 +440,14 @@ h2 {
   .panel-heading {
     display: grid;
     align-items: start;
+  }
+
+  .topbar-actions {
+    justify-content: stretch;
+  }
+
+  .topbar-actions button {
+    width: 100%;
   }
 
   .slot-grid,

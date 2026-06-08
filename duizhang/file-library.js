@@ -9,9 +9,19 @@ const slots = [
   { id: "file-4", label: "对账文件 4" },
 ];
 
+const generateSlotIds = {
+  wdt: "file-1",
+  operation: "file-2",
+  yile: "file-3",
+};
+
+const CHECK_COLUMN_INDEX = 22;
+const REMARK_COLUMN_INDEX = 23;
+
 const els = {
   slotGrid: document.querySelector("#slotGrid"),
   applyAllButton: document.querySelector("#applyAllButton"),
+  generateButton: document.querySelector("#generateButton"),
   libraryState: document.querySelector("#libraryState"),
   sourceNote: document.querySelector("#librarySourceNote"),
   slotCount: document.querySelector("#slotCount"),
@@ -22,6 +32,7 @@ const els = {
 
 const state = {
   records: new Map(),
+  isGenerating: false,
 };
 
 async function init() {
@@ -75,6 +86,7 @@ function bindEvents() {
   });
 
   els.applyAllButton.addEventListener("click", applyAllSlots);
+  els.generateButton?.addEventListener("click", generateReconciliationWorkbook);
 }
 
 async function refresh() {
@@ -161,6 +173,324 @@ async function deleteSlot(slotId) {
   await refresh();
 }
 
+async function generateReconciliationWorkbook() {
+  if (state.isGenerating) return;
+  if (!window.XLSX) {
+    window.alert("Excel 解析组件未加载，请刷新页面后重试。");
+    return;
+  }
+
+  const sources = getGenerateSourceRecords();
+  const missingLabels = Object.entries(sources)
+    .filter(([, record]) => !record?.file)
+    .map(([key]) => getGenerateSourceLabel(key));
+  if (missingLabels.length) {
+    window.alert(`请先上传并应用：${missingLabels.join("、")}`);
+    return;
+  }
+
+  state.isGenerating = true;
+  updateGenerateButton();
+  els.libraryState.textContent = "生成中";
+
+  try {
+    const [wdtWorkbook, operationWorkbook, yileWorkbook] = await Promise.all([
+      readWorkbook(sources.wdt.file),
+      readWorkbook(sources.operation.file),
+      readWorkbook(sources.yile.file),
+    ]);
+    const wdtEntries = buildWorkbookSearchEntries(wdtWorkbook);
+    const operationSets = buildOperationSearchSets(operationWorkbook);
+    const yileSheetName = pickYileSheetName(yileWorkbook);
+    const yileSheet = yileWorkbook.Sheets[yileSheetName];
+    if (!yileSheet) throw new Error("易乐对账表没有可读取的工作表。");
+
+    const result = fillReconciliationSheet(yileSheet, operationSets, wdtEntries);
+    window.XLSX.writeFile(yileWorkbook, buildGeneratedFileName(sources.yile.name));
+    els.libraryState.textContent = `已生成 ${result.checkedRows} 行`;
+  } catch (error) {
+    console.warn("generate reconciliation workbook failed", error);
+    els.libraryState.textContent = "生成失败";
+    window.alert(error.message || "一键生成表失败，请检查文件后重试。");
+  } finally {
+    state.isGenerating = false;
+    updateGenerateButton();
+  }
+}
+
+function getGenerateSourceRecords() {
+  return {
+    wdt: getAppliedFileRecord(generateSlotIds.wdt),
+    operation: getAppliedFileRecord(generateSlotIds.operation),
+    yile: getAppliedFileRecord(generateSlotIds.yile),
+  };
+}
+
+function getAppliedFileRecord(slotId) {
+  const record = state.records.get(slotId);
+  return record?.applied && record?.file ? record : null;
+}
+
+function getGenerateSourceLabel(key) {
+  return {
+    wdt: "旺店通代发表",
+    operation: "运营登记表",
+    yile: "易乐对账表",
+  }[key] || key;
+}
+
+async function readWorkbook(file) {
+  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
+  if (extension === "csv" || extension === "txt") {
+    return window.XLSX.read(await file.text(), {
+      type: "string",
+      raw: false,
+      cellStyles: true,
+      cellHTML: true,
+      cellText: true,
+    });
+  }
+  return window.XLSX.read(await file.arrayBuffer(), {
+    type: "array",
+    cellStyles: true,
+    cellHTML: true,
+    cellText: true,
+  });
+}
+
+function buildOperationSearchSets(workbook) {
+  const vehicleGroups = [
+    {
+      label: "D75（985S）发货表",
+      names: getSheetNamesByMatcher(workbook, (name) => {
+        const normalized = normalizeSearchValue(name);
+        return normalized.includes("d75") || normalized.includes("985s");
+      }),
+    },
+    {
+      label: "D52&D36发货表",
+      names: getSheetNamesByMatcher(workbook, (name) => {
+        const normalized = normalizeSearchValue(name);
+        return normalized.includes("d52") && normalized.includes("d36");
+      }),
+    },
+  ];
+  const partsNames = getSheetNamesByMatcher(workbook, (name) => normalizeSearchValue(name).includes("配件表"));
+  const vehicleNames = [...new Set(vehicleGroups.flatMap((group) => group.names))];
+  return {
+    vehicle: buildWorkbookSearchEntries(workbook, vehicleNames),
+    vehicleMissing: vehicleGroups.filter((group) => !group.names.length).map((group) => group.label),
+    parts: buildWorkbookSearchEntries(workbook, partsNames),
+    partsMissing: partsNames.length ? [] : ["配件表"],
+  };
+}
+
+function getSheetNamesByMatcher(workbook, matcher) {
+  return (workbook.SheetNames || []).filter((name) => matcher(String(name || "")));
+}
+
+function buildWorkbookSearchEntries(workbook, sheetNames = workbook.SheetNames || []) {
+  return sheetNames.flatMap((sheetName) => buildSheetSearchEntries(workbook.Sheets[sheetName], sheetName));
+}
+
+function buildSheetSearchEntries(sheet, sheetName) {
+  if (!sheet) return [];
+  return Object.entries(sheet)
+    .filter(([address]) => !address.startsWith("!"))
+    .map(([address, cell]) => {
+      const text = getCellText(cell);
+      return text
+        ? {
+            address,
+            sheetName,
+            text,
+            normalized: normalizeSearchValue(text),
+            red: isRedFontCell(cell),
+          }
+        : null;
+    })
+    .filter(Boolean);
+}
+
+function pickYileSheetName(workbook) {
+  return (
+    (workbook.SheetNames || []).find((name) => String(name || "").includes("对账")) ||
+    (workbook.SheetNames || [])[0]
+  );
+}
+
+function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
+  const range = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:X1");
+  const headerRow = range.s.r;
+  const maxRow = Math.max(range.e.r, headerRow);
+  const originalDataMaxColumn = Math.min(Math.max(range.e.c, 6), CHECK_COLUMN_INDEX - 1);
+  let checkedRows = 0;
+
+  writeTextCell(sheet, headerRow, CHECK_COLUMN_INDEX, "核对确认");
+  writeTextCell(sheet, headerRow, REMARK_COLUMN_INDEX, "备注");
+
+  for (let rowIndex = headerRow + 1; rowIndex <= maxRow; rowIndex += 1) {
+    if (!rowHasAnyValue(sheet, rowIndex, originalDataMaxColumn)) continue;
+    const type = getSheetCellText(sheet, rowIndex, 1);
+    const customer = getSheetCellText(sheet, rowIndex, 2);
+    const trackingNumber = getSheetCellText(sheet, rowIndex, 6);
+    const result = getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries);
+    writeTextCell(sheet, rowIndex, CHECK_COLUMN_INDEX, result.status);
+    writeTextCell(sheet, rowIndex, REMARK_COLUMN_INDEX, result.remark);
+    checkedRows += 1;
+  }
+
+  range.e.c = Math.max(range.e.c, REMARK_COLUMN_INDEX);
+  range.e.r = Math.max(range.e.r, maxRow);
+  sheet["!ref"] = window.XLSX.utils.encode_range(range);
+  ensureOutputColumnWidths(sheet);
+  return { checkedRows };
+}
+
+function getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries) {
+  const typeText = String(type || "").trim();
+  if (!isVehiclePurchase(typeText) && !isPartsPurchase(typeText)) {
+    return { status: typeText, remark: "" };
+  }
+
+  const operationEntries = isVehiclePurchase(typeText)
+    ? getRequiredOperationEntries(operationSets.vehicle, operationSets.vehicleMissing, typeText)
+    : getRequiredOperationEntries(operationSets.parts, operationSets.partsMissing, typeText);
+  const customerResult = evaluateLookup(customer, operationEntries, wdtEntries);
+  if (customerResult.both) {
+    return { status: "已核实", remark: customerResult.red ? "退货" : "" };
+  }
+
+  const trackingResult = evaluateLookup(trackingNumber, operationEntries, wdtEntries);
+  const hasAnyMatch = customerResult.any || trackingResult.any;
+  const hasRedMatch = customerResult.red || trackingResult.red;
+  if (trackingResult.both) {
+    return { status: "已核实", remark: hasRedMatch ? "退货" : "" };
+  }
+  return {
+    status: hasAnyMatch ? "待核实" : "无记录",
+    remark: hasRedMatch ? "退货" : "",
+  };
+}
+
+function getRequiredOperationEntries(entries, missingLabels, typeText) {
+  if (missingLabels.length) {
+    throw new Error(`${typeText} 缺少运营登记表 sheet：${missingLabels.join("、")}`);
+  }
+  return entries;
+}
+
+function isVehiclePurchase(typeText) {
+  return String(typeText || "").trim().includes("整车购买");
+}
+
+function isPartsPurchase(typeText) {
+  return String(typeText || "").trim().includes("配件购买");
+}
+
+function evaluateLookup(query, operationEntries, wdtEntries) {
+  const operationResult = searchEntries(query, operationEntries);
+  const wdtResult = searchEntries(query, wdtEntries);
+  return {
+    operationFound: operationResult.found,
+    wdtFound: wdtResult.found,
+    both: operationResult.found && wdtResult.found,
+    any: operationResult.found || wdtResult.found,
+    red: operationResult.red || wdtResult.red,
+  };
+}
+
+function searchEntries(query, entries) {
+  const normalizedQuery = normalizeSearchValue(query);
+  if (!normalizedQuery) return { found: false, red: false };
+  let found = false;
+  let red = false;
+  for (const entry of entries) {
+    if (!entry.normalized || !entry.normalized.includes(normalizedQuery)) continue;
+    found = true;
+    if (entry.red) red = true;
+  }
+  return { found, red };
+}
+
+function rowHasAnyValue(sheet, rowIndex, maxColumnIndex) {
+  for (let columnIndex = 0; columnIndex <= maxColumnIndex; columnIndex += 1) {
+    if (getSheetCellText(sheet, rowIndex, columnIndex)) return true;
+  }
+  return false;
+}
+
+function getSheetCellText(sheet, rowIndex, columnIndex) {
+  return getCellText(sheet[window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })]);
+}
+
+function getCellText(cell) {
+  if (!cell) return "";
+  return String(cell.w ?? cell.v ?? "").trim();
+}
+
+function writeTextCell(sheet, rowIndex, columnIndex, value) {
+  sheet[window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })] = {
+    t: "s",
+    v: String(value ?? ""),
+  };
+}
+
+function ensureOutputColumnWidths(sheet) {
+  const columns = sheet["!cols"] || [];
+  columns[CHECK_COLUMN_INDEX] = { ...(columns[CHECK_COLUMN_INDEX] || {}), wch: 12 };
+  columns[REMARK_COLUMN_INDEX] = { ...(columns[REMARK_COLUMN_INDEX] || {}), wch: 10 };
+  sheet["!cols"] = columns;
+}
+
+function isRedFontCell(cell) {
+  if (!cell) return false;
+  const fontColor = cell.s?.font?.color;
+  if (isRedColor(fontColor?.rgb) || isRedIndexedColor(fontColor?.indexed)) return true;
+  if (Array.isArray(cell.r) && cell.r.some((run) => isRedColor(run?.s?.color?.rgb))) return true;
+  return /color\s*:\s*(#?ff0000|#?c00000|red)\b/i.test(String(cell.h || ""));
+}
+
+function isRedIndexedColor(indexed) {
+  return Number(indexed) === 3 || Number(indexed) === 10;
+}
+
+function isRedColor(value) {
+  const raw = String(value || "").replace(/[^0-9a-f]/gi, "");
+  if (!raw) return false;
+  const hex = raw.length > 6 ? raw.slice(-6) : raw.padStart(6, "0");
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  return red >= 180 && green <= 90 && blue <= 90;
+}
+
+function normalizeSearchValue(value) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\.0$/, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function buildGeneratedFileName(sourceName) {
+  const baseName = sanitizeFileNamePart(String(sourceName || "易乐对账表").replace(/\.[^.]+$/, "")) || "易乐对账表";
+  const stamp = formatFileTimestamp(new Date());
+  return `${baseName}_已核对_${stamp}.xlsx`;
+}
+
+function formatFileTimestamp(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+function sanitizeFileNamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, "");
+}
+
 function render() {
   els.slotCount.textContent = String(slots.length);
   els.uploadedCount.textContent = String(countUploadedRecords());
@@ -170,6 +500,7 @@ function render() {
   els.slotGrid.innerHTML = slots.map(renderSlot).join("");
   els.libraryState.textContent = "本地文件库";
   updateApplyAllButton();
+  updateGenerateButton();
 }
 
 function renderSlot(slot) {
@@ -256,6 +587,13 @@ function updateApplyAllButton() {
     return record?.pendingFile || (record && !record.applied);
   });
   els.applyAllButton.disabled = !hasApplicableRecord;
+}
+
+function updateGenerateButton() {
+  if (!els.generateButton) return;
+  const sources = getGenerateSourceRecords();
+  const hasRequiredSources = Boolean(sources.wdt?.file && sources.operation?.file && sources.yile?.file);
+  els.generateButton.disabled = state.isGenerating || !hasRequiredSources;
 }
 
 function clearPendingFields(record) {

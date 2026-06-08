@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对账文件 - 易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-3" />
   </head>
   <body>
     <div class="app-shell">
@@ -28,7 +28,10 @@
             <h1>对账文件</h1>
             <small class="source-note" id="librarySourceNote">本地文件库｜引用时间：--</small>
           </div>
-          <button id="applyAllButton" class="primary-button" type="button" disabled>一键应用</button>
+          <div class="topbar-actions">
+            <button id="applyAllButton" class="primary-button" type="button" disabled>一键应用</button>
+            <button id="generateButton" class="secondary-button" type="button" disabled>一键生成表</button>
+          </div>
         </header>
 
         <section class="summary-grid" aria-label="文件库概览">
@@ -67,7 +70,8 @@
       </main>
     </div>
 
+    <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260608-1"></script>
-    <script src="./file-library.js?v=20260608-2"></script>
+    <script src="./file-library.js?v=20260608-3"></script>
   </body>
 </html>
