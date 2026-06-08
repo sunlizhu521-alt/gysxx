@@ -21,6 +21,7 @@ const CHECK_COLUMN_INDEX = 16;
 const REMARK_COLUMN_INDEX = 17;
 const OUTPUT_LAST_COLUMN_INDEX = REMARK_COLUMN_INDEX;
 const OUTPUT_START_ROW_INDEX = 2;
+const PROTECTED_LAST_COLUMN_INDEX = TRACKING_COLUMN_INDEX;
 const TABLE_BORDER_STYLE = {
   style: "thin",
   color: { rgb: "FFB7C4D6" },
@@ -364,6 +365,7 @@ function pickReconciliationSheetName(workbook) {
 }
 
 function fillReconciliationSheet(sheet, registrationEntries) {
+  const protectedSnapshot = snapshotProtectedColumns(sheet, PROTECTED_LAST_COLUMN_INDEX);
   const range = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:R1");
   const trackingMergeContext = buildColumnMergeContext(sheet, TRACKING_COLUMN_INDEX, OUTPUT_START_ROW_INDEX);
   const maxMergedRow = trackingMergeContext.sourceMerges.reduce((max, merge) => Math.max(max, merge.e.r), 0);
@@ -399,7 +401,97 @@ function fillReconciliationSheet(sheet, registrationEntries) {
   range.e.c = Math.max(range.e.c, OUTPUT_LAST_COLUMN_INDEX);
   range.e.r = Math.max(range.e.r, maxRow);
   sheet["!ref"] = window.XLSX.utils.encode_range(range);
+  restoreProtectedColumns(sheet, protectedSnapshot);
   return stats;
+}
+
+function snapshotProtectedColumns(sheet, lastColumnIndex) {
+  const cells = new Map();
+  Object.entries(sheet).forEach(([address, cell]) => {
+    if (address.startsWith("!")) return;
+    const decodedAddress = window.XLSX.utils.decode_cell(address);
+    if (decodedAddress.c <= lastColumnIndex) {
+      cells.set(address, clonePlain(cell));
+    }
+  });
+  return {
+    lastColumnIndex,
+    cells,
+    columns: clonePlain(sheet["!cols"]),
+    rows: clonePlain(sheet["!rows"]),
+    merges: clonePlain(sheet["!merges"]),
+    autoFilter: clonePlain(sheet["!autofilter"]),
+  };
+}
+
+function restoreProtectedColumns(sheet, snapshot) {
+  Object.keys(sheet).forEach((address) => {
+    if (address.startsWith("!")) return;
+    const decodedAddress = window.XLSX.utils.decode_cell(address);
+    if (decodedAddress.c <= snapshot.lastColumnIndex && !snapshot.cells.has(address)) {
+      delete sheet[address];
+    }
+  });
+  snapshot.cells.forEach((cell, address) => {
+    sheet[address] = clonePlain(cell);
+  });
+  restoreProtectedColumnsMetadata(sheet, snapshot);
+}
+
+function restoreProtectedColumnsMetadata(sheet, snapshot) {
+  restoreProtectedColumnWidths(sheet, snapshot.columns, snapshot.lastColumnIndex);
+  restoreOptionalSheetProperty(sheet, "!rows", snapshot.rows);
+  restoreProtectedMerges(sheet, snapshot.merges, snapshot.lastColumnIndex);
+  restoreOptionalSheetProperty(sheet, "!autofilter", snapshot.autoFilter);
+}
+
+function restoreProtectedColumnWidths(sheet, snapshotColumns, lastColumnIndex) {
+  const currentColumns = Array.isArray(sheet["!cols"]) ? [...sheet["!cols"]] : [];
+  if (!Array.isArray(snapshotColumns)) {
+    for (let columnIndex = 0; columnIndex <= lastColumnIndex; columnIndex += 1) {
+      delete currentColumns[columnIndex];
+    }
+    if (currentColumns.some((column) => column !== undefined)) {
+      sheet["!cols"] = currentColumns;
+    } else {
+      delete sheet["!cols"];
+    }
+    return;
+  }
+  for (let columnIndex = 0; columnIndex <= lastColumnIndex; columnIndex += 1) {
+    currentColumns[columnIndex] = clonePlain(snapshotColumns[columnIndex]);
+  }
+  sheet["!cols"] = currentColumns;
+}
+
+function restoreProtectedMerges(sheet, snapshotMerges, lastColumnIndex) {
+  const currentMerges = Array.isArray(sheet["!merges"]) ? sheet["!merges"] : [];
+  const unprotectedMerges = currentMerges.filter((merge) => !mergeTouchesProtectedColumns(merge, lastColumnIndex));
+  const protectedMerges = Array.isArray(snapshotMerges)
+    ? snapshotMerges.filter((merge) => mergeTouchesProtectedColumns(merge, lastColumnIndex))
+    : [];
+  const merged = [...protectedMerges, ...unprotectedMerges];
+  if (merged.length) {
+    sheet["!merges"] = merged;
+  } else {
+    delete sheet["!merges"];
+  }
+}
+
+function mergeTouchesProtectedColumns(merge, lastColumnIndex) {
+  return Boolean(merge && merge.s && merge.e && merge.s.c <= lastColumnIndex && merge.e.c >= 0);
+}
+
+function restoreOptionalSheetProperty(sheet, propertyName, value) {
+  if (value === undefined) {
+    delete sheet[propertyName];
+  } else {
+    sheet[propertyName] = clonePlain(value);
+  }
+}
+
+function clonePlain(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
 function buildColumnMergeContext(sheet, columnIndex, startRowIndex) {

@@ -93,7 +93,7 @@
           <div class="logic-grid">
             <div><strong>文件来源</strong><span>槽位1上传运营登记表，槽位2上传优乐步对账表；点击一键刷新应用后，页面会基于已引用文件刷新统计。</span></div>
             <div><strong>优乐步对账表列位</strong><span>M列作为姓名，N列作为快递单号；生成表只从第3行开始在Q列写核对结果、R列写命中备注。</span></div>
-            <div><strong>保留原表格式</strong><span>生成时不改原表样式、边框、列宽、筛选和已有合并结构；只写入Q/R列内容。</span></div>
+            <div><strong>保留A-N格式</strong><span>生成时会保护A-N列原有样式、边框、列宽、筛选、行设置和合并单元格；只从第3行开始写新增内容。</span></div>
             <div><strong>姓名优先核对</strong><span>先用M列姓名去运营登记表全工作簿全部内容查找，命中后作为姓名条件命中。</span></div>
             <div><strong>快递单号核对</strong><span>再用N列快递单号去运营登记表全工作簿全部内容查找；N列有合并时，Q/R列按同样行范围合并。</span></div>
             <div><strong>结果规则</strong><span>姓名和快递单号都命中写已核实；只命中一个条件写待核实；两个条件都不命中写无信息。</span></div>
@@ -116,6 +116,6 @@
 
     <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260609-1"></script>
-    <script src="./file-library.js?v=20260609-4"></script>
+    <script src="./file-library.js?v=20260609-5"></script>
   </body>
 </html>
