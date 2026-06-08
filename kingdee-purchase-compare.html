@@ -67,7 +67,8 @@
               <p class="eyebrow">Data Compare</p>
               <h2>数据对比</h2>
             </div>
-            <div class="table-actions">
+            <div class="table-actions" id="kingdeeTableActions">
+              <div class="multi-filter" id="differenceStatusCompareFilter" data-filter-key="differenceStatus"></div>
               <button id="kingdeeDownloadButton" type="button" disabled>下载当前结果</button>
               <span class="upload-state" id="kingdeeCompareState">等待数据</span>
             </div>
@@ -95,6 +96,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./kingdee-purchase-compare-cache-only.js?v=20260608-2"></script>
+    <script src="./kingdee-purchase-compare-cache-only.js?v=20260608-3"></script>
   </body>
 </html>

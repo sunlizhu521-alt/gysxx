@@ -1,6 +1,6 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
-const KINGDEE_COMPARE_BUILD = "cache-only-20260608-2";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260608-3";
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -13,6 +13,7 @@ const MAX_COMPARE_SHEET_COLUMNS = 80;
 
 const compareEls = {
   filterBar: document.querySelector("#kingdeeFilterBar"),
+  tableActions: document.querySelector("#kingdeeTableActions"),
   search: document.querySelector("#kingdeeSearch"),
   resetButton: document.querySelector("#kingdeeResetButton"),
   downloadButton: document.querySelector("#kingdeeDownloadButton"),
@@ -36,6 +37,12 @@ const compareFilterConfigs = [
     label: "对比数据",
     options: ["下单数量", "剩余数量"],
     single: true,
+  },
+  {
+    key: "differenceStatus",
+    id: "differenceStatusCompareFilter",
+    label: "全部差异",
+    options: ["有差异", "无差异"],
   },
 ];
 
@@ -89,26 +96,13 @@ async function initKingdeeComparePage() {
 }
 
 function bindCompareEvents() {
-  compareEls.filterBar.addEventListener("click", (event) => {
-    const toggle = event.target.closest("[data-filter-toggle]");
-    if (toggle) {
-      closeCompareFilters(toggle.dataset.filterToggle);
-      getFilterElement(toggle.dataset.filterToggle)?.classList.toggle("open");
-      return;
-    }
-
-    const option = event.target.closest("[data-filter-option]");
-    if (!option) return;
-    event.preventDefault();
-    event.stopPropagation();
-    toggleCompareOption(option.dataset.filterKey, option.dataset.filterOption);
-    applyCompareFilters();
-  });
+  compareEls.filterBar.addEventListener("click", handleCompareFilterClick);
+  compareEls.tableActions.addEventListener("click", handleCompareFilterClick);
 
   compareEls.search.addEventListener("input", applyCompareFilters);
 
   document.addEventListener("click", (event) => {
-    if (!event.target.closest("#kingdeeFilterBar")) closeCompareFilters();
+    if (!event.target.closest("#kingdeeFilterBar") && !event.target.closest("#kingdeeTableActions")) closeCompareFilters();
   });
 
   compareEls.resetButton.addEventListener("click", () => {
@@ -119,6 +113,22 @@ function bindCompareEvents() {
   });
 
   compareEls.downloadButton?.addEventListener("click", downloadCompareRows);
+}
+
+function handleCompareFilterClick(event) {
+  const toggle = event.target.closest("[data-filter-toggle]");
+  if (toggle) {
+    closeCompareFilters(toggle.dataset.filterToggle);
+    getFilterElement(toggle.dataset.filterToggle)?.classList.toggle("open");
+    return;
+  }
+
+  const option = event.target.closest("[data-filter-option]");
+  if (!option) return;
+  event.preventDefault();
+  event.stopPropagation();
+  toggleCompareOption(option.dataset.filterKey, option.dataset.filterOption);
+  applyCompareFilters();
 }
 
 async function loadCompareData() {
@@ -668,16 +678,27 @@ function matchSupplier(value, assignmentMaps) {
 
 function filterCompareRows(filters, searchText = "") {
   const query = normalizeTextKey(searchText);
+  const metric = getSelectedMetric();
   return compareState.records.filter((record) => {
     if (!matchesMulti(record.orderUsers, filters.orderUser)) return false;
     if (!matchesFilter(record.businessUnit, filters.businessUnit)) return false;
     if (!matchesFilter(record.supplierShort, filters.supplierShort)) return false;
     if (!matchesFilter(record.salesLine, filters.salesLine)) return false;
     if (!matchesFilter(record.salesSeries, filters.salesSeries)) return false;
+    if (!matchesDifferenceStatus(record, filters.differenceStatus, metric)) return false;
     if (!query) return true;
     return [record.businessUnit, record.supplierShort, record.materialCode, record.sku, record.itemName, record.salesLine, record.salesSeries, ...(record.orderUsers || [])]
       .some((value) => normalizeTextKey(value).includes(query));
   });
+}
+
+function matchesDifferenceStatus(record, selectedValues = [], metric = getSelectedMetric()) {
+  if (!selectedValues?.length) return true;
+  const { difference } = getMetricValues(record, metric);
+  const hasDifference = Math.abs(Number(difference) || 0) > 0.000001;
+  return selectedValues.some(
+    (value) => (value === "有差异" && hasDifference) || (value === "无差异" && !hasDifference)
+  );
 }
 
 function getCompareFilterValues() {
