@@ -7,6 +7,7 @@ const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const KINGDEE_ORDER_SLOT = "fact-2";
+const MAX_COMPARE_SHEET_ROWS = 120000;
 
 const compareEls = {
   filterBar: document.querySelector("#kingdeeFilterBar"),
@@ -367,7 +368,7 @@ function buildCompareDownloadName(metric) {
 }
 
 async function readCategoryDimension(file) {
-  const rows = await readWorkbookRows(file, "Dim-YL医疗器械商品分类");
+  const rows = await readWorkbookSheetRows(file, "Dim-YL医疗器械商品分类");
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, categoryAliases)));
   const map = new Map();
   if (headerIndex >= 0) {
@@ -401,7 +402,7 @@ async function readCategoryDimension(file) {
 }
 
 async function readPurchaseAssignment(file) {
-  const rows = await readWorkbookRows(file, "产品线明细");
+  const rows = await readWorkbookSheetRows(file, "产品线明细");
   const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, purchaseAssignmentAliases)));
   const maps = createEmptyAssignmentMaps();
   if (headerIndex < 0) return maps;
@@ -448,8 +449,8 @@ function createEmptyAssignmentMaps() {
 }
 
 async function readKingdeeWorkbook(file) {
-  const workbookRows = await readAllWorkbookSheets(file);
-  return workbookRows.flatMap(({ rows }) => parseKingdeeSheet(rows));
+  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
+  return parseKingdeeSheet(rows);
 }
 
 function parseKingdeeSheet(rows) {
@@ -689,17 +690,75 @@ async function readAllWorkbookSheets(file) {
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbook = window.XLSX.read(await readFileArrayBuffer(file), { type: "array" });
+  const workbook = await readWorkbook(file, {});
   return workbook.SheetNames.map((sheetName) => ({
     sheetName,
-    rows: window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" }),
+    rows: sheetToRows(workbook.Sheets[sheetName]),
   }));
+}
+
+async function readWorkbookSheetRows(file, preferredSheetName = "") {
+  const fileName = String(file?.name || "");
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (extension === "csv") return csvToRows(await readFileText(file));
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+
+  const sheetNames = await readWorkbookSheetNames(file);
+  const targetSheetName = sheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || sheetNames[0];
+  if (!targetSheetName) return [];
+  const workbook = await readWorkbook(file, { sheets: targetSheetName, sheetRows: MAX_COMPARE_SHEET_ROWS });
+  return sheetToRows(workbook.Sheets[targetSheetName]);
+}
+
+async function readWorkbookSheetNames(file) {
+  const workbook = await readWorkbook(file, { bookSheets: true });
+  return workbook.SheetNames || [];
+}
+
+async function readWorkbook(file, options = {}) {
+  const commonOptions = {
+    type: "array",
+    cellNF: false,
+    cellHTML: false,
+    cellStyles: false,
+    cellFormula: false,
+    WTF: false,
+    ...options,
+  };
+  try {
+    return window.XLSX.read(await readFileArrayBuffer(file), commonOptions);
+  } catch (error) {
+    if (!isAllocationError(error)) throw error;
+    const binary = await readFileBinaryString(file);
+    return window.XLSX.read(binary, { ...commonOptions, type: "binary" });
+  }
+}
+
+function sheetToRows(sheet) {
+  if (!sheet) return [];
+  return window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", blankrows: false });
 }
 
 async function readFileArrayBuffer(file) {
   if (file?.arrayBuffer) return file.arrayBuffer();
   if (file instanceof Blob) return file.arrayBuffer();
   throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
+}
+
+function readFileBinaryString(file) {
+  if (!file) return Promise.reject(new Error("文件对象不可读取，请在文件库更新重新上传并确认应用"));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || "");
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsBinaryString(file);
+  });
+}
+
+function isAllocationError(error) {
+  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
 }
 
 async function readFileText(file) {
@@ -709,9 +768,7 @@ async function readFileText(file) {
 }
 
 async function readWorkbookRows(file, preferredSheetName = "") {
-  const sheets = await readAllWorkbookSheets(file);
-  const matched = sheets.find((sheet) => preferredSheetName && sheet.sheetName.includes(preferredSheetName)) || sheets[0];
-  return matched?.rows || [];
+  return readWorkbookSheetRows(file, preferredSheetName);
 }
 
 function createHeaderMap(headers, dataRows, aliasesByKey) {
