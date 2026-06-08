@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>优乐步对账 - 易乐对账单</title>
+    <link rel="stylesheet" href="./styles.css?v=20260609-2" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="优乐步对账">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">YL</span>
+          <div>
+            <strong>易乐对账单</strong>
+            <span>对账工作台</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a class="active" href="./index.html">优乐步对账</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">File Library</p>
+            <h1>优乐步对账</h1>
+            <small class="source-note" id="librarySourceNote">本地文件库｜引用时间：--</small>
+          </div>
+          <div class="topbar-actions">
+            <button id="applyAllButton" class="primary-button" type="button" disabled>一键刷新应用</button>
+            <button id="generateButton" class="secondary-button" type="button" disabled>一键生成表</button>
+            <button id="clearCacheButton" class="danger-button" type="button">一键清除缓存</button>
+          </div>
+        </header>
+
+        <section class="summary-grid" aria-label="文件库概览">
+          <article class="metric">
+            <span>文件槽位</span>
+            <strong id="slotCount">4</strong>
+            <small>优乐步对账</small>
+          </article>
+          <article class="metric">
+            <span>已上传</span>
+            <strong id="uploadedCount">0</strong>
+            <small>含待应用文件</small>
+          </article>
+          <article class="metric">
+            <span>已引用</span>
+            <strong id="appliedCount">0</strong>
+            <small>当前生效文件</small>
+          </article>
+          <article class="metric">
+            <span>最近更新</span>
+            <strong id="latestMonth">--</strong>
+            <small>按上传时间</small>
+          </article>
+          <article class="metric result-metric">
+            <span>对账文件3总行数</span>
+            <strong id="yileTotalRows">0</strong>
+            <small>不含表头</small>
+          </article>
+          <article class="metric result-metric">
+            <span>已核实数量</span>
+            <strong id="verifiedCount">0</strong>
+            <small>生成后更新</small>
+          </article>
+          <article class="metric result-metric">
+            <span>待核实数量</span>
+            <strong id="pendingCount">0</strong>
+            <small>生成后更新</small>
+          </article>
+          <article class="metric result-metric">
+            <span>退货数量</span>
+            <strong id="returnCount">0</strong>
+            <small>退货/未发</small>
+          </article>
+          <article class="metric result-metric">
+            <span>无记录数量</span>
+            <strong id="noRecordCount">0</strong>
+            <small>生成后更新</small>
+          </article>
+        </section>
+
+        <section class="panel logic-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Rules</p>
+              <h2>对账逻辑说明</h2>
+            </div>
+          </div>
+          <div class="logic-grid">
+            <div><strong>文件来源</strong><span>槽位1上传运营登记表，槽位2上传优乐步对账表，槽位3上传对账文件3；点击一键刷新应用后，页面会基于已引用文件刷新统计。</span></div>
+            <div><strong>对账文件3列位</strong><span>B列作为业务类型，C列作为子客户，G列作为快递单号；生成表会在W列写核对确认、X列写备注、Y-AA列写复核结果。</span></div>
+            <div><strong>B列类型处理</strong><span>B列为整车购买或配件购买时进入核对；不是这两类时不查外部表，直接把B列原内容写入W列，X列保持空白。</span></div>
+            <div><strong>优乐步对账表范围</strong><span>整车购买只查D75（985S）发货表和D52&D36发货表；配件购买只查配件表；运营登记表按全工作簿全部内容查找。</span></div>
+            <div><strong>核对顺序</strong><span>先用C列子客户分别查优乐步对账表和运营登记表；如果未达到已核实，再用G列快递单号按同样方式查找。</span></div>
+            <div><strong>复核列位</strong><span>Y列写复核通过、需复核或异常；Z列写类型不一致、型号不一致、数量不一致、疑似多发、优乐步对账表已取消但对账文件3未取消发货等异常类型；AA列写命中和汇总说明。</span></div>
+            <div><strong>类型/型号复核</strong><span>对账文件3B列为整车时，如果优乐步对账表配件表反向命中，或命中行型号与对账文件3型号候选不一致，会标记异常；配件购买按同样规则反向检查整车表。</span></div>
+            <div><strong>数量复核</strong><span>按本次命中的子客户或快递单号汇总对账文件3数量，再和优乐步对账表命中行数量对比；对账文件3数量大于优乐步对账表数量标记疑似多发，小于优乐步对账表数量标记数量不一致。</span></div>
+            <div><strong>取消发货复核</strong><span>优乐步对账表命中行出现取消、退款、退货、未发或红字，但对账文件3仍有快递单号或运营登记表发货记录时，标记优乐步对账表已取消但对账文件3未取消发货。</span></div>
+            <div><strong>结果与统计</strong><span>W列仍按两张表同时命中写已核实、只命中一边写待核实、两轮无命中写无记录；X列命中红字、取消或退款时写退货/未发并计入退货数量。</span></div>
+          </div>
+        </section>
+
+        <section class="panel library-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Files</p>
+              <h2>文件上传与应用</h2>
+            </div>
+            <span class="upload-state" id="libraryState">读取中</span>
+          </div>
+          <div class="slot-grid" id="slotGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
+    <script src="./shared-library.js?v=20260609-1"></script>
+    <script src="./file-library.js?v=20260609-2"></script>
+  </body>
+</html>
