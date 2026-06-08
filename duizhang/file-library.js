@@ -3,9 +3,9 @@ const DB_VERSION = 1;
 const STORE_NAME = "file-slots";
 
 const slots = [
-  { id: "file-1", label: "对账文件 1" },
-  { id: "file-2", label: "对账文件 2" },
-  { id: "file-3", label: "对账文件 3" },
+  { id: "file-1", label: "旺店通代发表" },
+  { id: "file-2", label: "运营登记表" },
+  { id: "file-3", label: "易乐对账表" },
   { id: "file-4", label: "对账文件 4" },
 ];
 
