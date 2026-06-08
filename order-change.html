@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>订单变更 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-8" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-9" />
   </head>
   <body>
     <div class="app-shell">
@@ -51,9 +51,32 @@
           <div class="order-change-filter-bar" id="orderChangeFilterBar">
             <div class="multi-filter" id="orderChangeNFilter" data-filter-key="nValue"></div>
             <div class="multi-filter" id="orderChangeOFilter" data-filter-key="oValue"></div>
+            <div class="multi-filter" id="orderChangeSupplierFilter" data-filter-key="supplier"></div>
             <div class="multi-filter" id="orderChangeSalesLineFilter" data-filter-key="salesLine"></div>
             <div class="multi-filter" id="orderChangeSalesSeriesFilter" data-filter-key="salesSeries"></div>
           </div>
+        </section>
+
+        <section class="order-change-horizontal-chart-grid">
+          <article class="panel order-change-chart-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Suppliers</p>
+                <h2>供应商货值</h2>
+              </div>
+            </div>
+            <div id="orderChangeSupplierValueBars" class="bar-chart order-change-horizontal-bars"></div>
+          </article>
+
+          <article class="panel order-change-chart-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Sales Lines</p>
+                <h2>销售产品线货值</h2>
+              </div>
+            </div>
+            <div id="orderChangeSalesLineValueBars" class="bar-chart order-change-horizontal-bars"></div>
+          </article>
         </section>
 
         <section class="order-change-chart-grid">
@@ -114,6 +137,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./order-change.js?v=20260608-3"></script>
+    <script src="./order-change.js?v=20260608-4"></script>
   </body>
 </html>

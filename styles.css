@@ -647,13 +647,20 @@ select {
 
 .order-change-filter-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
   gap: 8px;
   align-items: start;
   overflow: visible;
 }
 
 .order-change-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.order-change-horizontal-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -745,6 +752,27 @@ select {
   white-space: nowrap;
 }
 
+.order-change-horizontal-bars {
+  gap: 10px;
+}
+
+.order-change-horizontal-bars .bar-row {
+  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 64px;
+  gap: 8px;
+  min-height: 26px;
+  font-size: 12px;
+}
+
+.order-change-horizontal-bars .bar-row > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-change-horizontal-bars .bar-row strong {
+  border-radius: 6px;
+}
+
 .order-change-table-wrap {
   max-height: calc(100vh - 430px);
   min-height: 320px;
@@ -778,6 +806,10 @@ select {
 
 @media (max-width: 980px) {
   .order-change-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .order-change-horizontal-chart-grid {
     grid-template-columns: 1fr;
   }
 

@@ -14,6 +14,7 @@ const orderChangeEls = {
   filterBar: document.querySelector("#orderChangeFilterBar"),
   nFilter: document.querySelector("#orderChangeNFilter"),
   oFilter: document.querySelector("#orderChangeOFilter"),
+  supplierFilter: document.querySelector("#orderChangeSupplierFilter"),
   salesLineFilter: document.querySelector("#orderChangeSalesLineFilter"),
   salesSeriesFilter: document.querySelector("#orderChangeSalesSeriesFilter"),
   resetButton: document.querySelector("#orderChangeResetButton"),
@@ -22,6 +23,8 @@ const orderChangeEls = {
   feedbackTotal: document.querySelector("#orderChangeFeedbackTotal"),
   nBars: document.querySelector("#orderChangeNBars"),
   oBars: document.querySelector("#orderChangeOBars"),
+  supplierValueBars: document.querySelector("#orderChangeSupplierValueBars"),
+  salesLineValueBars: document.querySelector("#orderChangeSalesLineValueBars"),
   rows: document.querySelector("#orderChangeRows"),
   state: document.querySelector("#orderChangeState"),
   sourceNote: document.querySelector("#orderChangeSourceNote"),
@@ -30,6 +33,7 @@ const orderChangeEls = {
 const orderChangeFilterConfigs = [
   { key: "nValue", element: orderChangeEls.nFilter, label: "全部事业部", field: "nValue" },
   { key: "oValue", element: orderChangeEls.oFilter, label: "全部", field: "oValue" },
+  { key: "supplier", element: orderChangeEls.supplierFilter, label: "全部供应商", field: "supplier" },
   { key: "salesLine", element: orderChangeEls.salesLineFilter, label: "全部销售产品线", field: "salesLine" },
   { key: "salesSeries", element: orderChangeEls.salesSeriesFilter, label: "全部销售系列", field: "salesSeries" },
 ];
@@ -344,6 +348,7 @@ function filterOrderChangeRows(filters) {
     (record) =>
       matchesFilter(record.nValue, filters.nValue) &&
       matchesFilter(record.oValue, filters.oValue) &&
+      matchesFilter(record.supplier, filters.supplier) &&
       matchesFilter(record.salesLine, filters.salesLine) &&
       matchesFilter(record.salesSeries, filters.salesSeries)
   );
@@ -364,6 +369,8 @@ function renderOrderChange(message = "") {
   orderChangeEls.feedbackTotal.title = formatCurrency(totalStockValue);
   renderValueBars(orderChangeEls.nBars, rows, "nValue", "暂无事业部库存货值");
   renderValueBars(orderChangeEls.oBars, rows, "oValue", "暂无运营反馈库存货值");
+  renderHorizontalValueBars(orderChangeEls.supplierValueBars, rows, "supplier", "暂无供应商货值");
+  renderHorizontalValueBars(orderChangeEls.salesLineValueBars, rows, "salesLine", "暂无销售产品线货值");
 
   if (message || !rows.length) {
     orderChangeEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
@@ -440,6 +447,31 @@ function renderValueBars(container, rows, field, emptyText) {
           <strong title="${formatCurrency(value)}">${formatCurrencyShort(value)}</strong>
           <span class="order-change-column-track"><span class="order-change-column-fill"></span></span>
           <span class="order-change-column-label" title="${escapeAttribute(label)}">${escapeHtml(label)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function renderHorizontalValueBars(container, rows, field, emptyText) {
+  const groups = rows.reduce((map, record) => {
+    const label = record[field] || "未填写";
+    map.set(label, (map.get(label) || 0) + (Number(record.stockValue) || 0));
+    return map;
+  }, new Map());
+  const entries = [...groups.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty-state compact-empty">${escapeHtml(emptyText)}</div>`;
+    return;
+  }
+  const max = Math.max(...entries.map(([, value]) => Math.abs(value)), 1);
+  container.innerHTML = entries
+    .map(
+      ([label, value], index) => `
+        <div class="bar-row" style="--bar-color: ${BAR_COLORS[index % BAR_COLORS.length]}">
+          <span title="${escapeAttribute(label)}">${escapeHtml(label)}</span>
+          <span class="bar-track"><span class="bar-fill" style="width: ${(Math.abs(value) / max) * 100}%"></span></span>
+          <strong title="${formatCurrency(value)}">${formatCurrencyShort(value)}</strong>
         </div>
       `
     )
