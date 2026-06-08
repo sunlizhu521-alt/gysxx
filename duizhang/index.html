@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对账文件 - 易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-6" />
   </head>
   <body>
     <div class="app-shell">
@@ -72,6 +72,11 @@
             <small>生成后更新</small>
           </article>
           <article class="metric result-metric">
+            <span>退货数量</span>
+            <strong id="returnCount">0</strong>
+            <small>备注为退货</small>
+          </article>
+          <article class="metric result-metric">
             <span>无记录数量</span>
             <strong id="noRecordCount">0</strong>
             <small>生成后更新</small>
@@ -108,6 +113,6 @@
 
     <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260608-1"></script>
-    <script src="./file-library.js?v=20260608-6"></script>
+    <script src="./file-library.js?v=20260608-7"></script>
   </body>
 </html>

@@ -259,7 +259,7 @@ h2 {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(8, minmax(112px, 1fr));
+  grid-template-columns: repeat(9, minmax(108px, 1fr));
   overflow-x: auto;
   padding-bottom: 2px;
   margin-bottom: 16px;
@@ -296,6 +296,10 @@ h2 {
 }
 
 .metric:nth-child(8) {
+  border-top-color: var(--red);
+}
+
+.metric:nth-child(9) {
   border-top-color: var(--red);
 }
 

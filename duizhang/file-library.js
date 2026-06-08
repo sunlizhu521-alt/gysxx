@@ -48,6 +48,7 @@ const els = {
   yileTotalRows: document.querySelector("#yileTotalRows"),
   verifiedCount: document.querySelector("#verifiedCount"),
   pendingCount: document.querySelector("#pendingCount"),
+  returnCount: document.querySelector("#returnCount"),
   noRecordCount: document.querySelector("#noRecordCount"),
 };
 
@@ -400,6 +401,7 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
     checkedRows: 0,
     verifiedCount: 0,
     pendingCount: 0,
+    returnCount: 0,
     noRecordCount: 0,
   };
 
@@ -417,6 +419,7 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
     stats.checkedRows += 1;
     if (result.status === "已核实") stats.verifiedCount += 1;
     if (result.status === "待核实") stats.pendingCount += 1;
+    if (result.remark === "退货") stats.returnCount += 1;
     if (result.status === "无记录") stats.noRecordCount += 1;
   }
 
@@ -631,6 +634,7 @@ function updateReconciliationMetrics(stats = {}) {
   if (els.yileTotalRows) els.yileTotalRows.textContent = String(stats.checkedRows || 0);
   if (els.verifiedCount) els.verifiedCount.textContent = String(stats.verifiedCount || 0);
   if (els.pendingCount) els.pendingCount.textContent = String(stats.pendingCount || 0);
+  if (els.returnCount) els.returnCount.textContent = String(stats.returnCount || 0);
   if (els.noRecordCount) els.noRecordCount.textContent = String(stats.noRecordCount || 0);
 }
 
