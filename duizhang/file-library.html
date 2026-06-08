@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对账文件 - 易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-7" />
   </head>
   <body>
     <div class="app-shell">
@@ -74,7 +74,7 @@
           <article class="metric result-metric">
             <span>退货数量</span>
             <strong id="returnCount">0</strong>
-            <small>备注为退货</small>
+            <small>退货/未发</small>
           </article>
           <article class="metric result-metric">
             <span>无记录数量</span>
@@ -94,7 +94,7 @@
             <div><strong>判断类型</strong><span>B列为整车购买或配件购买时进入核对；其他类型直接写入W列。</span></div>
             <div><strong>查找字段</strong><span>优先用C列子客户查找，未核实再用G列快递单号查找。</span></div>
             <div><strong>运营登记表</strong><span>整车查D75（985S）发货表和D52&D36发货表；配件查配件表。</span></div>
-            <div><strong>结果口径</strong><span>运营登记表和旺店通代发表都命中为已核实；只命中一边为待核实；都未命中为无记录；红字命中备注退货。</span></div>
+            <div><strong>结果口径</strong><span>运营登记表和旺店通代发表都命中为已核实；只命中一边为待核实；都未命中为无记录；红字、取消或退款命中备注退货/未发。</span></div>
           </div>
         </section>
 
@@ -113,6 +113,6 @@
 
     <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260608-1"></script>
-    <script src="./file-library.js?v=20260608-7"></script>
+    <script src="./file-library.js?v=20260608-8"></script>
   </body>
 </html>

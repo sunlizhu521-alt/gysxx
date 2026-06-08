@@ -379,6 +379,7 @@ function buildSheetSearchEntries(sheet, sheetName) {
             text,
             normalized: normalizeSearchValue(text),
             red: isRedFontCell(cell),
+            returnLike: isReturnOrUnshippedText(text),
           }
         : null;
     })
@@ -419,7 +420,7 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
     stats.checkedRows += 1;
     if (result.status === "已核实") stats.verifiedCount += 1;
     if (result.status === "待核实") stats.pendingCount += 1;
-    if (result.remark === "退货") stats.returnCount += 1;
+    if (isReturnRemark(result.remark)) stats.returnCount += 1;
     if (result.status === "无记录") stats.noRecordCount += 1;
   }
 
@@ -442,18 +443,18 @@ function getRowReconciliationResult(type, customer, trackingNumber, operationSet
     : getRequiredOperationEntries(operationSets.parts, operationSets.partsMissing, typeText);
   const customerResult = evaluateLookup(customer, operationEntries, wdtEntries);
   if (customerResult.both) {
-    return { status: "已核实", remark: customerResult.red ? "退货" : "" };
+    return { status: "已核实", remark: customerResult.returnLike ? "退货/未发" : "" };
   }
 
   const trackingResult = evaluateLookup(trackingNumber, operationEntries, wdtEntries);
   const hasAnyMatch = customerResult.any || trackingResult.any;
-  const hasRedMatch = customerResult.red || trackingResult.red;
+  const hasReturnLikeMatch = customerResult.returnLike || trackingResult.returnLike;
   if (trackingResult.both) {
-    return { status: "已核实", remark: hasRedMatch ? "退货" : "" };
+    return { status: "已核实", remark: hasReturnLikeMatch ? "退货/未发" : "" };
   }
   return {
     status: hasAnyMatch ? "待核实" : "无记录",
-    remark: hasRedMatch ? "退货" : "",
+    remark: hasReturnLikeMatch ? "退货/未发" : "",
   };
 }
 
@@ -480,21 +481,21 @@ function evaluateLookup(query, operationEntries, wdtEntries) {
     wdtFound: wdtResult.found,
     both: operationResult.found && wdtResult.found,
     any: operationResult.found || wdtResult.found,
-    red: operationResult.red || wdtResult.red,
+    returnLike: operationResult.returnLike || wdtResult.returnLike,
   };
 }
 
 function searchEntries(query, entries) {
   const normalizedQuery = normalizeSearchValue(query);
-  if (!normalizedQuery) return { found: false, red: false };
+  if (!normalizedQuery) return { found: false, returnLike: false };
   let found = false;
-  let red = false;
+  let returnLike = false;
   for (const entry of entries) {
     if (!entry.normalized || !entry.normalized.includes(normalizedQuery)) continue;
     found = true;
-    if (entry.red) red = true;
+    if (entry.red || entry.returnLike) returnLike = true;
   }
-  return { found, red };
+  return { found, returnLike };
 }
 
 function rowHasAnyValue(sheet, rowIndex, maxColumnIndex) {
@@ -575,6 +576,14 @@ function isRedFontCell(cell) {
   if (isRedColor(fontColor?.rgb) || isRedIndexedColor(fontColor?.indexed)) return true;
   if (Array.isArray(cell.r) && cell.r.some((run) => isRedColor(run?.s?.color?.rgb))) return true;
   return /color\s*:\s*(#?ff0000|#?c00000|red)\b/i.test(String(cell.h || ""));
+}
+
+function isReturnOrUnshippedText(value) {
+  return /(取消|退款)/.test(String(value || ""));
+}
+
+function isReturnRemark(value) {
+  return /(退货|未发)/.test(String(value || ""));
 }
 
 function isRedIndexedColor(indexed) {
