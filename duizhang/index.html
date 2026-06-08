@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-1" />
+    <title>对账文件 - 易乐对账单</title>
+    <link rel="stylesheet" href="./styles.css?v=20260608-2" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,36 +17,57 @@
           </div>
         </div>
         <nav class="nav-list">
-          <a class="active" href="./index.html">对账导航</a>
-          <a href="./file-library.html">对账文件库</a>
+          <a class="active" href="./index.html">对账文件</a>
         </nav>
       </aside>
 
       <main class="dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Reconciliation</p>
-            <h1>对账导航</h1>
-            <small class="source-note">空白导航页</small>
+            <p class="eyebrow">File Library</p>
+            <h1>对账文件</h1>
+            <small class="source-note" id="librarySourceNote">本地文件库｜引用时间：--</small>
           </div>
+          <button id="applyAllButton" class="primary-button" type="button" disabled>一键应用</button>
         </header>
 
-        <section class="panel nav-panel">
+        <section class="summary-grid" aria-label="文件库概览">
+          <article class="metric">
+            <span>文件槽位</span>
+            <strong id="slotCount">4</strong>
+            <small>对账文件</small>
+          </article>
+          <article class="metric">
+            <span>已上传</span>
+            <strong id="uploadedCount">0</strong>
+            <small>含待应用文件</small>
+          </article>
+          <article class="metric">
+            <span>已引用</span>
+            <strong id="appliedCount">0</strong>
+            <small>当前生效文件</small>
+          </article>
+          <article class="metric">
+            <span>最近更新</span>
+            <strong id="latestMonth">--</strong>
+            <small>按上传时间</small>
+          </article>
+        </section>
+
+        <section class="panel library-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">Navigation</p>
-              <h2>页面入口</h2>
+              <p class="eyebrow">Files</p>
+              <h2>文件上传与应用</h2>
             </div>
+            <span class="upload-state" id="libraryState">读取中</span>
           </div>
-          <div class="nav-card-grid">
-            <a class="nav-card" href="./file-library.html">
-              <span>01</span>
-              <strong>对账文件库</strong>
-              <small>4 个文件槽位</small>
-            </a>
-          </div>
+          <div class="slot-grid" id="slotGrid"></div>
         </section>
       </main>
     </div>
+
+    <script src="./shared-library.js?v=20260608-1"></script>
+    <script src="./file-library.js?v=20260608-1"></script>
   </body>
 </html>
