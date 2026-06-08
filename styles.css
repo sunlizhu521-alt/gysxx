@@ -655,14 +655,7 @@ select {
 
 .order-change-chart-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.order-change-horizontal-chart-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -673,6 +666,10 @@ select {
 
 .order-change-chart-panel .panel-heading {
   margin-bottom: 10px;
+}
+
+.order-change-chart-panel {
+  min-width: 0;
 }
 
 .chart-total {
@@ -686,19 +683,20 @@ select {
 
 .order-change-column-chart {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
-  gap: 10px;
-  min-height: 260px;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: 8px;
+  height: 230px;
+  min-height: 230px;
   padding: 4px 2px 0;
   align-items: end;
 }
 
 .order-change-column {
   display: grid;
-  grid-template-rows: auto minmax(150px, 1fr) auto;
+  grid-template-rows: auto minmax(126px, 1fr) auto;
   gap: 7px;
   min-width: 0;
-  height: 250px;
+  height: 220px;
   align-items: end;
 }
 
@@ -717,7 +715,7 @@ select {
 .order-change-column-track {
   display: flex;
   width: 100%;
-  height: 175px;
+  height: 145px;
   align-items: end;
   overflow: hidden;
   padding: 0 8px;
@@ -753,14 +751,18 @@ select {
 }
 
 .order-change-horizontal-bars {
-  gap: 10px;
+  gap: 9px;
+  height: 230px;
+  min-height: 230px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .order-change-horizontal-bars .bar-row {
-  grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 64px;
-  gap: 8px;
-  min-height: 26px;
-  font-size: 12px;
+  grid-template-columns: minmax(72px, 96px) minmax(0, 1fr) 54px;
+  gap: 6px;
+  min-height: 24px;
+  font-size: 11px;
 }
 
 .order-change-horizontal-bars .bar-row > span:first-child {
@@ -774,8 +776,8 @@ select {
 }
 
 .order-change-table-wrap {
-  max-height: calc(100vh - 430px);
-  min-height: 320px;
+  max-height: calc(100vh - 470px);
+  min-height: 280px;
 }
 
 .order-change-table {
@@ -806,14 +808,16 @@ select {
 
 @media (max-width: 980px) {
   .order-change-chart-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .order-change-horizontal-chart-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .order-change-filter-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .order-change-chart-grid {
     grid-template-columns: 1fr;
   }
 }
