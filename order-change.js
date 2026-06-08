@@ -49,6 +49,14 @@ const deliveryPriceAliases = {
   unitPrice: ["单价", "采购单价", "含税单价", "不含税单价", "价格"],
 };
 
+const categoryAliases = {
+  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码", "货品编号"],
+  salesLine: ["销售产品线"],
+  salesSeries: ["销售系列"],
+  purchaseGroup: ["采购组", "采购分组", "采购组别"],
+  settlementPrice: ["结算价", "结算单价", "销售结算价", "含税结算价", "不含税结算价"],
+};
+
 const orderChangeState = {
   records: [],
   filtered: [],
@@ -181,16 +189,33 @@ async function readCategoryDimension(file) {
     sheets.find(({ sheetName }) => String(sheetName || "").includes("商品分类")) ||
     sheets[0];
   const map = new Map();
-  (targetSheet?.rows || []).forEach((row) => {
-    const materialCode = normalizeMaterialCode(row[0]);
+  const rows = targetSheet?.rows || [];
+  const headerIndex = findCategoryHeaderIndex(rows);
+  const headerMap =
+    headerIndex >= 0 ? createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), categoryAliases) : {};
+  if (headerIndex >= 0 && headerMap.settlementPrice === undefined) {
+    const settlementIndex = rows[headerIndex].findIndex((cell) => normalizeHeader(cell).includes("结算价"));
+    if (settlementIndex >= 0) headerMap.settlementPrice = settlementIndex;
+  }
+  const dataRows = rows.slice(headerIndex >= 0 ? headerIndex + 1 : 0);
+  dataRows.forEach((row) => {
+    const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode ?? 0));
     if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
     map.set(materialCode, {
-      salesLine: getRowValue(row, 6) || "未匹配",
-      salesSeries: getRowValue(row, 7) || "未匹配",
-      purchaseGroup: getRowValue(row, 20) || "未匹配",
+      salesLine: getRowValue(row, headerMap.salesLine ?? 6) || "未匹配",
+      salesSeries: getRowValue(row, headerMap.salesSeries ?? 7) || "未匹配",
+      purchaseGroup: getRowValue(row, headerMap.purchaseGroup ?? 20) || "未匹配",
+      settlementPrice: parseNumber(getRowValue(row, headerMap.settlementPrice)),
     });
   });
   return map;
+}
+
+function findCategoryHeaderIndex(rows) {
+  return rows.findIndex((row) => {
+    const headerMap = createAliasHeaderMap(row.map((cell) => String(cell || "").trim()), categoryAliases);
+    return headerMap.materialCode !== undefined && (headerMap.salesLine !== undefined || headerMap.settlementPrice !== undefined);
+  });
 }
 
 function findOrderChangeHeaderIndex(rows) {
@@ -242,10 +267,13 @@ function enrichOrderChangeRows(rows, priceMap, categoryMap) {
   return rows.map((row) => {
     const matched = priceMap.get(makeCompositeKey(row.sequence, row.materialCode));
     const category = categoryMap.get(normalizeMaterialCode(row.materialCode));
-    const unitPrice = Number(matched?.unitPrice) || 0;
+    const primaryUnitPrice = Number(matched?.unitPrice) || 0;
+    const fallbackUnitPrice = Number(category?.settlementPrice) || 0;
+    const unitPrice = primaryUnitPrice || fallbackUnitPrice;
     return {
       ...row,
       unitPrice,
+      unitPriceSource: primaryUnitPrice ? "采购订单跟进表单价" : fallbackUnitPrice ? "商品分类结算价" : "未匹配",
       salesLine: category?.salesLine || "未匹配",
       salesSeries: category?.salesSeries || "未匹配",
       purchaseGroup: category?.purchaseGroup || "未匹配",
