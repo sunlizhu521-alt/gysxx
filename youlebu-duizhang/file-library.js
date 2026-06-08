@@ -20,6 +20,7 @@ const TRACKING_COLUMN_INDEX = 13;
 const CHECK_COLUMN_INDEX = 16;
 const REMARK_COLUMN_INDEX = 17;
 const OUTPUT_LAST_COLUMN_INDEX = REMARK_COLUMN_INDEX;
+const OUTPUT_START_ROW_INDEX = 2;
 const TABLE_BORDER_STYLE = {
   style: "thin",
   color: { rgb: "FFB7C4D6" },
@@ -364,8 +365,9 @@ function pickReconciliationSheetName(workbook) {
 
 function fillReconciliationSheet(sheet, registrationEntries) {
   const range = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:R1");
-  const headerRow = range.s.r;
-  const maxRow = Math.max(range.e.r, headerRow);
+  const trackingMergeContext = buildColumnMergeContext(sheet, TRACKING_COLUMN_INDEX, OUTPUT_START_ROW_INDEX);
+  const maxMergedRow = trackingMergeContext.sourceMerges.reduce((max, merge) => Math.max(max, merge.e.r), 0);
+  const maxRow = Math.max(range.e.r, OUTPUT_START_ROW_INDEX, maxMergedRow);
   const originalDataMaxColumn = Math.min(Math.max(range.e.c, TRACKING_COLUMN_INDEX), CHECK_COLUMN_INDEX - 1);
   const stats = {
     checkedRows: 0,
@@ -375,13 +377,15 @@ function fillReconciliationSheet(sheet, registrationEntries) {
     noRecordCount: 0,
   };
 
-  writeTextCell(sheet, headerRow, CHECK_COLUMN_INDEX, "核对结果");
-  writeTextCell(sheet, headerRow, REMARK_COLUMN_INDEX, "备注");
+  syncOutputMergesFromTrackingColumn(sheet, trackingMergeContext.sourceMerges);
 
-  for (let rowIndex = headerRow + 1; rowIndex <= maxRow; rowIndex += 1) {
-    if (!rowHasAnyValue(sheet, rowIndex, originalDataMaxColumn)) continue;
-    const name = getSheetCellText(sheet, rowIndex, NAME_COLUMN_INDEX);
-    const trackingNumber = getSheetCellText(sheet, rowIndex, TRACKING_COLUMN_INDEX);
+  for (let rowIndex = OUTPUT_START_ROW_INDEX; rowIndex <= maxRow; rowIndex += 1) {
+    if (trackingMergeContext.coveredRows.has(rowIndex)) continue;
+    const merge = trackingMergeContext.startRows.get(rowIndex);
+    const rowEnd = Math.min(merge?.e.r ?? rowIndex, maxRow);
+    if (!rowGroupHasAnyValue(sheet, rowIndex, rowEnd, originalDataMaxColumn)) continue;
+    const name = getFirstNonEmptyColumnValue(sheet, rowIndex, rowEnd, NAME_COLUMN_INDEX);
+    const trackingNumber = getFirstNonEmptyColumnValue(sheet, rowIndex, rowEnd, TRACKING_COLUMN_INDEX);
     const result = getYoulebuRowReconciliationResult(name, trackingNumber, registrationEntries);
     writeTextCell(sheet, rowIndex, CHECK_COLUMN_INDEX, result.status);
     writeTextCell(sheet, rowIndex, REMARK_COLUMN_INDEX, result.remark);
@@ -395,9 +399,58 @@ function fillReconciliationSheet(sheet, registrationEntries) {
   range.e.c = Math.max(range.e.c, OUTPUT_LAST_COLUMN_INDEX);
   range.e.r = Math.max(range.e.r, maxRow);
   sheet["!ref"] = window.XLSX.utils.encode_range(range);
-  applyGeneratedTableStyle(sheet, headerRow, range);
-  ensureOutputColumnWidths(sheet);
   return stats;
+}
+
+function buildColumnMergeContext(sheet, columnIndex, startRowIndex) {
+  const sourceMerges = (Array.isArray(sheet["!merges"]) ? sheet["!merges"] : [])
+    .filter((merge) => (
+      merge?.s?.c === columnIndex &&
+      merge?.e?.c === columnIndex &&
+      merge.s.r >= startRowIndex &&
+      merge.e.r > merge.s.r
+    ));
+  const startRows = new Map();
+  const coveredRows = new Set();
+  for (const merge of sourceMerges) {
+    startRows.set(merge.s.r, merge);
+    for (let rowIndex = merge.s.r + 1; rowIndex <= merge.e.r; rowIndex += 1) {
+      coveredRows.add(rowIndex);
+    }
+  }
+  return { sourceMerges, startRows, coveredRows };
+}
+
+function syncOutputMergesFromTrackingColumn(sheet, sourceMerges) {
+  const existingMerges = Array.isArray(sheet["!merges"]) ? sheet["!merges"] : [];
+  const outputColumnIndexes = new Set([CHECK_COLUMN_INDEX, REMARK_COLUMN_INDEX]);
+  const preservedMerges = existingMerges.filter((merge) => !(
+    merge?.s?.r >= OUTPUT_START_ROW_INDEX &&
+    merge?.s?.c === merge?.e?.c &&
+    outputColumnIndexes.has(merge.s.c)
+  ));
+  const outputMerges = sourceMerges.flatMap((merge) => (
+    [CHECK_COLUMN_INDEX, REMARK_COLUMN_INDEX].map((columnIndex) => ({
+      s: { r: merge.s.r, c: columnIndex },
+      e: { r: merge.e.r, c: columnIndex },
+    }))
+  ));
+  sheet["!merges"] = [...preservedMerges, ...outputMerges];
+}
+
+function rowGroupHasAnyValue(sheet, startRowIndex, endRowIndex, maxColumnIndex) {
+  for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
+    if (rowHasAnyValue(sheet, rowIndex, maxColumnIndex)) return true;
+  }
+  return false;
+}
+
+function getFirstNonEmptyColumnValue(sheet, startRowIndex, endRowIndex, columnIndex) {
+  for (let rowIndex = startRowIndex; rowIndex <= endRowIndex; rowIndex += 1) {
+    const value = getSheetCellText(sheet, rowIndex, columnIndex);
+    if (value) return value;
+  }
+  return "";
 }
 
 function getYoulebuRowReconciliationResult(name, trackingNumber, registrationEntries) {
@@ -446,10 +499,14 @@ function getCellText(cell) {
 }
 
 function writeTextCell(sheet, rowIndex, columnIndex, value) {
-  sheet[window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })] = {
+  const address = window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+  const cell = {
+    ...(sheet[address] || {}),
     t: "s",
     v: String(value ?? ""),
   };
+  delete cell.w;
+  sheet[address] = cell;
 }
 
 function ensureOutputColumnWidths(sheet) {
