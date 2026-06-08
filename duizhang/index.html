@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对账文件 - 易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260609-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -91,10 +91,12 @@
             </div>
           </div>
           <div class="logic-grid">
-            <div><strong>判断类型</strong><span>B列为整车购买或配件购买时进入核对；其他类型直接写入W列。</span></div>
-            <div><strong>查找字段</strong><span>优先用C列子客户查找，未核实再用G列快递单号查找。</span></div>
-            <div><strong>运营登记表</strong><span>整车查D75（985S）发货表和D52&D36发货表；配件查配件表。</span></div>
-            <div><strong>结果口径</strong><span>运营登记表和旺店通代发表都命中为已核实；只命中一边为待核实；都未命中为无记录；红字、取消或退款命中备注退货/未发。</span></div>
+            <div><strong>文件来源</strong><span>槽位1上传旺店通代发表，槽位2上传运营登记表，槽位3上传易乐对账表；点击一键刷新应用后，页面会基于已引用文件刷新统计。</span></div>
+            <div><strong>易乐对账表列位</strong><span>B列作为业务类型，C列作为子客户，G列作为快递单号；生成表会在W列写核对确认，在X列写备注。</span></div>
+            <div><strong>B列类型处理</strong><span>B列为整车购买或配件购买时进入核对；不是这两类时不查外部表，直接把B列原内容写入W列，X列保持空白。</span></div>
+            <div><strong>运营登记表范围</strong><span>整车购买只查D75（985S）发货表和D52&D36发货表；配件购买只查配件表；旺店通代发表按全工作簿全部内容查找。</span></div>
+            <div><strong>核对顺序</strong><span>先用C列子客户分别查运营登记表和旺店通代发表；如果未达到已核实，再用G列快递单号按同样方式查找。</span></div>
+            <div><strong>结果与统计</strong><span>同一轮查找中两张表都命中为已核实，只命中一边为待核实，两轮都没有命中为无记录；命中红字、取消或退款时X列写退货/未发，并计入退货数量。</span></div>
           </div>
         </section>
 
