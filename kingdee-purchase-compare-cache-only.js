@@ -20,6 +20,8 @@ const compareEls = {
   state: document.querySelector("#kingdeeCompareState"),
   sourceNote: document.querySelector("#kingdeeCompareSourceNote"),
   rows: document.querySelector("#kingdeeCompareRows"),
+  orderedDiffDocumentCount: document.querySelector("#orderedDiffDocumentCount"),
+  remainingDiffDocumentCount: document.querySelector("#remainingDiffDocumentCount"),
   kingdeeHeader: document.querySelector("#kingdeeDataHeader"),
   undeliveredHeader: document.querySelector("#undeliveredDataHeader"),
   differenceHeader: document.querySelector("#differenceDataHeader"),
@@ -59,6 +61,7 @@ const kingdeeAliases = {
 };
 
 const deliveryAliases = {
+  documentNumber: ["序号", "单据编号", "单据号", "行号"],
   materialCode: ["品号", "物料编码", "商品编码", "存货编码", "产品编码"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
@@ -367,6 +370,7 @@ function updateCompareHeaders() {
 function renderCompareRows(message = "") {
   const rows = compareState.filtered;
   const metric = getSelectedMetric();
+  renderCompareMetrics(rows, message);
   compareEls.downloadButton.disabled = Boolean(message) || !rows.length || !window.XLSX;
   compareEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
 
@@ -376,6 +380,16 @@ function renderCompareRows(message = "") {
   }
 
   compareEls.rows.innerHTML = rows.map((record) => renderCompareRow(record, metric)).join("");
+}
+
+function renderCompareMetrics(rows, message = "") {
+  if (message) {
+    compareEls.orderedDiffDocumentCount.textContent = "0";
+    compareEls.remainingDiffDocumentCount.textContent = "0";
+    return;
+  }
+  compareEls.orderedDiffDocumentCount.textContent = formatNumber(countDifferentDocuments(rows, "下单数量"));
+  compareEls.remainingDiffDocumentCount.textContent = formatNumber(countDifferentDocuments(rows, "剩余数量"));
 }
 
 function renderCompareRow(record, metric) {
@@ -580,6 +594,7 @@ function parseDeliverySheet(rows, businessUnit) {
       return {
         id: `delivery-${businessUnit}-${index}-${materialCode}-${sku}-${supplier}`,
         businessUnit: normalizeBusinessUnit(businessUnit),
+        documentNumber: getRowValue(row, headerMap.documentNumber),
         materialCode,
         sku,
         itemName,
@@ -600,7 +615,6 @@ function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps
     target.kingdeeOrderedQty += row.purchaseQty;
     target.kingdeeRemainingQty += row.remainingInboundQty;
     addSetValues(target.orderUsers, enriched.orderUsers);
-    addSetValues(target.documentNumbers, enriched.documentNumbers);
   });
 
   deliveryRows.forEach((row) => {
@@ -609,6 +623,7 @@ function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps
     target.deliveryOrderedQty += row.orderedQty;
     target.deliveryRemainingQty += row.remainingQty;
     addSetValues(target.orderUsers, enriched.orderUsers);
+    addSetValues(target.documentNumbers, enriched.documentNumbers);
   });
 
   return [...rowMap.values()].sort(sortCompareRows).map((record) => ({
@@ -627,7 +642,6 @@ function enrichKingdeeRow(row, categoryMap, assignmentMaps) {
   const orderUser = row.creator || supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
   return {
     businessUnit: normalizeBusinessUnit(row.businessUnit),
-    documentNumbers: [row.documentNumber],
     supplierShort,
     materialCode: row.materialCode || materialCode || "未匹配",
     materialKey: materialCode,
@@ -648,6 +662,7 @@ function enrichDeliveryRow(row, categoryMap, assignmentMaps) {
   const orderUser = supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
   return {
     businessUnit: normalizeBusinessUnit(row.businessUnit),
+    documentNumbers: [row.documentNumber],
     supplierShort,
     materialCode: row.materialCode || materialCode || "未匹配",
     materialKey: materialCode,
@@ -751,6 +766,22 @@ function formatDocumentNumbers(values) {
   const items = Array.isArray(values) ? values : [values];
   const unique = [...new Set(items.map((value) => String(value || "").trim()).filter(Boolean))];
   return unique.length ? unique.join("、") : "--";
+}
+
+function countDifferentDocuments(rows, metric) {
+  const documents = new Set();
+  rows.forEach((record, index) => {
+    const { difference } = getMetricValues(record, metric);
+    if (Math.abs(Number(difference) || 0) <= 0.000001) return;
+    const values = Array.isArray(record.documentNumbers) ? record.documentNumbers : [];
+    const validValues = values.map((value) => String(value || "").trim()).filter(Boolean);
+    if (validValues.length) {
+      validValues.forEach((value) => documents.add(value));
+    } else {
+      documents.add(`未匹配单据-${index}`);
+    }
+  });
+  return documents.size;
 }
 
 function getSelectedMetric() {

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>金蝶采购订单对比 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-12" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-13" />
   </head>
   <body>
     <div class="app-shell">
@@ -51,7 +51,7 @@
           <div class="kingdee-filter-bar" id="kingdeeFilterBar">
             <label class="search-box kingdee-search-box">
               <span>搜索</span>
-              <input id="kingdeeSearch" type="search" placeholder="物料编码、SKU、物料名称、供应商" />
+              <input id="kingdeeSearch" type="search" placeholder="单据编号、物料编码、SKU、物料名称、供应商" />
             </label>
             <div class="multi-filter" id="orderUserCompareFilter" data-filter-key="orderUser"></div>
             <div class="multi-filter" id="businessUnitCompareFilter" data-filter-key="businessUnit"></div>
@@ -60,6 +60,19 @@
             <div class="multi-filter" id="salesSeriesCompareFilter" data-filter-key="salesSeries"></div>
             <div class="multi-filter" id="compareMetricFilter" data-filter-key="compareMetric"></div>
           </div>
+        </section>
+
+        <section class="metrics-grid kingdee-compare-metrics" aria-label="金蝶采购订单对比指标">
+          <article class="metric">
+            <span>下单数量有差异的单据数量</span>
+            <strong id="orderedDiffDocumentCount">0</strong>
+            <small>按当前筛选结果的单据编号去重</small>
+          </article>
+          <article class="metric alert">
+            <span>剩余数量有差异的单据数量</span>
+            <strong id="remainingDiffDocumentCount">0</strong>
+            <small>按当前筛选结果的单据编号去重</small>
+          </article>
         </section>
 
         <section class="panel table-panel kingdee-table-panel">
@@ -98,6 +111,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./kingdee-purchase-compare-cache-only.js?v=20260608-4"></script>
+    <script src="./kingdee-purchase-compare-cache-only.js?v=20260608-5"></script>
   </body>
 </html>
