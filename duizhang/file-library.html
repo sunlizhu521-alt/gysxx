@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>对账文件库 - 易乐对账单</title>
+    <link rel="stylesheet" href="./styles.css?v=20260608-1" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="对账导航">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">YL</span>
+          <div>
+            <strong>易乐对账单</strong>
+            <span>对账工作台</span>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="./index.html">对账导航</a>
+          <a class="active" href="./file-library.html">对账文件库</a>
+        </nav>
+      </aside>
+
+      <main class="dashboard">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">File Library</p>
+            <h1>对账文件库</h1>
+            <small class="source-note" id="librarySourceNote">本地文件库｜引用时间：--</small>
+          </div>
+          <button id="applyAllButton" class="primary-button" type="button" disabled>一键应用</button>
+        </header>
+
+        <section class="summary-grid" aria-label="文件库概览">
+          <article class="metric">
+            <span>文件槽位</span>
+            <strong id="slotCount">4</strong>
+            <small>对账文件</small>
+          </article>
+          <article class="metric">
+            <span>已上传</span>
+            <strong id="uploadedCount">0</strong>
+            <small>含待应用文件</small>
+          </article>
+          <article class="metric">
+            <span>已引用</span>
+            <strong id="appliedCount">0</strong>
+            <small>当前生效文件</small>
+          </article>
+          <article class="metric">
+            <span>最近更新</span>
+            <strong id="latestMonth">--</strong>
+            <small>按上传时间</small>
+          </article>
+        </section>
+
+        <section class="panel library-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Files</p>
+              <h2>文件上传与应用</h2>
+            </div>
+            <span class="upload-state" id="libraryState">读取中</span>
+          </div>
+          <div class="slot-grid" id="slotGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./shared-library.js?v=20260608-1"></script>
+    <script src="./file-library.js?v=20260608-1"></script>
+  </body>
+</html>
