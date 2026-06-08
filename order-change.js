@@ -31,9 +31,9 @@ const orderChangeEls = {
 };
 
 const orderChangeFilterConfigs = [
+  { key: "supplier", element: orderChangeEls.supplierFilter, label: "全部供应商", field: "supplier" },
   { key: "nValue", element: orderChangeEls.nFilter, label: "全部事业部", field: "nValue" },
   { key: "oValue", element: orderChangeEls.oFilter, label: "全部", field: "oValue" },
-  { key: "supplier", element: orderChangeEls.supplierFilter, label: "全部供应商", field: "supplier" },
   { key: "salesLine", element: orderChangeEls.salesLineFilter, label: "全部销售产品线", field: "salesLine" },
   { key: "salesSeries", element: orderChangeEls.salesSeriesFilter, label: "全部销售系列", field: "salesSeries" },
 ];
