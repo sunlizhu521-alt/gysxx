@@ -25,6 +25,7 @@ const orderChangeEls = {
   oBars: document.querySelector("#orderChangeOBars"),
   supplierValueBars: document.querySelector("#orderChangeSupplierValueBars"),
   salesLineValueBars: document.querySelector("#orderChangeSalesLineValueBars"),
+  salesSeriesValueBars: document.querySelector("#orderChangeSalesSeriesValueBars"),
   rows: document.querySelector("#orderChangeRows"),
   state: document.querySelector("#orderChangeState"),
   sourceNote: document.querySelector("#orderChangeSourceNote"),
@@ -399,6 +400,7 @@ function renderOrderChange(message = "") {
   renderValueBars(orderChangeEls.oBars, rows, "oValue", "暂无运营反馈库存货值");
   renderHorizontalValueBars(orderChangeEls.supplierValueBars, rows, "supplier", "暂无供应商货值");
   renderHorizontalValueBars(orderChangeEls.salesLineValueBars, rows, "salesLine", "暂无销售产品线货值");
+  renderHorizontalValueBars(orderChangeEls.salesSeriesValueBars, rows, "salesSeries", "暂无销售系列货值");
 
   if (message || !rows.length) {
     orderChangeEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;

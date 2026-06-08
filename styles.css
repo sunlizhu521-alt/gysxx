@@ -655,7 +655,7 @@ select {
 
 .order-change-chart-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 10px;
 }
@@ -679,6 +679,7 @@ select {
   font-size: 12px;
   font-weight: 700;
   vertical-align: baseline;
+  white-space: nowrap;
 }
 
 .order-change-column-chart {
@@ -773,6 +774,9 @@ select {
 
 .order-change-horizontal-bars .bar-row strong {
   border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .order-change-table-wrap {
