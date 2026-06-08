@@ -3,9 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>国内备货 - 供应链信息库</title>
-    <script>window.location.replace("./admin.html");</script>
-    <link rel="stylesheet" href="./styles.css?v=20260605-3" />
+    <title>订单变更 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css?v=20260608-5" />
   </head>
   <body>
     <div class="app-shell">
@@ -26,28 +25,19 @@
           <a href="./purchase.html">采购分工信息</a>
           <a href="./delivery.html">供应商交付信息</a>
           <a href="./kingdee-purchase-compare.html">金蝶采购订单对比</a>
-          <a href="./order-change.html">订单变更</a>
+          <a class="active" href="./order-change.html">订单变更</a>
+          <a href="./admin.html">文件库更新</a>
+          <a href="./missing.html">信息缺失</a>
         </nav>
       </aside>
 
-      <main class="dashboard">
+      <main class="dashboard order-change-dashboard">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Stock Planning</p>
-            <h1>国内备货</h1>
+            <p class="eyebrow">Order Change</p>
+            <h1>订单变更</h1>
           </div>
         </header>
-
-        <section class="panel upload-panel upload-page-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Domestic Stock</p>
-              <h2>国内备货看板</h2>
-            </div>
-            <span class="upload-state">待配置</span>
-          </div>
-          <div class="empty-state">后续可在这里接入国内备货、库存覆盖、缺货预警和发货节奏等分析。</div>
-        </section>
       </main>
     </div>
   </body>
