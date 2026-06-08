@@ -106,6 +106,10 @@ async function refreshAdmin() {
 async function saveFile(slotId, file) {
   if (!file) return;
   const slot = getSlot(slotId);
+  if (slotId === KINGDEE_ORDER_SLOT && !isLightKingdeeFile(file)) {
+    window.alert("Fac-金蝶采购订单列表请上传轻量CSV文件。原始Excel请先用转换脚本处理后再上传。");
+    return;
+  }
   const savedAt = new Date().toISOString();
   const existing = adminState.records.get(slotId) || { id: slotId };
   const record = {
@@ -183,7 +187,8 @@ async function applyAllSlots() {
 
 async function buildSlotExtractFields(slotId, record, appliedAt) {
   if (slotId !== KINGDEE_ORDER_SLOT) return {};
-  if (!record.pendingFile || !window.XLSX) return clearKingdeeExtractFields("浏览器缺少 Excel 解析组件");
+  if (!record.pendingFile) return clearKingdeeExtractFields("未上传轻量CSV文件");
+  if (!isLightKingdeeFile(record.pendingFile)) return clearKingdeeExtractFields("请上传轻量CSV文件，不再支持浏览器解析原始Excel");
   try {
     adminEls.referenceState.textContent = "正在生成金蝶轻量数据";
     const rows = await readKingdeeCompareRows(record.pendingFile);
@@ -259,7 +264,7 @@ function renderLibrarySlot(slot) {
       </div>
       <div class="admin-file-actions">
         <label class="admin-upload-button">
-          <input type="file" accept=".xlsx,.xls,.csv" data-admin-upload="${slot.id}" />
+          <input type="file" accept="${getSlotAccept(slot)}" data-admin-upload="${slot.id}" />
           \u4e0a\u4f20/\u66ff\u6362
         </label>
         <button type="button" data-admin-apply="${slot.id}" ${hasPending || (record && !record.applied) ? "" : "disabled"}>\u786e\u8ba4\u5e94\u7528</button>
@@ -295,13 +300,13 @@ function renderReferenceRow(slot, record) {
 
 function getSlotHelperText(slot, record) {
   if (slot.id !== KINGDEE_ORDER_SLOT) return "可点击上传，也可拖拽文件到此处";
-  if (record?.pendingFile) return "确认应用时会生成金蝶对比轻量数据";
+  if (record?.pendingFile) return "确认应用时会读取轻量CSV并生成对比数据";
   if (record?.kingdeeCompareExtractError) return `轻量数据失败：${record.kingdeeCompareExtractError}`;
   if (Array.isArray(record?.kingdeeCompareRows) && record.kingdeeCompareRows.length) {
     return `轻量数据已生成：${record.kingdeeCompareRows.length} 行`;
   }
   if (record?.applied) return "已引用，但未生成轻量数据，请重新上传并确认应用";
-  return "可点击上传，也可拖拽文件到此处";
+  return "请上传转换后的轻量CSV，不要上传原始Excel";
 }
 
 function getReferenceStatusText(slot, record, applied) {
@@ -316,6 +321,10 @@ function getReferenceStatusText(slot, record, applied) {
 
 function getSlot(slotId) {
   return librarySlots.find((slot) => slot.id === slotId);
+}
+
+function getSlotAccept(slot) {
+  return slot.id === KINGDEE_ORDER_SLOT ? ".csv,.txt" : ".xlsx,.xls,.csv";
 }
 
 function getDisplayRecord(record) {
@@ -373,8 +382,16 @@ const kingdeeAliases = {
 };
 
 async function readKingdeeCompareRows(file) {
-  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
+  if (!isLightKingdeeFile(file)) {
+    throw new Error("请上传轻量CSV文件，不再支持浏览器解析原始Excel");
+  }
+  const rows = csvToRows(await readFileText(file));
   return parseKingdeeSheet(rows);
+}
+
+function isLightKingdeeFile(file) {
+  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
+  return extension === "csv" || extension === "txt";
 }
 
 function parseKingdeeSheet(rows) {
