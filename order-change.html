@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>订单变更 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-7" />
   </head>
   <body>
     <div class="app-shell">
@@ -59,20 +59,20 @@
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">N Column</p>
-                <h2>N列库存货值</h2>
+                <h2>事业部</h2>
               </div>
             </div>
-            <div id="orderChangeNBars" class="bar-chart order-change-bars"></div>
+            <div id="orderChangeNBars" class="order-change-column-chart"></div>
           </article>
 
           <article class="panel order-change-chart-panel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">O Column</p>
-                <h2>O列库存货值</h2>
+                <h2>运营反馈</h2>
               </div>
             </div>
-            <div id="orderChangeOBars" class="bar-chart order-change-bars"></div>
+            <div id="orderChangeOBars" class="order-change-column-chart"></div>
           </article>
         </section>
 
@@ -105,6 +105,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./order-change.js?v=20260608-1"></script>
+    <script src="./order-change.js?v=20260608-2"></script>
   </body>
 </html>

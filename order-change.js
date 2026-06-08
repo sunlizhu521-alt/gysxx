@@ -22,8 +22,8 @@ const orderChangeEls = {
 };
 
 const orderChangeFilterConfigs = [
-  { key: "nValue", element: orderChangeEls.nFilter, label: "全部N列内容", field: "nValue" },
-  { key: "oValue", element: orderChangeEls.oFilter, label: "全部O列内容", field: "oValue" },
+  { key: "nValue", element: orderChangeEls.nFilter, label: "全部事业部", field: "nValue" },
+  { key: "oValue", element: orderChangeEls.oFilter, label: "全部", field: "oValue" },
 ];
 
 const orderChangeAliases = {
@@ -314,8 +314,8 @@ function matchesFilter(value, selectedValues = []) {
 function renderOrderChange(message = "") {
   const rows = orderChangeState.filtered;
   orderChangeEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
-  renderValueBars(orderChangeEls.nBars, rows, "nValue", "暂无N列库存货值");
-  renderValueBars(orderChangeEls.oBars, rows, "oValue", "暂无O列库存货值");
+  renderValueBars(orderChangeEls.nBars, rows, "nValue", "暂无事业部库存货值");
+  renderValueBars(orderChangeEls.oBars, rows, "oValue", "暂无运营反馈库存货值");
 
   if (message || !rows.length) {
     orderChangeEls.rows.innerHTML = `<tr><td colspan="6" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
@@ -353,10 +353,10 @@ function renderValueBars(container, rows, field, emptyText) {
   container.innerHTML = entries
     .map(
       ([label, value], index) => `
-        <div class="bar-row" style="--bar-color: ${BAR_COLORS[index % BAR_COLORS.length]}">
-          <span title="${escapeAttribute(label)}">${escapeHtml(label)}</span>
-          <span class="bar-track"><span class="bar-fill" style="width: ${(Math.abs(value) / max) * 100}%"></span></span>
+        <div class="order-change-column" style="--bar-color: ${BAR_COLORS[index % BAR_COLORS.length]}; --bar-height: ${(Math.abs(value) / max) * 100}%">
           <strong title="${formatCurrency(value)}">${formatCurrencyShort(value)}</strong>
+          <span class="order-change-column-track"><span class="order-change-column-fill"></span></span>
+          <span class="order-change-column-label" title="${escapeAttribute(label)}">${escapeHtml(label)}</span>
         </div>
       `
     )
