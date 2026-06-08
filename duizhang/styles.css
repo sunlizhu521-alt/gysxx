@@ -177,6 +177,37 @@ h2 {
   padding: 18px;
 }
 
+.logic-panel {
+  margin-bottom: 16px;
+}
+
+.logic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.logic-grid div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fbff;
+}
+
+.logic-grid strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.logic-grid span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .panel-heading {
   display: flex;
   align-items: center;
@@ -443,7 +474,8 @@ h2 {
 
 @media (max-width: 1180px) {
   .slot-grid,
-  .nav-card-grid {
+  .nav-card-grid,
+  .logic-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -478,6 +510,7 @@ h2 {
 
   .slot-grid,
   .nav-card-grid,
+  .logic-grid,
   .slot-actions {
     grid-template-columns: 1fr;
   }

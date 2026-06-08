@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>对账文件 - 易乐对账单</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-5" />
   </head>
   <body>
     <div class="app-shell">
@@ -29,8 +29,9 @@
             <small class="source-note" id="librarySourceNote">本地文件库｜引用时间：--</small>
           </div>
           <div class="topbar-actions">
-            <button id="applyAllButton" class="primary-button" type="button" disabled>一键应用</button>
+            <button id="applyAllButton" class="primary-button" type="button" disabled>一键刷新应用</button>
             <button id="generateButton" class="secondary-button" type="button" disabled>一键生成表</button>
+            <button id="clearCacheButton" class="danger-button" type="button">一键清除缓存</button>
           </div>
         </header>
 
@@ -77,6 +78,21 @@
           </article>
         </section>
 
+        <section class="panel logic-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Rules</p>
+              <h2>对账逻辑说明</h2>
+            </div>
+          </div>
+          <div class="logic-grid">
+            <div><strong>判断类型</strong><span>B列为整车购买或配件购买时进入核对；其他类型直接写入W列。</span></div>
+            <div><strong>查找字段</strong><span>优先用C列子客户查找，未核实再用G列快递单号查找。</span></div>
+            <div><strong>运营登记表</strong><span>整车查D75（985S）发货表和D52&D36发货表；配件查配件表。</span></div>
+            <div><strong>结果口径</strong><span>运营登记表和旺店通代发表都命中为已核实；只命中一边为待核实；都未命中为无记录；红字命中备注退货。</span></div>
+          </div>
+        </section>
+
         <section class="panel library-panel">
           <div class="panel-heading">
             <div>
@@ -92,6 +108,6 @@
 
     <script src="../vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./shared-library.js?v=20260608-1"></script>
-    <script src="./file-library.js?v=20260608-5"></script>
+    <script src="./file-library.js?v=20260608-6"></script>
   </body>
 </html>

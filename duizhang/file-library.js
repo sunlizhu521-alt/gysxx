@@ -38,6 +38,7 @@ const els = {
   slotGrid: document.querySelector("#slotGrid"),
   applyAllButton: document.querySelector("#applyAllButton"),
   generateButton: document.querySelector("#generateButton"),
+  clearCacheButton: document.querySelector("#clearCacheButton"),
   libraryState: document.querySelector("#libraryState"),
   sourceNote: document.querySelector("#librarySourceNote"),
   slotCount: document.querySelector("#slotCount"),
@@ -107,6 +108,7 @@ function bindEvents() {
 
   els.applyAllButton.addEventListener("click", applyAllSlots);
   els.generateButton?.addEventListener("click", generateReconciliationWorkbook);
+  els.clearCacheButton?.addEventListener("click", clearLibraryCache);
 }
 
 async function refresh() {
@@ -171,18 +173,23 @@ async function applyAllSlots() {
       return record?.pendingFile || (record && !record.applied);
     })
     .map((slot) => slot.id);
-  if (!targetSlotIds.length) return;
 
   els.applyAllButton.disabled = true;
-  els.libraryState.textContent = "应用中";
+  els.libraryState.textContent = "刷新应用中";
   try {
     for (const slotId of targetSlotIds) {
       await applySlot(slotId, { skipRefresh: true });
     }
     await refresh();
+    const result = await refreshReconciliationMetrics();
+    if (!result && !els.libraryState.textContent.startsWith("请先上传")) {
+      els.libraryState.textContent = targetSlotIds.length ? "已刷新应用" : "暂无待应用文件";
+    }
   } catch (error) {
     console.warn("apply all failed", error);
-    els.libraryState.textContent = "应用失败";
+    els.libraryState.textContent = error.message || "刷新应用失败";
+  } finally {
+    updateApplyAllButton();
   }
 }
 
@@ -193,39 +200,35 @@ async function deleteSlot(slotId) {
   await refresh();
 }
 
+async function clearLibraryCache() {
+  const confirmed = window.confirm("确认清除当前浏览器里的对账文件缓存吗？清除后需要重新上传并应用文件。");
+  if (!confirmed) return;
+
+  els.clearCacheButton.disabled = true;
+  els.libraryState.textContent = "清除中";
+  try {
+    await deleteLibraryDatabase();
+    state.records = new Map();
+    updateReconciliationMetrics();
+    render();
+    els.libraryState.textContent = "已清除缓存";
+  } catch (error) {
+    console.warn("clear library cache failed", error);
+    els.libraryState.textContent = "清除失败";
+    window.alert(error.message || "清除缓存失败，请关闭其他对账页面后重试。");
+  } finally {
+    els.clearCacheButton.disabled = false;
+  }
+}
+
 async function generateReconciliationWorkbook() {
   if (state.isGenerating) return;
-  if (!window.XLSX) {
-    window.alert("Excel 解析组件未加载，请刷新页面后重试。");
-    return;
-  }
-
-  const sources = getGenerateSourceRecords();
-  const missingLabels = Object.entries(sources)
-    .filter(([, record]) => !record?.file)
-    .map(([key]) => getGenerateSourceLabel(key));
-  if (missingLabels.length) {
-    window.alert(`请先上传并应用：${missingLabels.join("、")}`);
-    return;
-  }
-
   state.isGenerating = true;
   updateGenerateButton();
   els.libraryState.textContent = "生成中";
 
   try {
-    const [wdtWorkbook, operationWorkbook, yileWorkbook] = await Promise.all([
-      readWorkbook(sources.wdt.file),
-      readWorkbook(sources.operation.file),
-      readWorkbook(sources.yile.file),
-    ]);
-    const wdtEntries = buildWorkbookSearchEntries(wdtWorkbook);
-    const operationSets = buildOperationSearchSets(operationWorkbook);
-    const yileSheetName = pickYileSheetName(yileWorkbook);
-    const yileSheet = yileWorkbook.Sheets[yileSheetName];
-    if (!yileSheet) throw new Error("易乐对账表没有可读取的工作表。");
-
-    const result = fillReconciliationSheet(yileSheet, operationSets, wdtEntries);
+    const { sources, yileWorkbook, result } = await buildReconciliationWorkbookResult();
     updateReconciliationMetrics(result);
     window.XLSX.writeFile(yileWorkbook, buildGeneratedFileName(sources.yile.name));
     els.libraryState.textContent = `已生成 ${result.checkedRows} 行`;
@@ -237,6 +240,54 @@ async function generateReconciliationWorkbook() {
     state.isGenerating = false;
     updateGenerateButton();
   }
+}
+
+async function refreshReconciliationMetrics() {
+  try {
+    const { result } = await buildReconciliationWorkbookResult();
+    updateReconciliationMetrics(result);
+    els.libraryState.textContent = `已统计 ${result.checkedRows} 行`;
+    return result;
+  } catch (error) {
+    console.warn("refresh reconciliation metrics failed", error);
+    if (error.code === "MISSING_RECONCILIATION_SOURCES") {
+      updateReconciliationMetrics();
+      els.libraryState.textContent = error.message;
+      return null;
+    }
+    els.libraryState.textContent = "统计失败";
+    throw error;
+  }
+}
+
+async function buildReconciliationWorkbookResult() {
+  if (!window.XLSX) {
+    throw new Error("Excel 解析组件未加载，请刷新页面后重试。");
+  }
+
+  const sources = getGenerateSourceRecords();
+  const missingLabels = Object.entries(sources)
+    .filter(([, record]) => !record?.file)
+    .map(([key]) => getGenerateSourceLabel(key));
+  if (missingLabels.length) {
+    const error = new Error(`请先上传并应用：${missingLabels.join("、")}`);
+    error.code = "MISSING_RECONCILIATION_SOURCES";
+    throw error;
+  }
+
+  const [wdtWorkbook, operationWorkbook, yileWorkbook] = await Promise.all([
+    readWorkbook(sources.wdt.file),
+    readWorkbook(sources.operation.file),
+    readWorkbook(sources.yile.file),
+  ]);
+  const wdtEntries = buildWorkbookSearchEntries(wdtWorkbook);
+  const operationSets = buildOperationSearchSets(operationWorkbook);
+  const yileSheetName = pickYileSheetName(yileWorkbook);
+  const yileSheet = yileWorkbook.Sheets[yileSheetName];
+  if (!yileSheet) throw new Error("易乐对账表没有可读取的工作表。");
+
+  const result = fillReconciliationSheet(yileSheet, operationSets, wdtEntries);
+  return { sources, yileWorkbook, result };
 }
 
 function getGenerateSourceRecords() {
@@ -662,11 +713,11 @@ function getLatestAppliedTime() {
 }
 
 function updateApplyAllButton() {
-  const hasApplicableRecord = slots.some((slot) => {
+  const hasAnyRecord = slots.some((slot) => {
     const record = state.records.get(slot.id);
-    return record?.pendingFile || (record && !record.applied);
+    return record?.pendingFile || record?.file || record;
   });
-  els.applyAllButton.disabled = !hasApplicableRecord;
+  els.applyAllButton.disabled = !hasAnyRecord;
 }
 
 function updateGenerateButton() {
@@ -760,6 +811,15 @@ function openDb() {
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
+  });
+}
+
+function deleteLibraryDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error("文件库正被其他页面占用，请关闭其他对账页面后重试。"));
   });
 }
 
