@@ -17,6 +17,22 @@ const generateSlotIds = {
 
 const CHECK_COLUMN_INDEX = 22;
 const REMARK_COLUMN_INDEX = 23;
+const TABLE_BORDER_STYLE = {
+  style: "thin",
+  color: { rgb: "FFB7C4D6" },
+};
+const HEADER_FILL = {
+  patternType: "solid",
+  fgColor: { rgb: "FFD9EAF7" },
+};
+const HEADER_FONT = {
+  bold: true,
+  color: { rgb: "FF1F2933" },
+};
+const CENTER_ALIGNMENT = {
+  horizontal: "center",
+  vertical: "center",
+};
 
 const els = {
   slotGrid: document.querySelector("#slotGrid"),
@@ -343,6 +359,7 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
   range.e.c = Math.max(range.e.c, REMARK_COLUMN_INDEX);
   range.e.r = Math.max(range.e.r, maxRow);
   sheet["!ref"] = window.XLSX.utils.encode_range(range);
+  applyGeneratedTableStyle(sheet, headerRow, range);
   ensureOutputColumnWidths(sheet);
   return { checkedRows };
 }
@@ -441,6 +458,48 @@ function ensureOutputColumnWidths(sheet) {
   columns[CHECK_COLUMN_INDEX] = { ...(columns[CHECK_COLUMN_INDEX] || {}), wch: 12 };
   columns[REMARK_COLUMN_INDEX] = { ...(columns[REMARK_COLUMN_INDEX] || {}), wch: 10 };
   sheet["!cols"] = columns;
+}
+
+function applyGeneratedTableStyle(sheet, headerRow, range) {
+  const styledRange = {
+    s: { r: headerRow, c: range.s.c },
+    e: { r: range.e.r, c: Math.max(range.e.c, REMARK_COLUMN_INDEX) },
+  };
+  sheet["!autofilter"] = {
+    ref: window.XLSX.utils.encode_range({
+      s: { r: headerRow, c: styledRange.s.c },
+      e: { r: headerRow, c: styledRange.e.c },
+    }),
+  };
+
+  for (let rowIndex = styledRange.s.r; rowIndex <= styledRange.e.r; rowIndex += 1) {
+    for (let columnIndex = styledRange.s.c; columnIndex <= styledRange.e.c; columnIndex += 1) {
+      const address = window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+      const cell = sheet[address] || { t: "s", v: "" };
+      cell.s = {
+        ...(cell.s || {}),
+        border: getCellBorder(),
+        alignment: { ...(cell.s?.alignment || {}), ...CENTER_ALIGNMENT },
+      };
+      if (rowIndex === headerRow) {
+        cell.s = {
+          ...cell.s,
+          fill: { ...(cell.s.fill || {}), ...HEADER_FILL },
+          font: { ...(cell.s.font || {}), ...HEADER_FONT },
+        };
+      }
+      sheet[address] = cell;
+    }
+  }
+}
+
+function getCellBorder() {
+  return {
+    top: TABLE_BORDER_STYLE,
+    bottom: TABLE_BORDER_STYLE,
+    left: TABLE_BORDER_STYLE,
+    right: TABLE_BORDER_STYLE,
+  };
 }
 
 function isRedFontCell(cell) {
