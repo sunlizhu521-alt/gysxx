@@ -31,6 +31,12 @@ const librarySlots = [
     library: "\u4e8b\u5b9e\u8868",
     label: "Fac-\u91d1\u8776\u91c7\u8d2d\u8ba2\u5355\u5217\u8868",
   },
+  {
+    store: "fact-files",
+    id: "fact-3",
+    library: "\u4e8b\u5b9e\u8868",
+    label: "\u8ba2\u5355\u53d8\u66f4",
+  },
 ];
 
 const adminEls = {
