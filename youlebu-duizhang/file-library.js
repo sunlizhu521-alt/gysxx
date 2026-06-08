@@ -1,12 +1,12 @@
-const DB_NAME = "yile-reconciliation-library";
+const DB_NAME = "youlebu-reconciliation-library";
 const DB_VERSION = 1;
 const STORE_NAME = "file-slots";
 
 const slots = [
-  { id: "file-1", label: "旺店通代发表" },
-  { id: "file-2", label: "运营登记表" },
-  { id: "file-3", label: "易乐对账表" },
-  { id: "file-4", label: "对账文件 4" },
+  { id: "file-1", label: "运营登记表" },
+  { id: "file-2", label: "优乐步对账表" },
+  { id: "file-3", label: "对账文件3" },
+  { id: "file-4", label: "优乐步对账 4" },
 ];
 
 const generateSlotIds = {
@@ -15,8 +15,11 @@ const generateSlotIds = {
   yile: "file-3",
 };
 
-const CHECK_COLUMN_INDEX = 22;
-const REMARK_COLUMN_INDEX = 23;
+const NAME_COLUMN_INDEX = 12;
+const TRACKING_COLUMN_INDEX = 13;
+const CHECK_COLUMN_INDEX = 16;
+const REMARK_COLUMN_INDEX = 17;
+const OUTPUT_LAST_COLUMN_INDEX = REMARK_COLUMN_INDEX;
 const TABLE_BORDER_STYLE = {
   style: "thin",
   color: { rgb: "FFB7C4D6" },
@@ -202,7 +205,7 @@ async function deleteSlot(slotId) {
 }
 
 async function clearLibraryCache() {
-  const confirmed = window.confirm("确认清除当前浏览器里的对账文件缓存吗？清除后需要重新上传并应用文件。");
+  const confirmed = window.confirm("确认清除当前浏览器里的优乐步对账文件缓存吗？清除后需要重新上传并应用文件。");
   if (!confirmed) return;
 
   els.clearCacheButton.disabled = true;
@@ -229,9 +232,9 @@ async function generateReconciliationWorkbook() {
   els.libraryState.textContent = "生成中";
 
   try {
-    const { sources, yileWorkbook, result } = await buildReconciliationWorkbookResult();
+    const { sources, reconciliationWorkbook, result } = await buildReconciliationWorkbookResult();
     updateReconciliationMetrics(result);
-    window.XLSX.writeFile(yileWorkbook, buildGeneratedFileName(sources.yile.name));
+    window.XLSX.writeFile(reconciliationWorkbook, buildGeneratedFileName(sources.operation.name));
     els.libraryState.textContent = `已生成 ${result.checkedRows} 行`;
   } catch (error) {
     console.warn("generate reconciliation workbook failed", error);
@@ -276,26 +279,23 @@ async function buildReconciliationWorkbookResult() {
     throw error;
   }
 
-  const [wdtWorkbook, operationWorkbook, yileWorkbook] = await Promise.all([
+  const [registrationWorkbook, reconciliationWorkbook] = await Promise.all([
     readWorkbook(sources.wdt.file),
     readWorkbook(sources.operation.file),
-    readWorkbook(sources.yile.file),
   ]);
-  const wdtEntries = buildWorkbookSearchEntries(wdtWorkbook);
-  const operationSets = buildOperationSearchSets(operationWorkbook);
-  const yileSheetName = pickYileSheetName(yileWorkbook);
-  const yileSheet = yileWorkbook.Sheets[yileSheetName];
-  if (!yileSheet) throw new Error("易乐对账表没有可读取的工作表。");
+  const registrationEntries = buildWorkbookSearchEntries(registrationWorkbook);
+  const reconciliationSheetName = pickReconciliationSheetName(reconciliationWorkbook);
+  const reconciliationSheet = reconciliationWorkbook.Sheets[reconciliationSheetName];
+  if (!reconciliationSheet) throw new Error("优乐步对账表没有可读取的工作表。");
 
-  const result = fillReconciliationSheet(yileSheet, operationSets, wdtEntries);
-  return { sources, yileWorkbook, result };
+  const result = fillReconciliationSheet(reconciliationSheet, registrationEntries);
+  return { sources, reconciliationWorkbook, result };
 }
 
 function getGenerateSourceRecords() {
   return {
     wdt: getAppliedFileRecord(generateSlotIds.wdt),
     operation: getAppliedFileRecord(generateSlotIds.operation),
-    yile: getAppliedFileRecord(generateSlotIds.yile),
   };
 }
 
@@ -306,9 +306,9 @@ function getAppliedFileRecord(slotId) {
 
 function getGenerateSourceLabel(key) {
   return {
-    wdt: "旺店通代发表",
-    operation: "运营登记表",
-    yile: "易乐对账表",
+    wdt: "运营登记表",
+    operation: "优乐步对账表",
+    yile: "对账文件3",
   }[key] || key;
 }
 
@@ -329,37 +329,6 @@ async function readWorkbook(file) {
     cellHTML: true,
     cellText: true,
   });
-}
-
-function buildOperationSearchSets(workbook) {
-  const vehicleGroups = [
-    {
-      label: "D75（985S）发货表",
-      names: getSheetNamesByMatcher(workbook, (name) => {
-        const normalized = normalizeSearchValue(name);
-        return normalized.includes("d75") || normalized.includes("985s");
-      }),
-    },
-    {
-      label: "D52&D36发货表",
-      names: getSheetNamesByMatcher(workbook, (name) => {
-        const normalized = normalizeSearchValue(name);
-        return normalized.includes("d52") && normalized.includes("d36");
-      }),
-    },
-  ];
-  const partsNames = getSheetNamesByMatcher(workbook, (name) => normalizeSearchValue(name).includes("配件表"));
-  const vehicleNames = [...new Set(vehicleGroups.flatMap((group) => group.names))];
-  return {
-    vehicle: buildWorkbookSearchEntries(workbook, vehicleNames),
-    vehicleMissing: vehicleGroups.filter((group) => !group.names.length).map((group) => group.label),
-    parts: buildWorkbookSearchEntries(workbook, partsNames),
-    partsMissing: partsNames.length ? [] : ["配件表"],
-  };
-}
-
-function getSheetNamesByMatcher(workbook, matcher) {
-  return (workbook.SheetNames || []).filter((name) => matcher(String(name || "")));
 }
 
 function buildWorkbookSearchEntries(workbook, sheetNames = workbook.SheetNames || []) {
@@ -386,18 +355,18 @@ function buildSheetSearchEntries(sheet, sheetName) {
     .filter(Boolean);
 }
 
-function pickYileSheetName(workbook) {
+function pickReconciliationSheetName(workbook) {
   return (
     (workbook.SheetNames || []).find((name) => String(name || "").includes("对账")) ||
     (workbook.SheetNames || [])[0]
   );
 }
 
-function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
-  const range = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:X1");
+function fillReconciliationSheet(sheet, registrationEntries) {
+  const range = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:R1");
   const headerRow = range.s.r;
   const maxRow = Math.max(range.e.r, headerRow);
-  const originalDataMaxColumn = Math.min(Math.max(range.e.c, 6), CHECK_COLUMN_INDEX - 1);
+  const originalDataMaxColumn = Math.min(Math.max(range.e.c, TRACKING_COLUMN_INDEX), CHECK_COLUMN_INDEX - 1);
   const stats = {
     checkedRows: 0,
     verifiedCount: 0,
@@ -406,25 +375,24 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
     noRecordCount: 0,
   };
 
-  writeTextCell(sheet, headerRow, CHECK_COLUMN_INDEX, "核对确认");
+  writeTextCell(sheet, headerRow, CHECK_COLUMN_INDEX, "核对结果");
   writeTextCell(sheet, headerRow, REMARK_COLUMN_INDEX, "备注");
 
   for (let rowIndex = headerRow + 1; rowIndex <= maxRow; rowIndex += 1) {
     if (!rowHasAnyValue(sheet, rowIndex, originalDataMaxColumn)) continue;
-    const type = getSheetCellText(sheet, rowIndex, 1);
-    const customer = getSheetCellText(sheet, rowIndex, 2);
-    const trackingNumber = getSheetCellText(sheet, rowIndex, 6);
-    const result = getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries);
+    const name = getSheetCellText(sheet, rowIndex, NAME_COLUMN_INDEX);
+    const trackingNumber = getSheetCellText(sheet, rowIndex, TRACKING_COLUMN_INDEX);
+    const result = getYoulebuRowReconciliationResult(name, trackingNumber, registrationEntries);
     writeTextCell(sheet, rowIndex, CHECK_COLUMN_INDEX, result.status);
     writeTextCell(sheet, rowIndex, REMARK_COLUMN_INDEX, result.remark);
     stats.checkedRows += 1;
     if (result.status === "已核实") stats.verifiedCount += 1;
     if (result.status === "待核实") stats.pendingCount += 1;
-    if (isReturnRemark(result.remark)) stats.returnCount += 1;
-    if (result.status === "无记录") stats.noRecordCount += 1;
+    if (result.status !== "无信息") stats.returnCount += 1;
+    if (result.status === "无信息") stats.noRecordCount += 1;
   }
 
-  range.e.c = Math.max(range.e.c, REMARK_COLUMN_INDEX);
+  range.e.c = Math.max(range.e.c, OUTPUT_LAST_COLUMN_INDEX);
   range.e.r = Math.max(range.e.r, maxRow);
   sheet["!ref"] = window.XLSX.utils.encode_range(range);
   applyGeneratedTableStyle(sheet, headerRow, range);
@@ -432,57 +400,20 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
   return stats;
 }
 
-function getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries) {
-  const typeText = String(type || "").trim();
-  if (!isVehiclePurchase(typeText) && !isPartsPurchase(typeText)) {
-    return { status: typeText, remark: "" };
+function getYoulebuRowReconciliationResult(name, trackingNumber, registrationEntries) {
+  const nameFound = searchEntries(name, registrationEntries).found;
+  const trackingFound = searchEntries(trackingNumber, registrationEntries).found;
+
+  if (nameFound && trackingFound) {
+    return { status: "已核实", remark: "姓名/快递单号都有" };
   }
-
-  const operationEntries = isVehiclePurchase(typeText)
-    ? getRequiredOperationEntries(operationSets.vehicle, operationSets.vehicleMissing, typeText)
-    : getRequiredOperationEntries(operationSets.parts, operationSets.partsMissing, typeText);
-  const customerResult = evaluateLookup(customer, operationEntries, wdtEntries);
-  if (customerResult.both) {
-    return { status: "已核实", remark: customerResult.returnLike ? "退货/未发" : "" };
+  if (nameFound) {
+    return { status: "待核实", remark: "姓名命中" };
   }
-
-  const trackingResult = evaluateLookup(trackingNumber, operationEntries, wdtEntries);
-  const hasAnyMatch = customerResult.any || trackingResult.any;
-  const hasReturnLikeMatch = customerResult.returnLike || trackingResult.returnLike;
-  if (trackingResult.both) {
-    return { status: "已核实", remark: hasReturnLikeMatch ? "退货/未发" : "" };
+  if (trackingFound) {
+    return { status: "待核实", remark: "快递单号命中" };
   }
-  return {
-    status: hasAnyMatch ? "待核实" : "无记录",
-    remark: hasReturnLikeMatch ? "退货/未发" : "",
-  };
-}
-
-function getRequiredOperationEntries(entries, missingLabels, typeText) {
-  if (missingLabels.length) {
-    throw new Error(`${typeText} 缺少运营登记表 sheet：${missingLabels.join("、")}`);
-  }
-  return entries;
-}
-
-function isVehiclePurchase(typeText) {
-  return String(typeText || "").trim().includes("整车购买");
-}
-
-function isPartsPurchase(typeText) {
-  return String(typeText || "").trim().includes("配件购买");
-}
-
-function evaluateLookup(query, operationEntries, wdtEntries) {
-  const operationResult = searchEntries(query, operationEntries);
-  const wdtResult = searchEntries(query, wdtEntries);
-  return {
-    operationFound: operationResult.found,
-    wdtFound: wdtResult.found,
-    both: operationResult.found && wdtResult.found,
-    any: operationResult.found || wdtResult.found,
-    returnLike: operationResult.returnLike || wdtResult.returnLike,
-  };
+  return { status: "无信息", remark: "" };
 }
 
 function searchEntries(query, entries) {
@@ -524,14 +455,14 @@ function writeTextCell(sheet, rowIndex, columnIndex, value) {
 function ensureOutputColumnWidths(sheet) {
   const columns = sheet["!cols"] || [];
   columns[CHECK_COLUMN_INDEX] = { ...(columns[CHECK_COLUMN_INDEX] || {}), wch: 12 };
-  columns[REMARK_COLUMN_INDEX] = { ...(columns[REMARK_COLUMN_INDEX] || {}), wch: 10 };
+  columns[REMARK_COLUMN_INDEX] = { ...(columns[REMARK_COLUMN_INDEX] || {}), wch: 22 };
   sheet["!cols"] = columns;
 }
 
 function applyGeneratedTableStyle(sheet, headerRow, range) {
   const styledRange = {
     s: { r: headerRow, c: range.s.c },
-    e: { r: range.e.r, c: Math.max(range.e.c, REMARK_COLUMN_INDEX) },
+    e: { r: range.e.r, c: Math.max(range.e.c, OUTPUT_LAST_COLUMN_INDEX) },
   };
   sheet["!autofilter"] = {
     ref: window.XLSX.utils.encode_range({
@@ -582,10 +513,6 @@ function isReturnOrUnshippedText(value) {
   return /(取消|退款)/.test(String(value || ""));
 }
 
-function isReturnRemark(value) {
-  return /(退货|未发)/.test(String(value || ""));
-}
-
 function isRedIndexedColor(indexed) {
   return Number(indexed) === 3 || Number(indexed) === 10;
 }
@@ -609,7 +536,7 @@ function normalizeSearchValue(value) {
 }
 
 function buildGeneratedFileName(sourceName) {
-  const baseName = sanitizeFileNamePart(String(sourceName || "易乐对账表").replace(/\.[^.]+$/, "")) || "易乐对账表";
+  const baseName = sanitizeFileNamePart(String(sourceName || "优乐步对账表").replace(/\.[^.]+$/, "")) || "优乐步对账表";
   const stamp = formatFileTimestamp(new Date());
   return `${baseName}_已核对_${stamp}.xlsx`;
 }
@@ -736,7 +663,7 @@ function updateApplyAllButton() {
 function updateGenerateButton() {
   if (!els.generateButton) return;
   const sources = getGenerateSourceRecords();
-  const hasRequiredSources = Boolean(sources.wdt?.file && sources.operation?.file && sources.yile?.file);
+  const hasRequiredSources = Boolean(sources.wdt?.file && sources.operation?.file);
   els.generateButton.disabled = state.isGenerating || !hasRequiredSources;
 }
 
