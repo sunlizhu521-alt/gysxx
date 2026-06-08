@@ -44,6 +44,10 @@ const els = {
   uploadedCount: document.querySelector("#uploadedCount"),
   appliedCount: document.querySelector("#appliedCount"),
   latestMonth: document.querySelector("#latestMonth"),
+  yileTotalRows: document.querySelector("#yileTotalRows"),
+  verifiedCount: document.querySelector("#verifiedCount"),
+  pendingCount: document.querySelector("#pendingCount"),
+  noRecordCount: document.querySelector("#noRecordCount"),
 };
 
 const state = {
@@ -222,6 +226,7 @@ async function generateReconciliationWorkbook() {
     if (!yileSheet) throw new Error("易乐对账表没有可读取的工作表。");
 
     const result = fillReconciliationSheet(yileSheet, operationSets, wdtEntries);
+    updateReconciliationMetrics(result);
     window.XLSX.writeFile(yileWorkbook, buildGeneratedFileName(sources.yile.name));
     els.libraryState.textContent = `已生成 ${result.checkedRows} 行`;
   } catch (error) {
@@ -340,7 +345,12 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
   const headerRow = range.s.r;
   const maxRow = Math.max(range.e.r, headerRow);
   const originalDataMaxColumn = Math.min(Math.max(range.e.c, 6), CHECK_COLUMN_INDEX - 1);
-  let checkedRows = 0;
+  const stats = {
+    checkedRows: 0,
+    verifiedCount: 0,
+    pendingCount: 0,
+    noRecordCount: 0,
+  };
 
   writeTextCell(sheet, headerRow, CHECK_COLUMN_INDEX, "核对确认");
   writeTextCell(sheet, headerRow, REMARK_COLUMN_INDEX, "备注");
@@ -353,7 +363,10 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
     const result = getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries);
     writeTextCell(sheet, rowIndex, CHECK_COLUMN_INDEX, result.status);
     writeTextCell(sheet, rowIndex, REMARK_COLUMN_INDEX, result.remark);
-    checkedRows += 1;
+    stats.checkedRows += 1;
+    if (result.status === "已核实") stats.verifiedCount += 1;
+    if (result.status === "待核实") stats.pendingCount += 1;
+    if (result.status === "无记录") stats.noRecordCount += 1;
   }
 
   range.e.c = Math.max(range.e.c, REMARK_COLUMN_INDEX);
@@ -361,7 +374,7 @@ function fillReconciliationSheet(sheet, operationSets, wdtEntries) {
   sheet["!ref"] = window.XLSX.utils.encode_range(range);
   applyGeneratedTableStyle(sheet, headerRow, range);
   ensureOutputColumnWidths(sheet);
-  return { checkedRows };
+  return stats;
 }
 
 function getRowReconciliationResult(type, customer, trackingNumber, operationSets, wdtEntries) {
@@ -557,9 +570,17 @@ function render() {
   els.latestMonth.textContent = getLatestMonth();
   els.sourceNote.textContent = `本地文件库｜引用时间：${getLatestAppliedTime()}`;
   els.slotGrid.innerHTML = slots.map(renderSlot).join("");
+  updateReconciliationMetrics();
   els.libraryState.textContent = "本地文件库";
   updateApplyAllButton();
   updateGenerateButton();
+}
+
+function updateReconciliationMetrics(stats = {}) {
+  if (els.yileTotalRows) els.yileTotalRows.textContent = String(stats.checkedRows || 0);
+  if (els.verifiedCount) els.verifiedCount.textContent = String(stats.verifiedCount || 0);
+  if (els.pendingCount) els.pendingCount.textContent = String(stats.pendingCount || 0);
+  if (els.noRecordCount) els.noRecordCount.textContent = String(stats.noRecordCount || 0);
 }
 
 function renderSlot(slot) {

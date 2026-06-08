@@ -228,12 +228,15 @@ h2 {
 }
 
 .summary-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(112px, 1fr));
+  overflow-x: auto;
+  padding-bottom: 2px;
   margin-bottom: 16px;
 }
 
 .metric {
-  padding: 18px;
+  min-width: 0;
+  padding: 13px 12px;
   border-top: 4px solid var(--teal);
 }
 
@@ -249,6 +252,22 @@ h2 {
   border-top-color: var(--amber);
 }
 
+.metric:nth-child(5) {
+  border-top-color: var(--blue);
+}
+
+.metric:nth-child(6) {
+  border-top-color: var(--green);
+}
+
+.metric:nth-child(7) {
+  border-top-color: var(--amber);
+}
+
+.metric:nth-child(8) {
+  border-top-color: var(--red);
+}
+
 .metric span,
 .metric small {
   display: block;
@@ -257,7 +276,15 @@ h2 {
 .metric strong {
   display: block;
   margin: 8px 0 5px;
-  font-size: 28px;
+  font-size: 24px;
+}
+
+.metric span,
+.metric small,
+.metric strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .primary-button {
@@ -416,7 +443,6 @@ h2 {
 
 @media (max-width: 1180px) {
   .slot-grid,
-  .summary-grid,
   .nav-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -451,7 +477,6 @@ h2 {
   }
 
   .slot-grid,
-  .summary-grid,
   .nav-card-grid,
   .slot-actions {
     grid-template-columns: 1fr;
