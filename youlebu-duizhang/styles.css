@@ -26,7 +26,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -425,6 +426,42 @@ h2 {
 .file-meta small {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-picker {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.sheet-picker span {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.sheet-picker select {
+  width: 100%;
+  min-height: 34px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.sheet-picker select:disabled {
+  color: #8a97a8;
+  background: #edf2f7;
+}
+
+.sheet-picker small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

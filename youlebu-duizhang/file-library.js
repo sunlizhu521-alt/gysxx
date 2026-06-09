@@ -15,6 +15,7 @@ const generateSlotIds = {
   yile: "file-3",
 };
 
+const OPERATION_SLOT_ID = generateSlotIds.operation;
 const NAME_COLUMN_INDEX = 12;
 const TRACKING_COLUMN_INDEX = 13;
 const CHECK_COLUMN_INDEX = 16;
@@ -73,9 +74,16 @@ async function init() {
 function bindEvents() {
   els.slotGrid.addEventListener("change", async (event) => {
     const input = event.target.closest("[data-upload]");
-    if (!input) return;
-    await savePendingFile(input.dataset.upload, input.files[0]);
-    input.value = "";
+    if (input) {
+      await savePendingFile(input.dataset.upload, input.files[0]);
+      input.value = "";
+      return;
+    }
+
+    const sheetSelect = event.target.closest("[data-sheet-select]");
+    if (sheetSelect) {
+      await saveSelectedSheet(sheetSelect.dataset.sheetSelect, sheetSelect.value);
+    }
   });
 
   els.slotGrid.addEventListener("click", async (event) => {
@@ -122,6 +130,7 @@ async function refresh() {
   const entries = await Promise.all(slots.map(async (slot) => [slot.id, await getRecord(db, slot.id)]));
   db.close();
   state.records = new Map(entries);
+  await ensureOperationSheetOptions();
   render();
 }
 
@@ -129,6 +138,7 @@ async function savePendingFile(slotId, file) {
   if (!file) return;
   const now = new Date().toISOString();
   const existing = state.records.get(slotId) || { id: slotId };
+  const pendingSheetFields = slotId === OPERATION_SLOT_ID ? await buildPendingSheetFields(file, existing) : {};
   const record = {
     ...existing,
     id: slotId,
@@ -138,11 +148,73 @@ async function savePendingFile(slotId, file) {
     pendingTypeLabel: getFileTypeLabel(file),
     pendingRefreshMonth: getRefreshMonth(file.name, now),
     pendingSavedAt: now,
+    ...pendingSheetFields,
   };
   const db = await openDb();
   await putRecord(db, record);
   db.close();
   await refresh();
+}
+
+async function buildPendingSheetFields(file, existingRecord) {
+  const sheetNames = await getWorkbookSheetNames(file);
+  const selectedSheetName = pickSelectableSheetName(
+    sheetNames,
+    existingRecord?.selectedSheetName || existingRecord?.pendingSelectedSheetName
+  );
+  return {
+    pendingSheetNames: sheetNames,
+    pendingSelectedSheetName: selectedSheetName,
+  };
+}
+
+async function ensureOperationSheetOptions() {
+  const record = state.records.get(OPERATION_SLOT_ID);
+  if (!record) return;
+
+  const hasPending = Boolean(record.pendingFile);
+  const file = hasPending ? record.pendingFile : record.file;
+  const currentSheetNames = hasPending ? record.pendingSheetNames : record.sheetNames;
+  if (!file || (Array.isArray(currentSheetNames) && currentSheetNames.length)) return;
+
+  const sheetNames = await getWorkbookSheetNames(file);
+  if (!sheetNames.length) return;
+
+  const selectedSheetName = pickSelectableSheetName(
+    sheetNames,
+    hasPending ? record.pendingSelectedSheetName || record.selectedSheetName : record.selectedSheetName
+  );
+  const updatedRecord = hasPending
+    ? { ...record, pendingSheetNames: sheetNames, pendingSelectedSheetName: selectedSheetName }
+    : { ...record, sheetNames, selectedSheetName };
+
+  state.records.set(OPERATION_SLOT_ID, updatedRecord);
+  const db = await openDb();
+  await putRecord(db, updatedRecord);
+  db.close();
+}
+
+async function saveSelectedSheet(slotId, sheetName) {
+  if (slotId !== OPERATION_SLOT_ID) return;
+  const record = state.records.get(slotId);
+  if (!record) return;
+
+  const hasPending = Boolean(record.pendingFile);
+  const sheetNames = hasPending ? record.pendingSheetNames : record.sheetNames;
+  const selectedSheetName = pickSelectableSheetName(sheetNames, sheetName);
+  const updatedRecord = hasPending
+    ? { ...record, pendingSelectedSheetName: selectedSheetName }
+    : { ...record, selectedSheetName };
+
+  state.records.set(slotId, updatedRecord);
+  const db = await openDb();
+  await putRecord(db, updatedRecord);
+  db.close();
+  render();
+
+  if (updatedRecord.applied && !updatedRecord.pendingFile) {
+    await refreshReconciliationMetrics();
+  }
 }
 
 async function applySlot(slotId, options = {}) {
@@ -158,11 +230,13 @@ async function applySlot(slotId, options = {}) {
         typeLabel: record.pendingTypeLabel,
         refreshMonth: record.pendingRefreshMonth,
         savedAt: record.pendingSavedAt,
+        ...getAppliedSheetFields(slotId, record),
         applied: true,
         appliedAt,
       })
     : {
         ...record,
+        ...getAppliedSheetFields(slotId, record),
         applied: true,
         appliedAt,
       };
@@ -170,6 +244,19 @@ async function applySlot(slotId, options = {}) {
   await putRecord(db, updatedRecord);
   db.close();
   if (!options.skipRefresh) await refresh();
+}
+
+function getAppliedSheetFields(slotId, record) {
+  if (slotId !== OPERATION_SLOT_ID) return {};
+  const sheetNames = record?.pendingFile ? record.pendingSheetNames : record?.sheetNames;
+  const selectedSheetName = pickSelectableSheetName(
+    sheetNames,
+    record?.pendingSelectedSheetName || record?.selectedSheetName
+  );
+  return {
+    sheetNames: Array.isArray(sheetNames) ? sheetNames : [],
+    selectedSheetName,
+  };
 }
 
 async function applyAllSlots() {
@@ -287,7 +374,10 @@ async function buildReconciliationWorkbookResult() {
     readWorkbook(sources.operation.file),
   ]);
   const registrationEntries = buildWorkbookSearchEntries(registrationWorkbook);
-  const reconciliationSheetName = pickReconciliationSheetName(reconciliationWorkbook);
+  const reconciliationSheetName = pickReconciliationSheetName(
+    reconciliationWorkbook,
+    sources.operation.selectedSheetName
+  );
   const reconciliationSheet = reconciliationWorkbook.Sheets[reconciliationSheetName];
   if (!reconciliationSheet) throw new Error("优乐步对账表没有可读取的工作表。");
 
@@ -523,6 +613,35 @@ async function readWorkbook(file) {
   });
 }
 
+async function getWorkbookSheetNames(file) {
+  try {
+    const workbook = await readWorkbook(file);
+    return [...new Set((workbook.SheetNames || []).map((name) => String(name ?? "")).filter((name) => name.trim()))];
+  } catch (error) {
+    console.warn("read workbook sheet names failed", error);
+    return [];
+  }
+}
+
+function pickSelectableSheetName(sheetNames = [], preferredSheetName = "") {
+  const names = Array.isArray(sheetNames) ? sheetNames.map((name) => String(name ?? "")).filter((name) => name.trim()) : [];
+  if (!names.length) return "";
+
+  const preferred = String(preferredSheetName ?? "");
+  if (preferred) {
+    const exact = names.find((name) => name === preferred);
+    if (exact) return exact;
+    const sameTrim = names.find((name) => name.trim() === preferred.trim());
+    if (sameTrim) return sameTrim;
+  }
+
+  return (
+    names.find((name) => name.trim() === "26.5") ||
+    names.find((name) => name.includes("\u5bf9\u8d26")) ||
+    names[0]
+  );
+}
+
 function buildWorkbookSearchEntries(workbook, sheetNames = workbook.SheetNames || []) {
   return sheetNames.flatMap((sheetName) => buildSheetSearchEntries(workbook.Sheets[sheetName], sheetName));
 }
@@ -547,11 +666,8 @@ function buildSheetSearchEntries(sheet, sheetName) {
     .filter(Boolean);
 }
 
-function pickReconciliationSheetName(workbook) {
-  return (
-    (workbook.SheetNames || []).find((name) => String(name || "").includes("对账")) ||
-    (workbook.SheetNames || [])[0]
-  );
+function pickReconciliationSheetName(workbook, preferredSheetName = "") {
+  return pickSelectableSheetName(workbook.SheetNames || [], preferredSheetName);
 }
 
 function fillReconciliationSheet(sheet, registrationEntries) {
@@ -1022,6 +1138,7 @@ function renderSlot(slot) {
         <small>更新时间：${formatDateTime(display?.savedAt)}</small>
         <small>引用时间：${formatDateTime(record?.appliedAt)}</small>
       </div>
+      ${renderSheetPicker(slot, record, display)}
       <div class="slot-actions">
         <label class="upload-button">
           <input type="file" accept=".xlsx,.xls,.csv,.txt,.pdf" data-upload="${slot.id}" />
@@ -1031,6 +1148,41 @@ function renderSlot(slot) {
         <button class="danger-button" type="button" data-delete="${slot.id}" ${record ? "" : "disabled"}>删除</button>
       </div>
     </article>
+  `;
+}
+
+function renderSheetPicker(slot, record, display) {
+  if (slot.id !== OPERATION_SLOT_ID) return "";
+
+  const hasPending = Boolean(record?.pendingFile);
+  const sheetNames = hasPending ? record?.pendingSheetNames : record?.sheetNames;
+  const selectedSheetName = pickSelectableSheetName(
+    sheetNames,
+    hasPending ? record?.pendingSelectedSheetName || record?.selectedSheetName : record?.selectedSheetName
+  );
+  const options = Array.isArray(sheetNames) && sheetNames.length ? sheetNames : selectedSheetName ? [selectedSheetName] : [];
+  const disabled = !display || !options.length;
+  const sheetHint = options.length
+    ? `${hasPending ? "应用刷新后使用" : "当前用于生成"}：${escapeHtml(selectedSheetName || options[0])}`
+    : "上传优乐步对账表后读取";
+
+  return `
+    <label class="sheet-picker">
+      <span>应用 sheet</span>
+      <select data-sheet-select="${slot.id}" ${disabled ? "disabled" : ""}>
+        ${
+          options.length
+            ? options
+                .map((name) => {
+                  const safeName = escapeHtml(name);
+                  return `<option value="${safeName}" ${name === selectedSheetName ? "selected" : ""}>${safeName}</option>`;
+                })
+                .join("")
+            : `<option value="">上传后选择</option>`
+        }
+      </select>
+      <small>${sheetHint}</small>
+    </label>
   `;
 }
 
@@ -1100,6 +1252,8 @@ function clearPendingFields(record) {
   delete nextRecord.pendingTypeLabel;
   delete nextRecord.pendingRefreshMonth;
   delete nextRecord.pendingSavedAt;
+  delete nextRecord.pendingSheetNames;
+  delete nextRecord.pendingSelectedSheetName;
   return nextRecord;
 }
 
