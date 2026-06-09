@@ -234,9 +234,10 @@ async function generateReconciliationWorkbook() {
   els.libraryState.textContent = "生成中";
 
   try {
-    const { sources, reconciliationWorkbook, result } = await buildReconciliationWorkbookResult();
+    const { sources, reconciliationWorkbook, reconciliationSheetName, result } = await buildReconciliationWorkbookResult();
     updateReconciliationMetrics(result);
-    window.XLSX.writeFile(reconciliationWorkbook, buildGeneratedFileName(sources.operation.name));
+    const outputBlob = await buildPreservedReconciliationBlob(sources.operation.file, reconciliationSheetName, result);
+    downloadBlob(outputBlob, buildGeneratedFileName(sources.operation.name));
     els.libraryState.textContent = `已生成 ${result.checkedRows} 行`;
   } catch (error) {
     console.warn("generate reconciliation workbook failed", error);
@@ -291,7 +292,7 @@ async function buildReconciliationWorkbookResult() {
   if (!reconciliationSheet) throw new Error("优乐步对账表没有可读取的工作表。");
 
   const result = fillReconciliationSheet(reconciliationSheet, registrationEntries);
-  return { sources, reconciliationWorkbook, result };
+  return { sources, reconciliationWorkbook, reconciliationSheetName, result };
 }
 
 function getGenerateSourceRecords() {
@@ -312,6 +313,195 @@ function getGenerateSourceLabel(key) {
     operation: "优乐步对账表",
     yile: "对账文件3",
   }[key] || key;
+}
+
+async function buildPreservedReconciliationBlob(sourceFile, sheetName, result) {
+  if (!window.JSZip) {
+    throw new Error("Excel 保真导出组件未加载，请刷新页面后重试。");
+  }
+  if (!isOpenXmlWorkbook(sourceFile?.name)) {
+    throw new Error("保留原表格式需要上传 .xlsx 或 .xlsm 格式的优乐步对账表。");
+  }
+
+  const zip = await window.JSZip.loadAsync(await sourceFile.arrayBuffer());
+  const sheetPath = await getWorkbookSheetPath(zip, sheetName);
+  const sheetFile = zip.file(sheetPath);
+  if (!sheetFile) throw new Error("没有找到优乐步对账表对应的工作表文件。");
+
+  const sheetXml = await sheetFile.async("string");
+  const patchedSheetXml = patchWorksheetXml(sheetXml, result);
+  zip.file(sheetPath, patchedSheetXml);
+  return zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+function isOpenXmlWorkbook(fileName) {
+  return /\.(xlsx|xlsm)$/i.test(String(fileName || ""));
+}
+
+async function getWorkbookSheetPath(zip, sheetName) {
+  const workbookXml = await zip.file("xl/workbook.xml")?.async("string");
+  const relsXml = await zip.file("xl/_rels/workbook.xml.rels")?.async("string");
+  if (!workbookXml || !relsXml) throw new Error("优乐步对账表文件结构不完整，无法保真导出。");
+
+  const sheetTag = (workbookXml.match(/<sheet\b[^>]*\/?>/g) || []).find((tag) => {
+    const attrs = parseXmlAttributes(tag);
+    return attrs.name === sheetName;
+  });
+  if (!sheetTag) throw new Error(`没有找到工作表：${sheetName}`);
+
+  const relationshipId = parseXmlAttributes(sheetTag)["r:id"];
+  const relTag = (relsXml.match(/<Relationship\b[^>]*\/?>/g) || []).find((tag) => (
+    parseXmlAttributes(tag).Id === relationshipId
+  ));
+  if (!relTag) throw new Error(`没有找到工作表关系：${sheetName}`);
+
+  return resolveWorkbookRelationshipTarget(parseXmlAttributes(relTag).Target);
+}
+
+function resolveWorkbookRelationshipTarget(target) {
+  const normalizedTarget = String(target || "");
+  if (normalizedTarget.startsWith("/")) return normalizeZipPath(normalizedTarget.slice(1));
+  return normalizeZipPath(`xl/${normalizedTarget}`);
+}
+
+function patchWorksheetXml(sheetXml, result) {
+  let xml = sheetXml;
+  for (const output of result.outputRows || []) {
+    const rowNumber = output.rowIndex + 1;
+    xml = setInlineStringCell(xml, rowNumber, CHECK_COLUMN_INDEX, output.status);
+    xml = setInlineStringCell(xml, rowNumber, REMARK_COLUMN_INDEX, output.remark);
+  }
+  xml = patchWorksheetMerges(xml, result.outputMerges || []);
+  xml = expandWorksheetDimension(xml, result);
+  return xml;
+}
+
+function setInlineStringCell(sheetXml, rowNumber, columnIndex, value) {
+  const cellRef = `${columnIndexToName(columnIndex)}${rowNumber}`;
+  const rowRegex = new RegExp(`<row\\b(?=[^>]*\\br="${rowNumber}"\\b)[^>]*(?:>[\\s\\S]*?<\\/row>|\\s*\\/>)`);
+  const rowMatch = sheetXml.match(rowRegex);
+  if (rowMatch) {
+    const patchedRow = upsertCellInRowXml(rowMatch[0], cellRef, columnIndex, value);
+    return sheetXml.slice(0, rowMatch.index) + patchedRow + sheetXml.slice(rowMatch.index + rowMatch[0].length);
+  }
+  const rowXml = `<row r="${rowNumber}">${buildInlineStringCell(cellRef, value)}</row>`;
+  return insertRowXml(sheetXml, rowNumber, rowXml);
+}
+
+function upsertCellInRowXml(rowXml, cellRef, columnIndex, value) {
+  const cellRegex = new RegExp(`<c\\b(?=[^>]*\\br="${escapeRegExp(cellRef)}"\\b)[^>]*(?:>[\\s\\S]*?<\\/c>|\\s*\\/>)`);
+  const cellMatch = rowXml.match(cellRegex);
+  if (cellMatch) {
+    const patchedCell = buildInlineStringCell(cellRef, value, cellMatch[0]);
+    return rowXml.slice(0, cellMatch.index) + patchedCell + rowXml.slice(cellMatch.index + cellMatch[0].length);
+  }
+
+  const cellXml = buildInlineStringCell(cellRef, value);
+  if (/\/>\s*$/.test(rowXml)) {
+    return rowXml.replace(/\s*\/>\s*$/, `>${cellXml}</row>`);
+  }
+
+  const insertIndex = findCellInsertIndex(rowXml, columnIndex);
+  return rowXml.slice(0, insertIndex) + cellXml + rowXml.slice(insertIndex);
+}
+
+function buildInlineStringCell(cellRef, value, existingCellXml = "") {
+  const attrs = existingCellXml ? parseXmlAttributes(existingCellXml.match(/^<c\b[^>]*>/)?.[0] || "") : {};
+  const styleAttr = attrs.s ? ` s="${escapeXmlAttribute(attrs.s)}"` : "";
+  return `<c r="${cellRef}"${styleAttr} t="inlineStr"><is><t>${escapeXmlText(value)}</t></is></c>`;
+}
+
+function findCellInsertIndex(rowXml, columnIndex) {
+  const cellRegex = /<c\b[^>]*\br="([A-Z]+)\d+"[^>]*(?:>[\s\S]*?<\/c>|\s*\/>)/g;
+  let match;
+  while ((match = cellRegex.exec(rowXml))) {
+    if (columnNameToIndex(match[1]) > columnIndex) return match.index;
+  }
+  return rowXml.lastIndexOf("</row>");
+}
+
+function insertRowXml(sheetXml, rowNumber, rowXml) {
+  if (/<sheetData\b[^>]*\/>/.test(sheetXml)) {
+    return sheetXml.replace(/<sheetData\b([^>]*)\/>/, `<sheetData$1>${rowXml}</sheetData>`);
+  }
+
+  const rowRegex = /<row\b(?=[^>]*\br="(\d+)"\b)[^>]*(?:>[\s\S]*?<\/row>|\s*\/>)/g;
+  let match;
+  while ((match = rowRegex.exec(sheetXml))) {
+    if (Number(match[1]) > rowNumber) {
+      return sheetXml.slice(0, match.index) + rowXml + sheetXml.slice(match.index);
+    }
+  }
+  const closeIndex = sheetXml.indexOf("</sheetData>");
+  if (closeIndex === -1) throw new Error("工作表 XML 缺少 sheetData，无法写入结果。");
+  return sheetXml.slice(0, closeIndex) + rowXml + sheetXml.slice(closeIndex);
+}
+
+function patchWorksheetMerges(sheetXml, outputMerges) {
+  const outputRefs = outputMerges.map((merge) => window.XLSX.utils.encode_range(merge));
+  const mergeBlockRegex = /<mergeCells\b[^>]*(?:>[\s\S]*?<\/mergeCells>|\s*\/>)/;
+  const mergeBlockMatch = sheetXml.match(mergeBlockRegex);
+  const existingRefs = mergeBlockMatch ? parseMergeRefs(mergeBlockMatch[0]) : [];
+  const keptRefs = existingRefs.filter((ref) => !isOutputMergeRef(ref));
+  const nextRefs = [...new Set([...keptRefs, ...outputRefs])];
+  const nextBlock = buildMergeCellsBlock(nextRefs);
+
+  if (mergeBlockMatch) {
+    return sheetXml.slice(0, mergeBlockMatch.index) + nextBlock + sheetXml.slice(mergeBlockMatch.index + mergeBlockMatch[0].length);
+  }
+  if (!nextRefs.length) return sheetXml;
+
+  const insertIndex = sheetXml.indexOf("</sheetData>");
+  if (insertIndex === -1) throw new Error("工作表 XML 缺少 sheetData，无法写入合并单元格。");
+  const afterSheetDataIndex = insertIndex + "</sheetData>".length;
+  return sheetXml.slice(0, afterSheetDataIndex) + nextBlock + sheetXml.slice(afterSheetDataIndex);
+}
+
+function parseMergeRefs(mergeBlockXml) {
+  return [...mergeBlockXml.matchAll(/<mergeCell\b[^>]*\bref="([^"]+)"[^>]*\/>/g)]
+    .map((match) => xmlUnescape(match[1]));
+}
+
+function buildMergeCellsBlock(refs) {
+  if (!refs.length) return "";
+  return `<mergeCells count="${refs.length}">${refs.map((ref) => `<mergeCell ref="${escapeXmlAttribute(ref)}"/>`).join("")}</mergeCells>`;
+}
+
+function isOutputMergeRef(ref) {
+  try {
+    const range = window.XLSX.utils.decode_range(ref);
+    return (
+      range.s.r >= OUTPUT_START_ROW_INDEX &&
+      range.s.c === range.e.c &&
+      (range.s.c === CHECK_COLUMN_INDEX || range.s.c === REMARK_COLUMN_INDEX)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function expandWorksheetDimension(sheetXml, result) {
+  const maxOutputRowIndex = Math.max(
+    OUTPUT_START_ROW_INDEX,
+    ...(result.outputRows || []).map((row) => row.rowIndex),
+    ...(result.outputMerges || []).map((merge) => merge.e.r)
+  );
+  const dimensionRegex = /<dimension\b[^>]*\bref="([^"]+)"[^>]*\/>/;
+  const dimensionMatch = sheetXml.match(dimensionRegex);
+  if (!dimensionMatch) return sheetXml;
+  try {
+    const range = window.XLSX.utils.decode_range(xmlUnescape(dimensionMatch[1]));
+    range.e.c = Math.max(range.e.c, OUTPUT_LAST_COLUMN_INDEX);
+    range.e.r = Math.max(range.e.r, maxOutputRowIndex);
+    const nextRef = window.XLSX.utils.encode_range(range);
+    const nextDimension = dimensionMatch[0].replace(/\bref="[^"]+"/, `ref="${escapeXmlAttribute(nextRef)}"`);
+    return sheetXml.slice(0, dimensionMatch.index) + nextDimension + sheetXml.slice(dimensionMatch.index + dimensionMatch[0].length);
+  } catch {
+    return sheetXml;
+  }
 }
 
 async function readWorkbook(file) {
@@ -377,9 +567,11 @@ function fillReconciliationSheet(sheet, registrationEntries) {
     pendingCount: 0,
     returnCount: 0,
     noRecordCount: 0,
+    outputRows: [],
+    outputMerges: [],
   };
 
-  syncOutputMergesFromTrackingColumn(sheet, trackingMergeContext.sourceMerges);
+  stats.outputMerges = syncOutputMergesFromTrackingColumn(sheet, trackingMergeContext.sourceMerges);
 
   for (let rowIndex = OUTPUT_START_ROW_INDEX; rowIndex <= maxRow; rowIndex += 1) {
     if (trackingMergeContext.coveredRows.has(rowIndex)) continue;
@@ -391,6 +583,10 @@ function fillReconciliationSheet(sheet, registrationEntries) {
     const result = getYoulebuRowReconciliationResult(name, trackingNumber, registrationEntries);
     writeTextCell(sheet, rowIndex, CHECK_COLUMN_INDEX, result.status);
     writeTextCell(sheet, rowIndex, REMARK_COLUMN_INDEX, result.remark);
+    stats.outputRows.push({ rowIndex, status: result.status, remark: result.remark });
+    for (let coveredRowIndex = rowIndex + 1; coveredRowIndex <= rowEnd; coveredRowIndex += 1) {
+      stats.outputRows.push({ rowIndex: coveredRowIndex, status: "", remark: "" });
+    }
     stats.checkedRows += 1;
     if (result.status === "已核实") stats.verifiedCount += 1;
     if (result.status === "待核实") stats.pendingCount += 1;
@@ -528,6 +724,7 @@ function syncOutputMergesFromTrackingColumn(sheet, sourceMerges) {
     }))
   ));
   sheet["!merges"] = [...preservedMerges, ...outputMerges];
+  return outputMerges;
 }
 
 function rowGroupHasAnyValue(sheet, startRowIndex, endRowIndex, maxColumnIndex) {
@@ -700,6 +897,85 @@ function sanitizeFileNamePart(value) {
     .trim()
     .replace(/[\\/:*?"<>|]/g, "-")
     .replace(/\s+/g, "");
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function parseXmlAttributes(tagXml) {
+  const attrs = {};
+  String(tagXml || "").replace(/([\w:.-]+)\s*=\s*"([^"]*)"/g, (_, name, value) => {
+    attrs[name] = xmlUnescape(value);
+    return "";
+  });
+  return attrs;
+}
+
+function xmlUnescape(value) {
+  return String(value || "")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function escapeXmlAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeXmlText(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function columnIndexToName(columnIndex) {
+  let index = columnIndex + 1;
+  let name = "";
+  while (index > 0) {
+    const remainder = (index - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    index = Math.floor((index - 1) / 26);
+  }
+  return name;
+}
+
+function columnNameToIndex(columnName) {
+  return String(columnName || "")
+    .toUpperCase()
+    .split("")
+    .reduce((index, char) => index * 26 + char.charCodeAt(0) - 64, 0) - 1;
+}
+
+function normalizeZipPath(path) {
+  const parts = [];
+  String(path || "").split("/").forEach((part) => {
+    if (!part || part === ".") return;
+    if (part === "..") {
+      parts.pop();
+      return;
+    }
+    parts.push(part);
+  });
+  return parts.join("/");
 }
 
 function render() {
