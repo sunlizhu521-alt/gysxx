@@ -16,6 +16,9 @@ const generateSlotIds = {
 };
 
 const OPERATION_SLOT_ID = generateSlotIds.operation;
+const DEFAULT_SLOT_ACCEPT = ".xlsx,.xls,.csv,.txt,.pdf";
+const OPERATION_SLOT_ACCEPT = ".xlsx,.xlsm";
+const OPERATION_FORMAT_MESSAGE = "优乐步对账表需要上传 .xlsx 或 .xlsm 格式，才能保留原表格式；如果是 .xls，请先在 Excel 中另存为 .xlsx 后再上传。";
 const NAME_COLUMN_INDEX = 12;
 const TRACKING_COLUMN_INDEX = 13;
 const CHECK_COLUMN_INDEX = 16;
@@ -136,6 +139,13 @@ async function refresh() {
 
 async function savePendingFile(slotId, file) {
   if (!file) return;
+  const invalidMessage = getInvalidSlotFileMessage(slotId, file);
+  if (invalidMessage) {
+    els.libraryState.textContent = invalidMessage;
+    window.alert(invalidMessage);
+    return;
+  }
+
   const now = new Date().toISOString();
   const existing = state.records.get(slotId) || { id: slotId };
   const pendingSheetFields = slotId === OPERATION_SLOT_ID ? await buildPendingSheetFields(file, existing) : {};
@@ -154,6 +164,13 @@ async function savePendingFile(slotId, file) {
   await putRecord(db, record);
   db.close();
   await refresh();
+}
+
+function getInvalidSlotFileMessage(slotId, file) {
+  if (slotId === OPERATION_SLOT_ID && !isOpenXmlWorkbook(file?.name)) {
+    return OPERATION_FORMAT_MESSAGE;
+  }
+  return "";
 }
 
 async function buildPendingSheetFields(file, existingRecord) {
@@ -220,6 +237,13 @@ async function saveSelectedSheet(slotId, sheetName) {
 async function applySlot(slotId, options = {}) {
   const record = state.records.get(slotId);
   if (!record) return;
+  const invalidMessage = getInvalidAppliedSlotMessage(slotId, record);
+  if (invalidMessage) {
+    els.libraryState.textContent = invalidMessage;
+    window.alert(invalidMessage);
+    return false;
+  }
+
   const appliedAt = new Date().toISOString();
   const updatedRecord = record.pendingFile
     ? clearPendingFields({
@@ -244,6 +268,12 @@ async function applySlot(slotId, options = {}) {
   await putRecord(db, updatedRecord);
   db.close();
   if (!options.skipRefresh) await refresh();
+  return true;
+}
+
+function getInvalidAppliedSlotMessage(slotId, record) {
+  const targetFile = record?.pendingFile || record?.file;
+  return targetFile ? getInvalidSlotFileMessage(slotId, targetFile) : "";
 }
 
 function getAppliedSheetFields(slotId, record) {
@@ -271,7 +301,8 @@ async function applyAllSlots() {
   els.libraryState.textContent = "刷新应用中";
   try {
     for (const slotId of targetSlotIds) {
-      await applySlot(slotId, { skipRefresh: true });
+      const applied = await applySlot(slotId, { skipRefresh: true });
+      if (applied === false) throw new Error(OPERATION_FORMAT_MESSAGE);
     }
     await refresh();
     const result = await refreshReconciliationMetrics();
@@ -410,7 +441,7 @@ async function buildPreservedReconciliationBlob(sourceFile, sheetName, result) {
     throw new Error("Excel 保真导出组件未加载，请刷新页面后重试。");
   }
   if (!isOpenXmlWorkbook(sourceFile?.name)) {
-    throw new Error("保留原表格式需要上传 .xlsx 或 .xlsm 格式的优乐步对账表。");
+    throw new Error(OPERATION_FORMAT_MESSAGE);
   }
 
   const zip = await window.JSZip.loadAsync(await sourceFile.arrayBuffer());
@@ -1102,9 +1133,15 @@ function render() {
   els.sourceNote.textContent = `本地文件库｜引用时间：${getLatestAppliedTime()}`;
   els.slotGrid.innerHTML = slots.map(renderSlot).join("");
   updateReconciliationMetrics();
-  els.libraryState.textContent = "本地文件库";
+  els.libraryState.textContent = getOperationFormatWarning() || "本地文件库";
   updateApplyAllButton();
   updateGenerateButton();
+}
+
+function getOperationFormatWarning() {
+  const record = state.records.get(OPERATION_SLOT_ID);
+  const display = getDisplayRecord(record);
+  return display?.name && !isOpenXmlWorkbook(display.name) ? OPERATION_FORMAT_MESSAGE : "";
 }
 
 function updateReconciliationMetrics(stats = {}) {
@@ -1139,9 +1176,10 @@ function renderSlot(slot) {
         <small>引用时间：${formatDateTime(record?.appliedAt)}</small>
       </div>
       ${renderSheetPicker(slot, record, display)}
+      ${renderSlotFormatHint(slot)}
       <div class="slot-actions">
         <label class="upload-button">
-          <input type="file" accept=".xlsx,.xls,.csv,.txt,.pdf" data-upload="${slot.id}" />
+          <input type="file" accept="${getSlotAccept(slot.id)}" data-upload="${slot.id}" />
           上传/替换
         </label>
         <button type="button" data-apply="${slot.id}" ${hasPending || (record && !record.applied) ? "" : "disabled"}>应用刷新</button>
@@ -1149,6 +1187,15 @@ function renderSlot(slot) {
       </div>
     </article>
   `;
+}
+
+function getSlotAccept(slotId) {
+  return slotId === OPERATION_SLOT_ID ? OPERATION_SLOT_ACCEPT : DEFAULT_SLOT_ACCEPT;
+}
+
+function renderSlotFormatHint(slot) {
+  if (slot.id !== OPERATION_SLOT_ID) return "";
+  return `<small class="slot-format-hint">优乐步对账表仅支持 .xlsx/.xlsm；.xls 请先另存为 .xlsx。</small>`;
 }
 
 function renderSheetPicker(slot, record, display) {
@@ -1240,7 +1287,11 @@ function updateApplyAllButton() {
 function updateGenerateButton() {
   if (!els.generateButton) return;
   const sources = getGenerateSourceRecords();
-  const hasRequiredSources = Boolean(sources.wdt?.file && sources.operation?.file);
+  const hasRequiredSources = Boolean(
+    sources.wdt?.file &&
+    sources.operation?.file &&
+    isOpenXmlWorkbook(sources.operation.name)
+  );
   els.generateButton.disabled = state.isGenerating || !hasRequiredSources;
 }
 
@@ -1274,7 +1325,7 @@ function getMonthFromDate(value) {
 
 function getFileTypeLabel(file) {
   const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
-  if (extension === "xlsx" || extension === "xls") return "Excel 工作簿";
+  if (extension === "xlsx" || extension === "xls" || extension === "xlsm") return "Excel 工作簿";
   if (extension === "csv") return "CSV 文件";
   if (extension === "txt") return "文本文件";
   if (extension === "pdf") return "PDF 文件";

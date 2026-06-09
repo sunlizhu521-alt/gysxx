@@ -466,6 +466,15 @@ h2 {
   white-space: nowrap;
 }
 
+.slot-format-hint {
+  min-width: 0;
+  overflow: hidden;
+  color: #8a5a00;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .slot-actions {
   display: grid;
   grid-template-columns: 1fr 1fr 0.7fr;
