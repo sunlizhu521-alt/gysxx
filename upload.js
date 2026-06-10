@@ -158,13 +158,13 @@ async function readCategoryDimension(file) {
       sku: String(row[2] ?? "").trim(),
       materialName: String(row[3] ?? "").trim(),
       productLine: String(row[6] ?? "").trim(),
-      purchaseGroup: String(row[20] ?? "").trim(),
+      purchaseGroup: String(row[21] ?? "").trim(),
     });
-    const purchaseGroup = normalizeGroupKey(row[20]);
+    const purchaseGroup = normalizeGroupKey(row[21]);
     if (purchaseGroup) {
       map.set(`group:${purchaseGroup}`, {
         productLine: String(row[6] ?? "").trim(),
-        purchaseGroup: String(row[20] ?? "").trim(),
+        purchaseGroup: String(row[21] ?? "").trim(),
       });
     }
   });

@@ -191,7 +191,7 @@ async function readCategoryDimension(file) {
   const purchaseGroups = new Set();
   rows.forEach((row) => {
     const materialCode = normalizeMaterialCode(row[0]);
-    const purchaseGroup = String(row[20] ?? "").trim();
+    const purchaseGroup = String(row[21] ?? "").trim();
     if (purchaseGroup && purchaseGroup !== "采购分组") purchaseGroups.add(purchaseGroup);
     if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
     map.set(materialCode, {

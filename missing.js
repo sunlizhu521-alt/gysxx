@@ -142,7 +142,7 @@ async function readCategoryDimension(file) {
       itemName: String(row[3] ?? "").trim(),
       salesLine: String(row[6] ?? "").trim(),
       salesSeries: String(row[7] ?? "").trim(),
-      purchaseGroup: String(row[20] ?? "").trim(),
+      purchaseGroup: String(row[21] ?? "").trim(),
     });
   });
   return map;

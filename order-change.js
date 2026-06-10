@@ -205,7 +205,7 @@ async function readCategoryDimension(file) {
     map.set(materialCode, {
       salesLine: getRowValue(row, headerMap.salesLine ?? 6) || "未匹配",
       salesSeries: getRowValue(row, headerMap.salesSeries ?? 7) || "未匹配",
-      purchaseGroup: getRowValue(row, headerMap.purchaseGroup ?? 20) || "未匹配",
+      purchaseGroup: getRowValue(row, headerMap.purchaseGroup ?? 21) || "未匹配",
       settlementPrice: parseNumber(getRowValue(row, headerMap.settlementPrice)),
     });
   });
