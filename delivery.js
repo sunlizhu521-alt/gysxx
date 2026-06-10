@@ -16,6 +16,7 @@ const deliveryState = {
   categoryPurchaseGroups: [],
   purchaseDetailMap: new Map(),
   selectedFilters: {},
+  detailFilters: {},
 };
 
 const deliveryEls = {
@@ -38,6 +39,16 @@ const deliveryEls = {
   rows: document.querySelector("#deliveryRows"),
   state: document.querySelector("#deliveryState"),
   sourceNote: document.querySelector("#deliverySourceNote"),
+  detailFilters: {
+    supplierShort: document.querySelector("#supplierShortColumnFilter"),
+    materialCode: document.querySelector("#materialCodeColumnFilter"),
+    sku: document.querySelector("#skuColumnFilter"),
+    itemName: document.querySelector("#itemNameColumnFilter"),
+    orderedQty: document.querySelector("#orderedQtyColumnFilter"),
+    completedQty: document.querySelector("#completedQtyColumnFilter"),
+    shippedQty: document.querySelector("#shippedQtyColumnFilter"),
+    remainingQty: document.querySelector("#remainingQtyColumnFilter"),
+  },
 };
 
 const deliveryFilterConfigs = [
@@ -59,6 +70,17 @@ const deliveryFilterConfigs = [
       { value: "notOver60", label: "\u672a\u8d8560\u5929" },
     ],
   },
+];
+
+const detailFilterConfigs = [
+  { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
+  { key: "materialCode", label: "物料编码", field: "materialCode" },
+  { key: "sku", label: "SKU", field: "sku" },
+  { key: "itemName", label: "物品名称", field: "itemName" },
+  { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
+  { key: "completedQty", label: "已完工数据", field: "completedQty", numeric: true },
+  { key: "shippedQty", label: "已发货数量", field: "shippedQty", numeric: true },
+  { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
 ];
 
 const columnAliases = {
@@ -94,6 +116,10 @@ function bindDeliveryEvents() {
     deliveryState.selectedFilters[config.key] = new Set();
     renderFilterShell(config);
   });
+  detailFilterConfigs.forEach((config) => {
+    deliveryState.detailFilters[config.key] = new Set();
+    renderDetailFilterShell(config);
+  });
 
   deliveryEls.filterBar.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-filter-toggle]");
@@ -113,14 +139,35 @@ function bindDeliveryEvents() {
     }
   });
 
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest("#deliveryFilterBar")) {
+  document.querySelector(".delivery-table")?.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-detail-filter-toggle]");
+    if (toggle) {
+      const key = toggle.dataset.detailFilterToggle;
       closeOtherFilterMenus();
+      closeOtherDetailFilterMenus(key);
+      deliveryEls.detailFilters[key]?.classList.toggle("open");
+      return;
+    }
+
+    const option = event.target.closest("[data-detail-filter-option]");
+    if (option) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleDetailFilterOption(option.dataset.detailFilterKey, option.dataset.detailFilterOption);
+      renderDelivery();
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("#deliveryFilterBar") && !event.target.closest(".delivery-table")) {
+      closeOtherFilterMenus();
+      closeOtherDetailFilterMenus();
     }
   });
 
   deliveryEls.resetButton.addEventListener("click", () => {
     deliveryFilterConfigs.forEach((config) => deliveryState.selectedFilters[config.key].clear());
+    detailFilterConfigs.forEach((config) => deliveryState.detailFilters[config.key].clear());
     applyDeliveryFilters();
   });
 
@@ -365,6 +412,12 @@ function getDeliveryFilterValues() {
   );
 }
 
+function getDetailFilterValues() {
+  return Object.fromEntries(
+    detailFilterConfigs.map((config) => [config.key, [...(deliveryState.detailFilters[config.key] || new Set())]])
+  );
+}
+
 function updateFilterOptions() {
   const filters = getDeliveryFilterValues();
   deliveryFilterConfigs.forEach((config) => {
@@ -396,6 +449,18 @@ function renderFilterShell(config) {
   `;
 }
 
+function renderDetailFilterShell(config) {
+  const element = deliveryEls.detailFilters[config.key];
+  if (!element) return;
+  element.innerHTML = `
+    <button class="table-column-filter-button" type="button" data-detail-filter-toggle="${config.key}">
+      <span>${config.label}</span>
+      <i aria-hidden="true">▾</i>
+    </button>
+    <div class="table-column-filter-menu" role="menu"></div>
+  `;
+}
+
 function syncMultiFilter(config, options, selectedValues) {
   const availableValues = new Set(options.map((option) => option.value));
   const selectedSet = deliveryState.selectedFilters[config.key] || new Set();
@@ -424,6 +489,50 @@ function syncMultiFilter(config, options, selectedValues) {
   `;
 }
 
+function updateDetailFilterOptions(rows) {
+  const filters = getDetailFilterValues();
+  detailFilterConfigs.forEach((config) => {
+    const optionItems = getDetailFilterOptionItems(rows, config, filters);
+    syncDetailFilter(config, optionItems);
+  });
+}
+
+function getDetailFilterOptionItems(rows, config, filters) {
+  const availableRows = filterDetailRecords(rows, { ...filters, [config.key]: [] });
+  const values = uniqueDetailValues(availableRows, config);
+  return values.map((value) => ({ value, label: value }));
+}
+
+function syncDetailFilter(config, options) {
+  const element = deliveryEls.detailFilters[config.key];
+  if (!element) return;
+  const availableValues = new Set(options.map((option) => option.value));
+  const selectedSet = deliveryState.detailFilters[config.key] || new Set();
+  [...selectedSet].forEach((value) => {
+    if (!availableValues.has(value)) selectedSet.delete(value);
+  });
+  deliveryState.detailFilters[config.key] = selectedSet;
+
+  const button = element.querySelector(".table-column-filter-button span");
+  const menu = element.querySelector(".table-column-filter-menu");
+  button.textContent = getFilterButtonLabel(config, [...selectedSet]);
+  menu.innerHTML = `
+    <label class="multi-filter-option ${selectedSet.size ? "" : "selected"}" data-detail-filter-key="${config.key}" data-detail-filter-option="all">
+      <input type="checkbox" ${selectedSet.size ? "" : "checked"} />
+      <span>全部${escapeHtml(config.label)}</span>
+    </label>
+    ${options
+      .map(
+        (option) => `
+          <label class="multi-filter-option ${selectedSet.has(option.value) ? "selected" : ""}" data-detail-filter-key="${config.key}" data-detail-filter-option="${escapeAttribute(option.value)}">
+            <input type="checkbox" ${selectedSet.has(option.value) ? "checked" : ""} />
+            <span>${escapeHtml(option.label)}</span>
+          </label>`
+      )
+      .join("")}
+  `;
+}
+
 function getFilterButtonLabel(config, selectedValues) {
   if (!selectedValues.length) return config.label;
   if (selectedValues.length === 1) return selectedValues[0];
@@ -443,9 +552,27 @@ function toggleFilterOption(key, value) {
   deliveryState.selectedFilters[key] = selectedSet;
 }
 
+function toggleDetailFilterOption(key, value) {
+  const selectedSet = deliveryState.detailFilters[key] || new Set();
+  if (value === "all") {
+    selectedSet.clear();
+  } else if (selectedSet.has(value)) {
+    selectedSet.delete(value);
+  } else {
+    selectedSet.add(value);
+  }
+  deliveryState.detailFilters[key] = selectedSet;
+}
+
 function closeOtherFilterMenus(activeKey = "") {
   deliveryFilterConfigs.forEach((config) => {
     if (config.key !== activeKey) config.element.classList.remove("open");
+  });
+}
+
+function closeOtherDetailFilterMenus(activeKey = "") {
+  detailFilterConfigs.forEach((config) => {
+    if (config.key !== activeKey) deliveryEls.detailFilters[config.key]?.classList.remove("open");
   });
 }
 
@@ -482,7 +609,9 @@ function matchesStockAgeFilter(record, selectedValues = []) {
 
 function renderDelivery(message) {
   const records = deliveryState.filtered;
-  const detailRecords = getDeliveryDetailRecords();
+  const baseDetailRecords = aggregateDeliveryDetailRecords(records.filter((record) => Number(record.remainingQty) > 0));
+  updateDetailFilterOptions(baseDetailRecords);
+  const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
   deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
   deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
   deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
@@ -511,7 +640,9 @@ function renderDeliveryRow(record) {
 }
 
 function getDeliveryDetailRecords() {
-  return aggregateDeliveryDetailRecords(deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0));
+  const records = aggregateDeliveryDetailRecords(deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0));
+  updateDetailFilterOptions(records);
+  return filterDetailRecords(records, getDetailFilterValues());
 }
 
 function aggregateDeliveryDetailRecords(records) {
@@ -630,6 +761,27 @@ function findColumnIndexByHeader(rows, aliases) {
 
 function uniqueValues(items, key) {
   return [...new Set(items.map((item) => item[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+}
+
+function uniqueDetailValues(items, config) {
+  return [...new Set(items.map((item) => getDetailRecordFilterValue(item, config)).filter(Boolean))].sort((a, b) =>
+    String(a).localeCompare(String(b), "zh-CN", { numeric: true })
+  );
+}
+
+function filterDetailRecords(rows, filters = getDetailFilterValues()) {
+  return rows.filter((record) =>
+    detailFilterConfigs.every((config) => {
+      const selectedValues = filters[config.key] || [];
+      if (!selectedValues.length) return true;
+      return selectedValues.includes(getDetailRecordFilterValue(record, config));
+    })
+  );
+}
+
+function getDetailRecordFilterValue(record, config) {
+  const value = record[config.field];
+  return config.numeric ? formatNumber(value) : String(value || "").trim();
 }
 
 function sortPurchaseGroups(values) {

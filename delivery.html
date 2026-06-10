@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>供应商交付信息 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260606-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260610-14" />
   </head>
   <body>
     <div class="app-shell">
@@ -99,14 +99,14 @@
             <table class="delivery-table">
               <thead>
                 <tr>
-                  <th>供应商简称</th>
-                  <th>物料编码</th>
-                  <th>SKU</th>
-                  <th>物品名称</th>
-                  <th>下单数量</th>
-                  <th>已完工数据</th>
-                  <th>已发货数量</th>
-                  <th>剩余数量</th>
+                  <th><div class="table-column-filter" id="supplierShortColumnFilter" data-detail-filter-key="supplierShort"></div></th>
+                  <th><div class="table-column-filter" id="materialCodeColumnFilter" data-detail-filter-key="materialCode"></div></th>
+                  <th><div class="table-column-filter" id="skuColumnFilter" data-detail-filter-key="sku"></div></th>
+                  <th><div class="table-column-filter" id="itemNameColumnFilter" data-detail-filter-key="itemName"></div></th>
+                  <th><div class="table-column-filter" id="orderedQtyColumnFilter" data-detail-filter-key="orderedQty"></div></th>
+                  <th><div class="table-column-filter" id="completedQtyColumnFilter" data-detail-filter-key="completedQty"></div></th>
+                  <th><div class="table-column-filter" id="shippedQtyColumnFilter" data-detail-filter-key="shippedQty"></div></th>
+                  <th><div class="table-column-filter" id="remainingQtyColumnFilter" data-detail-filter-key="remainingQty"></div></th>
                 </tr>
               </thead>
               <tbody id="deliveryRows"></tbody>
@@ -116,6 +116,6 @@
       </main>
     </div>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
-    <script src="./delivery.js?v=20260610-3"></script>
+    <script src="./delivery.js?v=20260610-4"></script>
   </body>
 </html>
