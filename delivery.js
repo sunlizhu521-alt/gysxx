@@ -24,6 +24,7 @@ const deliveryEls = {
   purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
+  modelFilter: document.querySelector("#modelFilter"),
   supplierShortFilter: document.querySelector("#supplierShortFilter"),
   orderUserFilter: document.querySelector("#orderUserFilter"),
   dateFilter: document.querySelector("#dateFilter"),
@@ -41,11 +42,12 @@ const deliveryEls = {
 
 const deliveryFilterConfigs = [
   { key: "businessUnit", element: deliveryEls.businessUnitFilter, label: "\u5168\u90e8\u4e8b\u4e1a\u90e8", field: "businessUnit" },
-  { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
   { key: "salesLine", element: deliveryEls.salesLineFilter, label: "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf", field: "salesLine" },
   { key: "salesSeries", element: deliveryEls.salesSeriesFilter, label: "\u5168\u90e8\u9500\u552e\u7cfb\u5217", field: "salesSeries" },
-  { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
+  { key: "model", element: deliveryEls.modelFilter, label: "\u5168\u90e8\u578b\u53f7", field: "model" },
+  { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
   { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
+  { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
   { key: "dateRange", element: deliveryEls.dateFilter, label: "\u5168\u90e8\u65f6\u95f4", field: null, staticOptions: [] },
   {
     key: "stockAge",
@@ -189,6 +191,7 @@ async function readCategoryDimension(file) {
   const rows = await readWorkbookRows(file, "Dim-YL医疗器械商品分类");
   const map = new Map();
   const purchaseGroups = new Set();
+  const modelIndex = findColumnIndexByHeader(rows, ["型号", "规格型号", "产品型号"]);
   rows.forEach((row) => {
     const materialCode = normalizeMaterialCode(row[0]);
     const purchaseGroup = String(row[21] ?? "").trim();
@@ -197,6 +200,7 @@ async function readCategoryDimension(file) {
     map.set(materialCode, {
       salesLine: String(row[6] ?? "").trim(),
       salesSeries: String(row[7] ?? "").trim(),
+      model: getRowValue(row, modelIndex),
       purchaseGroup,
     });
   });
@@ -346,6 +350,7 @@ function enrichDeliveryRecords(records, categoryMap, purchaseDetailMap = new Map
       ...record,
       salesLine: matched?.salesLine || record.salesLine || "\u672a\u5339\u914d",
       salesSeries: matched?.salesSeries || record.salesSeries || "\u672a\u5339\u914d",
+      model: matched?.model || record.model || "\u672a\u5339\u914d",
       purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "\u672a\u5339\u914d",
       supplier: detail?.supplier || record.supplier || "\u672a\u5339\u914d",
       supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || "\u672a\u5339\u914d",
@@ -457,6 +462,7 @@ function filterRecords(filters) {
       matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
       matchesFilter(record.salesLine, filters.salesLine) &&
       matchesFilter(record.salesSeries, filters.salesSeries) &&
+      matchesFilter(record.model, filters.model) &&
       matchesFilter(record.supplierShort, filters.supplierShort) &&
       matchesFilter(record.orderUser, filters.orderUser) &&
       matchesStockAgeFilter(record, filters.stockAge)
@@ -505,7 +511,37 @@ function renderDeliveryRow(record) {
 }
 
 function getDeliveryDetailRecords() {
-  return deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0);
+  return aggregateDeliveryDetailRecords(deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0));
+}
+
+function aggregateDeliveryDetailRecords(records) {
+  const map = new Map();
+  records.forEach((record) => {
+    const materialKey = normalizeMaterialCode(record.materialCode);
+    const key = materialKey || `row:${record.id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        ...record,
+        supplierShortValues: new Set(),
+        orderedQty: 0,
+        completedQty: 0,
+        shippedQty: 0,
+        remainingQty: 0,
+      });
+    }
+    const target = map.get(key);
+    addDisplayValue(target.supplierShortValues, record.supplierShort || record.supplier);
+    target.supplierShort = [...target.supplierShortValues].join("、");
+    target.supplier ||= record.supplier || "";
+    target.materialCode ||= record.materialCode || "";
+    target.sku ||= record.sku || "";
+    target.itemName ||= record.itemName || "";
+    target.orderedQty += Number(record.orderedQty) || 0;
+    target.completedQty += Number(record.completedQty) || 0;
+    target.shippedQty += Number(record.shippedQty) || 0;
+    target.remainingQty += Number(record.remainingQty) || 0;
+  });
+  return [...map.values()];
 }
 
 function downloadDeliveryDetails() {
@@ -513,6 +549,7 @@ function downloadDeliveryDetails() {
   if (!rows.length || !window.XLSX) return;
 
   const exportRows = rows.map((record) => ({
+    供应商简称: record.supplierShort || record.supplier || "",
     物料编码: record.materialCode || "",
     SKU: record.sku || "",
     物品名称: record.itemName || "",
@@ -522,7 +559,7 @@ function downloadDeliveryDetails() {
     剩余数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["物料编码", "SKU", "物品名称", "下单数量", "已完工数据", "已发货数量", "剩余数量"],
+    header: ["供应商简称", "物料编码", "SKU", "物品名称", "下单数量", "已完工数据", "已发货数量", "剩余数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
@@ -582,6 +619,15 @@ function hasKnownPurchaseDetailHeader(value) {
   return Object.values(purchaseDetailAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
 }
 
+function findColumnIndexByHeader(rows, aliases) {
+  const normalizedAliases = new Set(aliases.map(normalizeHeader));
+  for (const row of rows) {
+    const index = row.findIndex((cell) => normalizedAliases.has(normalizeHeader(cell)));
+    if (index >= 0) return index;
+  }
+  return undefined;
+}
+
 function uniqueValues(items, key) {
   return [...new Set(items.map((item) => item[key]).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
 }
@@ -603,6 +649,11 @@ function sumBy(items, key) {
 
 function sumOver60Remaining(items) {
   return items.reduce((sum, item) => sum + (item.isOver60 ? Number(item.remainingQty) || 0 : 0), 0);
+}
+
+function addDisplayValue(target, value) {
+  const text = String(value || "").trim();
+  if (text && text !== "未匹配") target.add(text);
 }
 
 function isStockAgeOver60(value) {
