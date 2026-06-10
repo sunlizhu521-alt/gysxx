@@ -13,6 +13,7 @@ const deliveryState = {
   records: [],
   filtered: [],
   categoryMap: new Map(),
+  categoryPurchaseGroups: [],
   purchaseDetailMap: new Map(),
   selectedFilters: {},
 };
@@ -143,7 +144,9 @@ async function loadDeliverySource(options = {}) {
       return false;
     }
 
-    deliveryState.categoryMap = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : new Map();
+    const categoryResult = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : createEmptyCategoryResult();
+    deliveryState.categoryMap = categoryResult.map;
+    deliveryState.categoryPurchaseGroups = categoryResult.purchaseGroups;
     deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file ? await readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file) : new Map();
     const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
@@ -175,24 +178,39 @@ function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
   deliveryState.purchaseDetailMap = new Map();
+  deliveryState.categoryMap = new Map();
+  deliveryState.categoryPurchaseGroups = [];
   updateSourceNote(deliveryEls.sourceNote, DELIVERY_SOURCE_LABEL, null);
   updateFilterOptions();
   renderDelivery(message);
 }
 
 async function readCategoryDimension(file) {
-  const rows = await readWorkbookRows(file);
+  const rows = await readWorkbookRows(file, "Dim-YL医疗器械商品分类");
   const map = new Map();
-  rows.slice(1).forEach((row) => {
+  const purchaseGroups = new Set();
+  rows.forEach((row) => {
     const materialCode = normalizeMaterialCode(row[0]);
-    if (!materialCode) return;
+    const purchaseGroup = String(row[20] ?? "").trim();
+    if (purchaseGroup && purchaseGroup !== "采购分组") purchaseGroups.add(purchaseGroup);
+    if (!materialCode || materialCode === "物料编码" || materialCode === "商品编码") return;
     map.set(materialCode, {
       salesLine: String(row[6] ?? "").trim(),
       salesSeries: String(row[7] ?? "").trim(),
-      purchaseGroup: String(row[20] ?? "").trim(),
+      purchaseGroup,
     });
   });
-  return map;
+  return {
+    map,
+    purchaseGroups: sortPurchaseGroups([...purchaseGroups]),
+  };
+}
+
+function createEmptyCategoryResult() {
+  return {
+    map: new Map(),
+    purchaseGroups: [],
+  };
 }
 
 async function readPurchaseDetailMap(file) {
@@ -354,7 +372,11 @@ function getFilterOptionItems(config, filters) {
   if (config.staticOptions) {
     return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
   }
-  const values = uniqueValues(filterRecords({ ...filters, [config.key]: [] }), config.field);
+  let values = uniqueValues(filterRecords({ ...filters, [config.key]: [] }), config.field);
+  if (config.key === "purchaseGroup") {
+    const sourceGroups = new Set(deliveryState.categoryPurchaseGroups);
+    values = values.filter((value) => sourceGroups.has(value));
+  }
   const sortedValues = config.sort ? config.sort(values) : values;
   return sortedValues.map((value) => ({ value, label: value }));
 }
