@@ -3,7 +3,7 @@ const DB_VERSION = 3;
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 const KINGDEE_ORDER_SLOT = "fact-2";
-const KINGDEE_COMPARE_BUILD = "cache-only-20260608-4";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260612-1";
 const MAX_EXTRACT_SHEET_ROWS = 120000;
 const MAX_EXTRACT_SHEET_COLUMNS = 80;
 
@@ -113,10 +113,6 @@ async function refreshAdmin() {
 async function saveFile(slotId, file) {
   if (!file) return;
   const slot = getSlot(slotId);
-  if (slotId === KINGDEE_ORDER_SLOT && !isLightKingdeeFile(file)) {
-    window.alert("Fac-金蝶采购订单列表请上传轻量CSV文件。原始Excel请先用转换脚本处理后再上传。");
-    return;
-  }
   const savedAt = new Date().toISOString();
   const existing = adminState.records.get(slotId) || { id: slotId };
   const record = {
@@ -194,10 +190,9 @@ async function applyAllSlots() {
 
 async function buildSlotExtractFields(slotId, record, appliedAt) {
   if (slotId !== KINGDEE_ORDER_SLOT) return {};
-  if (!record.pendingFile) return clearKingdeeExtractFields("未上传轻量CSV文件");
-  if (!isLightKingdeeFile(record.pendingFile)) return clearKingdeeExtractFields("请上传轻量CSV文件，不再支持浏览器解析原始Excel");
+  if (!record.pendingFile) return clearKingdeeExtractFields("未上传文件");
   try {
-    adminEls.referenceState.textContent = "正在生成金蝶轻量数据";
+    adminEls.referenceState.textContent = "正在读取金蝶采购订单列表";
     const rows = await readKingdeeCompareRows(record.pendingFile);
     return {
       kingdeeCompareRows: rows,
@@ -212,7 +207,7 @@ async function buildSlotExtractFields(slotId, record, appliedAt) {
     };
   } catch (error) {
     console.warn("kingdee compare extract failed", error);
-    return clearKingdeeExtractFields(error.message || "轻量数据生成失败");
+    return clearKingdeeExtractFields(error.message || "数据读取失败");
   }
 }
 
@@ -308,23 +303,23 @@ function renderReferenceRow(slot, record) {
 
 function getSlotHelperText(slot, record) {
   if (slot.id !== KINGDEE_ORDER_SLOT) return "可点击上传，也可拖拽文件到此处";
-  if (record?.pendingFile) return "确认应用时会读取轻量CSV并生成对比数据";
-  if (record?.kingdeeCompareExtractError) return `轻量数据失败：${record.kingdeeCompareExtractError}`;
+  if (record?.pendingFile) return "确认应用时会读取文件并生成对比数据";
+  if (record?.kingdeeCompareExtractError) return `数据读取失败：${record.kingdeeCompareExtractError}`;
   if (Array.isArray(record?.kingdeeCompareRows) && record.kingdeeCompareRows.length) {
-    return `轻量数据已生成：${record.kingdeeCompareRows.length} 行`;
+    return `对比数据已生成：${record.kingdeeCompareRows.length} 行`;
   }
-  if (record?.applied) return "已引用，但未生成轻量数据，请重新上传并确认应用";
-  return "请上传转换后的轻量CSV，不要上传原始Excel";
+  if (record?.applied) return "已引用，但未生成对比数据，请重新上传并确认应用";
+  return "可上传 Excel 或 CSV，格式同采购订单跟进表";
 }
 
 function getReferenceStatusText(slot, record, applied) {
   if (!applied) return "未引用";
   if (slot.id !== KINGDEE_ORDER_SLOT) return "已引用";
-  if (record?.kingdeeCompareExtractError) return "轻量数据失败";
+  if (record?.kingdeeCompareExtractError) return "数据读取失败";
   if (Array.isArray(record?.kingdeeCompareRows) && record.kingdeeCompareRows.length) {
-    return `已引用 / 轻量${record.kingdeeCompareRows.length}行`;
+    return `已引用 / 对比${record.kingdeeCompareRows.length}行`;
   }
-  return "已引用 / 未生成轻量数据";
+  return "已引用 / 未生成对比数据";
 }
 
 function getSlot(slotId) {
@@ -332,7 +327,7 @@ function getSlot(slotId) {
 }
 
 function getSlotAccept(slot) {
-  return slot.id === KINGDEE_ORDER_SLOT ? ".csv,.txt" : ".xlsx,.xls,.csv";
+  return ".xlsx,.xls,.csv";
 }
 
 function getDisplayRecord(record) {
@@ -391,16 +386,8 @@ const kingdeeAliases = {
 };
 
 async function readKingdeeCompareRows(file) {
-  if (!isLightKingdeeFile(file)) {
-    throw new Error("请上传轻量CSV文件，不再支持浏览器解析原始Excel");
-  }
-  const rows = csvToRows(await readFileText(file));
+  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
   return parseKingdeeSheet(rows);
-}
-
-function isLightKingdeeFile(file) {
-  const extension = String(file?.name || "").split(".").pop()?.toLowerCase();
-  return extension === "csv" || extension === "txt";
 }
 
 function parseKingdeeSheet(rows) {

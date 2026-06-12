@@ -183,11 +183,18 @@ async function readRequiredSource(label, file, reader) {
 async function readKingdeeRowsFromRecord(record) {
   const cachedRows = getFreshKingdeeCompareCache(record);
   if (cachedRows) return cachedRows;
+  if (record?.file) {
+    const rows = await readKingdeeWorkbook(record.file);
+    if (rows.length) {
+      await saveKingdeeCompareCache(record, rows);
+      return rows;
+    }
+  }
   const extractError = record?.kingdeeCompareExtractError;
   throw new Error(
     extractError
-      ? `Fac-金蝶采购订单列表轻量数据生成失败：${extractError}`
-      : "Fac-金蝶采购订单列表未生成轻量数据，请到文件库更新重新上传该表并点击确认应用"
+      ? `Fac-金蝶采购订单列表数据读取失败：${extractError}`
+      : "Fac-金蝶采购订单列表未生成对比数据，请到文件库更新重新上传该表并点击确认应用"
   );
 }
 

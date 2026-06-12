@@ -1,6 +1,6 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
-const KINGDEE_COMPARE_BUILD = "cache-only-20260608-4";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260612-1";
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -209,15 +209,15 @@ async function readKingdeeRowsFromRecord(record) {
   throw new Error(
     extractError
       ? formatKingdeeCacheError(extractError)
-      : "Fac-金蝶采购订单列表未生成轻量数据，请到文件库更新重新上传该表并点击确认应用"
+      : "Fac-金蝶采购订单列表未生成对比数据，请到文件库更新重新上传该表并点击确认应用"
   );
 }
 
 function formatKingdeeCacheError(errorMessage) {
   if (/allocation|array buffer|out of memory|memory/i.test(String(errorMessage || ""))) {
-    return "Fac-金蝶采购订单列表仍是旧的原始Excel失败记录，请到文件库更新上传转换后的轻量CSV并点击确认应用";
+    return "Fac-金蝶采购订单列表读取失败，请到文件库更新重新上传并点击确认应用";
   }
-  return `Fac-金蝶采购订单列表轻量数据生成失败：${errorMessage}`;
+  return `Fac-金蝶采购订单列表数据读取失败：${errorMessage}`;
 }
 
 function getFreshKingdeeCompareCache(record) {
