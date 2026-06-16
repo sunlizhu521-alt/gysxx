@@ -206,12 +206,18 @@ async function loadDeliverySource(options = {}) {
       return false;
     }
 
-    const categoryResult = appliedCategoryRecord?.file ? await readCategoryDimension(appliedCategoryRecord.file) : createEmptyCategoryResult();
+    const categoryResult = appliedCategoryRecord?.file
+      ? await readNamedSource("Dim-YL医疗器械商品分类", () => readCategoryDimension(appliedCategoryRecord.file))
+      : createEmptyCategoryResult();
     deliveryState.categoryMap = categoryResult.map;
     deliveryState.categoryPurchaseGroups = categoryResult.purchaseGroups;
-    deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file ? await readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file) : new Map();
-    const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
-    const kingdeeRecords = enrichKingdeeRecords(await readKingdeeRowsFromRecord(appliedKingdeeRecord), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
+    deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file
+      ? await readNamedSource("Dim-采购分工明细", () => readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file))
+      : new Map();
+    const deliveryRows = await readNamedSource("Fac-采购订单跟进表", () => readDeliveryWorkbook(appliedFactRecord.file));
+    const kingdeeRows = await readNamedSource("Fac-金蝶采购订单列表", () => readKingdeeRowsFromRecord(appliedKingdeeRecord));
+    const records = enrichDeliveryRecords(deliveryRows, deliveryState.categoryMap, deliveryState.purchaseDetailMap);
+    const kingdeeRecords = enrichKingdeeRecords(kingdeeRows, deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
       if (options.silent) return false;
       resetDelivery("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868\u65e0\u53ef\u7528\u6570\u636e");
@@ -232,6 +238,14 @@ async function loadDeliverySource(options = {}) {
     if (options.silent) return false;
     resetDelivery(`交付信息-金蝶导出读取失败：${error.message || "请检查已应用文件"}`);
     return false;
+  }
+}
+
+async function readNamedSource(label, reader) {
+  try {
+    return await reader();
+  } catch (error) {
+    throw new Error(`${label}读取失败：${error.message || error || "文件解析异常"}`);
   }
 }
 
