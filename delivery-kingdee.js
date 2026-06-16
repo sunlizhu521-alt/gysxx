@@ -946,5 +946,5 @@ function escapeHtml(value) {
 
 initDeliveryDashboard().catch((error) => {
   console.error(error);
-  deliveryEls.state.textContent = "供应商交付信息-金蝶导出异常";
+  deliveryEls.state.textContent = "交付信息-金蝶导出异常";
 });
