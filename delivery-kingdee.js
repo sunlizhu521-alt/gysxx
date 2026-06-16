@@ -37,9 +37,7 @@ const deliveryEls = {
   resetButton: document.querySelector("#deliveryResetButton"),
   downloadButton: document.querySelector("#deliveryDownloadButton"),
   orderedQty: document.querySelector("#orderedQty"),
-  shippedQty: document.querySelector("#shippedQty"),
   remainingQty: document.querySelector("#remainingQty"),
-  over60Qty: document.querySelector("#over60Qty"),
   rows: document.querySelector("#deliveryRows"),
   state: document.querySelector("#deliveryState"),
   sourceNote: document.querySelector("#deliverySourceNote"),
@@ -787,13 +785,13 @@ function matchesStockAgeFilter(record, selectedValues = []) {
 function renderDelivery(message) {
   const records = deliveryState.filtered;
   const activeRecords = records.filter((record) => Number(record.remainingQty) > 0);
-  const baseDetailRecords = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, getDeliveryFilterValues()));
+  const filters = getDeliveryFilterValues();
+  const metricTotals = sumKingdeeQuantities(filterKingdeeRecords(filters));
+  const baseDetailRecords = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, filters));
   updateDetailFilterOptions(baseDetailRecords);
   const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
-  deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
-  deliveryEls.shippedQty.textContent = formatNumber(sumBy(records, "shippedQty"));
-  deliveryEls.remainingQty.textContent = formatNumber(sumBy(records, "remainingQty"));
-  deliveryEls.over60Qty.textContent = formatNumber(sumOver60Remaining(records));
+  deliveryEls.orderedQty.textContent = formatNumber(metricTotals.orderedQty);
+  deliveryEls.remainingQty.textContent = formatNumber(metricTotals.remainingQty);
   deliveryEls.state.textContent = message || (records.length ? `已匹配 ${records.length} 行` : "暂无匹配数据");
   deliveryEls.downloadButton.disabled = Boolean(message) || !detailRecords.length;
 
@@ -872,6 +870,17 @@ function buildKingdeeQuantityMap(activeDeliveryRecords, filters) {
     target.remainingQty += Number(record.remainingInboundQty) || 0;
   });
   return map;
+}
+
+function sumKingdeeQuantities(records) {
+  return records.reduce(
+    (totals, record) => {
+      totals.orderedQty += Number(record.purchaseQty) || 0;
+      totals.remainingQty += Number(record.remainingInboundQty) || 0;
+      return totals;
+    },
+    { orderedQty: 0, remainingQty: 0 }
+  );
 }
 
 function downloadDeliveryDetails() {
@@ -1004,14 +1013,6 @@ function sortPurchaseGroups(values) {
     if (bIndex >= 0) return 1;
     return String(a).localeCompare(String(b), "zh-CN");
   });
-}
-
-function sumBy(items, key) {
-  return items.reduce((sum, item) => sum + (Number(item[key]) || 0), 0);
-}
-
-function sumOver60Remaining(items) {
-  return items.reduce((sum, item) => sum + (item.isOver60 ? Number(item.remainingQty) || 0 : 0), 0);
 }
 
 function addDisplayValue(target, value) {
