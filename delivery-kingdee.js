@@ -368,7 +368,7 @@ async function readWorkbookSheetNames(file) {
 
 async function readWorkbook(file, options = {}) {
   const commonOptions = {
-    type: "binary",
+    type: "array",
     cellNF: false,
     cellHTML: false,
     cellStyles: false,
@@ -376,7 +376,19 @@ async function readWorkbook(file, options = {}) {
     WTF: false,
     ...options,
   };
-  return window.XLSX.read(await readFileBinaryString(file), commonOptions);
+  const arrayBuffer = await readFileArrayBuffer(file);
+  const source = (await repairWorkbookArrayBuffer(arrayBuffer, file)) || arrayBuffer;
+  try {
+    return window.XLSX.read(source, commonOptions);
+  } catch (error) {
+    if (!isAllocationError(error)) throw error;
+    const repaired = source === arrayBuffer ? await repairWorkbookArrayBuffer(arrayBuffer, file) : null;
+    if (repaired) {
+      return window.XLSX.read(repaired, commonOptions);
+    }
+    const binary = await readFileBinaryString(file);
+    return window.XLSX.read(binary, { ...commonOptions, type: "binary" });
+  }
 }
 
 function sheetToRows(sheet) {
@@ -408,6 +420,27 @@ function readFileBinaryString(file) {
     reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
     reader.readAsBinaryString(file);
   });
+}
+
+async function readFileArrayBuffer(file) {
+  if (file?.arrayBuffer) return file.arrayBuffer();
+  if (file instanceof Blob) return file.arrayBuffer();
+  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
+}
+
+async function repairWorkbookArrayBuffer(arrayBuffer, file) {
+  if (!window.repairXlsxDimensionA1 || !/\.xlsx$/i.test(String(file?.name || ""))) return null;
+  try {
+    const result = await window.repairXlsxDimensionA1(arrayBuffer);
+    return result?.repaired ? result.arrayBuffer : null;
+  } catch (error) {
+    console.warn("xlsx dimension repair failed", error);
+    return null;
+  }
+}
+
+function isAllocationError(error) {
+  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
 }
 
 async function readFileText(file) {

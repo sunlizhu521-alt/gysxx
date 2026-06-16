@@ -856,10 +856,16 @@ async function readWorkbook(file, options = {}) {
     WTF: false,
     ...options,
   };
+  const arrayBuffer = await readFileArrayBuffer(file);
+  const source = (await repairWorkbookArrayBuffer(arrayBuffer, file)) || arrayBuffer;
   try {
-    return window.XLSX.read(await readFileArrayBuffer(file), commonOptions);
+    return window.XLSX.read(source, commonOptions);
   } catch (error) {
     if (!isAllocationError(error)) throw error;
+    const repaired = source === arrayBuffer ? await repairWorkbookArrayBuffer(arrayBuffer, file) : null;
+    if (repaired) {
+      return window.XLSX.read(repaired, commonOptions);
+    }
     const binary = await readFileBinaryString(file);
     return window.XLSX.read(binary, { ...commonOptions, type: "binary" });
   }
@@ -906,6 +912,17 @@ function readFileBinaryString(file) {
 
 function isAllocationError(error) {
   return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
+}
+
+async function repairWorkbookArrayBuffer(arrayBuffer, file) {
+  if (!window.repairXlsxDimensionA1 || !/\.xlsx$/i.test(String(file?.name || ""))) return null;
+  try {
+    const result = await window.repairXlsxDimensionA1(arrayBuffer);
+    return result?.repaired ? result.arrayBuffer : null;
+  } catch (error) {
+    console.warn("xlsx dimension repair failed", error);
+    return null;
+  }
 }
 
 async function readFileText(file) {
