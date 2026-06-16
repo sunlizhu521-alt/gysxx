@@ -308,24 +308,17 @@ async function readDeliveryWorkbook(file) {
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbook = await readWorkbook(file, {});
-  return workbook.SheetNames.flatMap((sheetName) => {
-    const rows = sheetToRows(workbook.Sheets[sheetName]);
-    return parsePurchaseOrderSheet(rows, getBusinessUnitFromSheetName(sheetName));
-  });
+  const sheetNames = await readWorkbookSheetNames(file);
+  const records = [];
+  for (const sheetName of sheetNames) {
+    const rows = await readWorkbookSheetRows(file, sheetName, { exact: true });
+    records.push(...parsePurchaseOrderSheet(rows, getBusinessUnitFromSheetName(sheetName)));
+  }
+  return records;
 }
 
 async function readWorkbookRows(file, preferredSheetName = "") {
-  const extension = file.name.split(".").pop()?.toLowerCase();
-  if (extension === "csv") {
-    return csvToRows(await readFileText(file));
-  }
-  if (!window.XLSX) {
-    throw new Error("XLSX parser is not available.");
-  }
-  const workbook = await readWorkbook(file, {});
-  const sheetName = workbook.SheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || workbook.SheetNames[0];
-  return sheetToRows(workbook.Sheets[sheetName]);
+  return readWorkbookSheetRows(file, preferredSheetName);
 }
 
 async function readKingdeeRowsFromRecord(record) {
@@ -339,7 +332,7 @@ async function readKingdeeWorkbook(file) {
   return parseKingdeeSheet(rows);
 }
 
-async function readWorkbookSheetRows(file, preferredSheetName = "") {
+async function readWorkbookSheetRows(file, preferredSheetName = "", options = {}) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
     return csvToRows(await readFileText(file));
@@ -347,16 +340,23 @@ async function readWorkbookSheetRows(file, preferredSheetName = "") {
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbookWithSheets = await readWorkbook(file, { bookSheets: true });
-  const targetSheetName = workbookWithSheets.SheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || workbookWithSheets.SheetNames[0];
+  const sheetNames = await readWorkbookSheetNames(file);
+  const targetSheetName = options.exact
+    ? sheetNames.find((name) => name === preferredSheetName)
+    : sheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || sheetNames[0];
   if (!targetSheetName) return [];
   const workbook = await readWorkbook(file, { sheets: targetSheetName, sheetRows: MAX_KINGDEE_SHEET_ROWS });
   return sheetToRows(workbook.Sheets[targetSheetName]);
 }
 
+async function readWorkbookSheetNames(file) {
+  const workbook = await readWorkbook(file, { bookSheets: true });
+  return workbook.SheetNames || [];
+}
+
 async function readWorkbook(file, options = {}) {
   const commonOptions = {
-    type: "array",
+    type: "binary",
     cellNF: false,
     cellHTML: false,
     cellStyles: false,
@@ -364,12 +364,7 @@ async function readWorkbook(file, options = {}) {
     WTF: false,
     ...options,
   };
-  try {
-    return window.XLSX.read(await readFileArrayBuffer(file), commonOptions);
-  } catch (error) {
-    if (!isAllocationError(error)) throw error;
-    return window.XLSX.read(await readFileBinaryString(file), { ...commonOptions, type: "binary" });
-  }
+  return window.XLSX.read(await readFileBinaryString(file), commonOptions);
 }
 
 function sheetToRows(sheet) {
@@ -393,12 +388,6 @@ function getSafeSheetRange(sheet) {
   };
 }
 
-async function readFileArrayBuffer(file) {
-  if (file?.arrayBuffer) return file.arrayBuffer();
-  if (file instanceof Blob) return file.arrayBuffer();
-  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
-}
-
 function readFileBinaryString(file) {
   if (!file) return Promise.reject(new Error("文件对象不可读取，请在文件库更新重新上传并确认应用"));
   return new Promise((resolve, reject) => {
@@ -413,10 +402,6 @@ async function readFileText(file) {
   if (file?.text) return file.text();
   if (file instanceof Blob) return file.text();
   throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
-}
-
-function isAllocationError(error) {
-  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
 }
 
 function parseKingdeeSheet(rows) {
