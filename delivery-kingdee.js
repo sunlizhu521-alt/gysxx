@@ -816,16 +816,17 @@ function matchesStockAgeFilter(record, selectedValues = []) {
 }
 
 function renderDelivery(message) {
-  const records = deliveryState.filtered;
-  const activeRecords = records.filter((record) => Number(record.remainingQty) > 0);
   const filters = getDeliveryFilterValues();
-  const metricTotals = sumKingdeeQuantities(filterKingdeeRecords(filters));
-  const baseDetailRecords = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, filters));
+  const kingdeeRecords = filterKingdeeRecords(filters);
+  const metricTotals = sumKingdeeQuantities(kingdeeRecords);
+  const baseDetailRecords = aggregateKingdeeDetailRecords(
+    kingdeeRecords.filter((record) => Number(record.remainingInboundQty) > 0)
+  );
   updateDetailFilterOptions(baseDetailRecords);
   const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
   deliveryEls.orderedQty.textContent = formatNumber(metricTotals.orderedQty);
   deliveryEls.remainingQty.textContent = formatNumber(metricTotals.remainingQty);
-  deliveryEls.state.textContent = message || (records.length ? `已匹配 ${records.length} 行` : "暂无匹配数据");
+  deliveryEls.state.textContent = message || (kingdeeRecords.length ? `已匹配 ${kingdeeRecords.length} 行` : "暂无匹配数据");
   deliveryEls.downloadButton.disabled = Boolean(message) || !detailRecords.length;
 
   deliveryEls.rows.innerHTML = detailRecords.length
@@ -847,13 +848,14 @@ function renderDeliveryRow(record) {
 }
 
 function getDeliveryDetailRecords() {
-  const activeRecords = deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0);
-  const records = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, getDeliveryFilterValues()));
+  const records = aggregateKingdeeDetailRecords(
+    filterKingdeeRecords(getDeliveryFilterValues()).filter((record) => Number(record.remainingInboundQty) > 0)
+  );
   updateDetailFilterOptions(records);
   return filterDetailRecords(records, getDetailFilterValues());
 }
 
-function aggregateDeliveryDetailRecords(records, kingdeeQuantityMap = null) {
+function aggregateKingdeeDetailRecords(records) {
   const map = new Map();
   records.forEach((record) => {
     const materialKey = normalizeMaterialCode(record.materialCode);
@@ -873,36 +875,10 @@ function aggregateDeliveryDetailRecords(records, kingdeeQuantityMap = null) {
     target.materialCode ||= record.materialCode || "";
     target.sku ||= record.sku || "";
     target.itemName ||= record.itemName || "";
-    target.orderedQty += Number(record.orderedQty) || 0;
-    target.remainingQty += Number(record.remainingQty) || 0;
-  });
-  if (kingdeeQuantityMap) {
-    map.forEach((target) => {
-      const kingdeeQty = kingdeeQuantityMap.get(normalizeMaterialCode(target.materialCode));
-      target.orderedQty = kingdeeQty?.orderedQty || 0;
-      target.remainingQty = kingdeeQty?.remainingQty || 0;
-    });
-  }
-  return [...map.values()];
-}
-
-function buildKingdeeQuantityMap(activeDeliveryRecords, filters) {
-  const materialKeys = new Set(activeDeliveryRecords.map((record) => normalizeMaterialCode(record.materialCode)).filter(Boolean));
-  const map = new Map();
-  filterKingdeeRecords(filters).forEach((record) => {
-    const materialKey = normalizeMaterialCode(record.materialCode);
-    if (!materialKey || !materialKeys.has(materialKey)) return;
-    if (!map.has(materialKey)) {
-      map.set(materialKey, {
-        orderedQty: 0,
-        remainingQty: 0,
-      });
-    }
-    const target = map.get(materialKey);
     target.orderedQty += Number(record.purchaseQty) || 0;
     target.remainingQty += Number(record.remainingInboundQty) || 0;
   });
-  return map;
+  return [...map.values()];
 }
 
 function sumKingdeeQuantities(records) {
