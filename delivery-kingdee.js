@@ -49,8 +49,6 @@ const deliveryEls = {
     sku: document.querySelector("#skuColumnFilter"),
     itemName: document.querySelector("#itemNameColumnFilter"),
     orderedQty: document.querySelector("#orderedQtyColumnFilter"),
-    completedQty: document.querySelector("#completedQtyColumnFilter"),
-    shippedQty: document.querySelector("#shippedQtyColumnFilter"),
     remainingQty: document.querySelector("#remainingQtyColumnFilter"),
   },
 };
@@ -82,8 +80,6 @@ const detailFilterConfigs = [
   { key: "sku", label: "SKU", field: "sku" },
   { key: "itemName", label: "物品名称", field: "itemName" },
   { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
-  { key: "completedQty", label: "已完工数据", field: "completedQty", numeric: true },
-  { key: "shippedQty", label: "已发货数量", field: "shippedQty", numeric: true },
   { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
 ];
 
@@ -307,14 +303,14 @@ async function readPurchaseDetailMap(file) {
 async function readDeliveryWorkbook(file) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
-    return parsePurchaseOrderSheet(csvToRows(await file.text()), "未匹配");
+    return parsePurchaseOrderSheet(csvToRows(await readFileText(file)), "未匹配");
   }
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook = await readWorkbook(file, {});
   return workbook.SheetNames.flatMap((sheetName) => {
-    const rows = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+    const rows = sheetToRows(workbook.Sheets[sheetName]);
     return parsePurchaseOrderSheet(rows, getBusinessUnitFromSheetName(sheetName));
   });
 }
@@ -322,58 +318,20 @@ async function readDeliveryWorkbook(file) {
 async function readWorkbookRows(file, preferredSheetName = "") {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "csv") {
-    return csvToRows(await file.text());
+    return csvToRows(await readFileText(file));
   }
   if (!window.XLSX) {
     throw new Error("XLSX parser is not available.");
   }
-  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const workbook = await readWorkbook(file, {});
   const sheetName = workbook.SheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || workbook.SheetNames[0];
-  return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+  return sheetToRows(workbook.Sheets[sheetName]);
 }
 
 async function readKingdeeRowsFromRecord(record) {
-  const cachedRows = getFreshKingdeeCompareCache(record);
-  if (cachedRows) return cachedRows;
   const rows = await readKingdeeWorkbook(record.file);
-  if (rows.length) {
-    await saveKingdeeCompareCache(record, rows);
-    return rows;
-  }
-  throw new Error(record?.kingdeeCompareExtractError || "Fac-金蝶采购订单列表未生成可用数据，请重新上传并确认应用");
-}
-
-function getFreshKingdeeCompareCache(record) {
-  const rows = record?.kingdeeCompareRows;
-  if (!Array.isArray(rows) || !rows.length) return null;
-  const source = record.kingdeeCompareCacheSource || {};
-  if (!source.name && !source.size && !source.appliedAt) return null;
-  if (source.name && source.name !== record.name) return null;
-  if (source.size && Number(source.size) !== Number(record.size)) return null;
-  if (source.appliedAt && source.appliedAt !== record.appliedAt) return null;
-  return rows;
-}
-
-async function saveKingdeeCompareCache(record, rows) {
-  if (!record?.id || !Array.isArray(rows)) return;
-  const db = await openAppDb();
-  const latestRecord = await getRecord(db, FACT_STORE_NAME, record.id);
-  if (!latestRecord?.applied || latestRecord.appliedAt !== record.appliedAt) {
-    db.close();
-    return;
-  }
-  await putRecord(db, FACT_STORE_NAME, {
-    ...latestRecord,
-    kingdeeCompareRows: rows,
-    kingdeeCompareCachedAt: new Date().toISOString(),
-    kingdeeCompareExtractError: "",
-    kingdeeCompareCacheSource: {
-      name: latestRecord.name,
-      size: latestRecord.size,
-      appliedAt: latestRecord.appliedAt,
-    },
-  });
-  db.close();
+  if (rows.length) return rows;
+  throw new Error("Fac-金蝶采购订单列表未生成可用数据，请重新上传并确认应用");
 }
 
 async function readKingdeeWorkbook(file) {
@@ -842,7 +800,7 @@ function renderDelivery(message) {
 
   deliveryEls.rows.innerHTML = detailRecords.length
     ? detailRecords.map(renderDeliveryRow).join("")
-    : `<tr><td colspan="8">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    : `<tr><td colspan="6">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
 }
 
 function renderDeliveryRow(record) {
@@ -853,8 +811,6 @@ function renderDeliveryRow(record) {
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
-      <td>${formatNumber(record.completedQty)}</td>
-      <td>${formatNumber(record.shippedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
   `;
@@ -877,8 +833,6 @@ function aggregateDeliveryDetailRecords(records, kingdeeQuantityMap = null) {
         ...record,
         supplierShortValues: new Set(),
         orderedQty: 0,
-        completedQty: 0,
-        shippedQty: 0,
         remainingQty: 0,
       });
     }
@@ -890,8 +844,6 @@ function aggregateDeliveryDetailRecords(records, kingdeeQuantityMap = null) {
     target.sku ||= record.sku || "";
     target.itemName ||= record.itemName || "";
     target.orderedQty += Number(record.orderedQty) || 0;
-    target.completedQty += Number(record.completedQty) || 0;
-    target.shippedQty += Number(record.shippedQty) || 0;
     target.remainingQty += Number(record.remainingQty) || 0;
   });
   if (kingdeeQuantityMap) {
@@ -933,12 +885,10 @@ function downloadDeliveryDetails() {
     SKU: record.sku || "",
     物品名称: record.itemName || "",
     下单数量: Number(record.orderedQty) || 0,
-    已完工数据: Number(record.completedQty) || 0,
-    已发货数量: Number(record.shippedQty) || 0,
     剩余数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["供应商简称", "物料编码", "SKU", "物品名称", "下单数量", "已完工数据", "已发货数量", "剩余数量"],
+    header: ["供应商简称", "物料编码", "SKU", "物品名称", "下单数量", "剩余数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
@@ -1158,16 +1108,6 @@ function getRecord(db, storeName, key) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(storeName, "readonly");
     const request = transaction.objectStore(storeName).get(key);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    transaction.onerror = () => reject(transaction.error);
-  });
-}
-
-function putRecord(db, storeName, record) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(storeName, "readwrite");
-    const request = transaction.objectStore(storeName).put(record);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
