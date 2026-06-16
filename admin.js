@@ -3,9 +3,6 @@ const DB_VERSION = 3;
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 const KINGDEE_ORDER_SLOT = "fact-2";
-const KINGDEE_COMPARE_BUILD = "cache-only-20260612-1";
-const MAX_EXTRACT_SHEET_ROWS = 120000;
-const MAX_EXTRACT_SHEET_COLUMNS = 80;
 
 const librarySlots = [
   {
@@ -137,7 +134,7 @@ async function applySlot(slotId, options = {}) {
   const record = adminState.records.get(slotId);
   if (!record) return;
   const appliedAt = new Date().toISOString();
-  const extractFields = record.pendingFile ? await buildSlotExtractFields(slotId, record, appliedAt) : {};
+  const applicationFields = buildSlotApplicationFields(slotId);
   const updatedRecord = record.pendingFile
     ? clearPendingFields({
         ...record,
@@ -150,13 +147,14 @@ async function applySlot(slotId, options = {}) {
         librarySource: LOCAL_LIBRARY_SOURCE,
         applied: true,
         appliedAt,
-        ...extractFields,
+        ...applicationFields,
       })
     : {
         ...record,
         librarySource: record.librarySource || LOCAL_LIBRARY_SOURCE,
         applied: true,
         appliedAt,
+        ...applicationFields,
       };
   const db = await openAppDb();
   await putRecord(db, slot.store, updatedRecord);
@@ -188,27 +186,9 @@ async function applyAllSlots() {
   }
 }
 
-async function buildSlotExtractFields(slotId, record, appliedAt) {
+function buildSlotApplicationFields(slotId) {
   if (slotId !== KINGDEE_ORDER_SLOT) return {};
-  if (!record.pendingFile) return clearKingdeeExtractFields("未上传文件");
-  try {
-    adminEls.referenceState.textContent = "正在读取金蝶采购订单列表";
-    const rows = await readKingdeeCompareRows(record.pendingFile);
-    return {
-      kingdeeCompareRows: rows,
-      kingdeeCompareCachedAt: new Date().toISOString(),
-      kingdeeCompareExtractError: "",
-      kingdeeCompareCacheSource: {
-        name: record.pendingName,
-        size: record.pendingSize,
-        appliedAt,
-        build: KINGDEE_COMPARE_BUILD,
-      },
-    };
-  } catch (error) {
-    console.warn("kingdee compare extract failed", error);
-    return clearKingdeeExtractFields(error.message || "数据读取失败");
-  }
+  return clearKingdeeExtractFields();
 }
 
 async function deleteSlot(slotId) {
@@ -287,7 +267,7 @@ function renderReferenceRows() {
 function renderReferenceRow(slot, record) {
   const applied = Boolean(record?.applied);
   const statusText = getReferenceStatusText(slot, record, applied);
-  const statusClass = applied && !record?.kingdeeCompareExtractError ? "applied" : "pending";
+  const statusClass = applied ? "applied" : "pending";
   return `
     <tr>
       <td>${escapeHtml(slot.library)}</td>
@@ -302,24 +282,12 @@ function renderReferenceRow(slot, record) {
 }
 
 function getSlotHelperText(slot, record) {
-  if (slot.id !== KINGDEE_ORDER_SLOT) return "可点击上传，也可拖拽文件到此处";
-  if (record?.pendingFile) return "确认应用时会读取文件并生成对比数据";
-  if (record?.kingdeeCompareExtractError) return `数据读取失败：${record.kingdeeCompareExtractError}`;
-  if (Array.isArray(record?.kingdeeCompareRows) && record.kingdeeCompareRows.length) {
-    return `对比数据已生成：${record.kingdeeCompareRows.length} 行`;
-  }
-  if (record?.applied) return "已引用，但未生成对比数据，请重新上传并确认应用";
-  return "可上传 Excel 或 CSV，格式同采购订单跟进表";
+  return "可点击上传，也可拖拽文件到此处";
 }
 
 function getReferenceStatusText(slot, record, applied) {
   if (!applied) return "未引用";
-  if (slot.id !== KINGDEE_ORDER_SLOT) return "已引用";
-  if (record?.kingdeeCompareExtractError) return "数据读取失败";
-  if (Array.isArray(record?.kingdeeCompareRows) && record.kingdeeCompareRows.length) {
-    return `已引用 / 对比${record.kingdeeCompareRows.length}行`;
-  }
-  return "已引用 / 未生成对比数据";
+  return "已引用";
 }
 
 function getSlot(slotId) {
@@ -371,217 +339,6 @@ function clearKingdeeExtractFields(errorMessage = "") {
     kingdeeCompareExtractError: errorMessage,
     kingdeeCompareCacheSource: null,
   };
-}
-
-const kingdeeAliases = {
-  documentNumber: ["单据编号", "单据号", "采购订单号", "采购订单编号", "订单编号", "采购单号"],
-  materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
-  sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
-  itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
-  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
-  creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
-  businessUnit: ["事业部", "部门", "业务部门"],
-  purchaseQty: ["采购数量", "数量", "订单数量"],
-  remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
-};
-
-async function readKingdeeCompareRows(file) {
-  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
-  return parseKingdeeSheet(rows);
-}
-
-function parseKingdeeSheet(rows) {
-  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, kingdeeAliases)));
-  if (headerIndex < 0) return [];
-  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
-  const dataRows = rows.slice(headerIndex + 1);
-  const headerMap = createHeaderMap(headers, dataRows, kingdeeAliases);
-  if (headerMap.purchaseQty === undefined && headerMap.remainingInboundQty === undefined) return [];
-
-  return dataRows
-    .map((row, index) => {
-      const materialCode = getRowValue(row, headerMap.materialCode);
-      const sku = getRowValue(row, headerMap.sku);
-      const itemName = getRowValue(row, headerMap.itemName);
-      const supplier = getRowValue(row, headerMap.supplier);
-      return {
-        id: `kingdee-${index}-${materialCode}-${sku}-${supplier}`,
-        documentNumber: getRowValue(row, headerMap.documentNumber),
-        materialCode,
-        sku,
-        itemName,
-        supplier,
-        creator: getRowValue(row, headerMap.creator),
-        businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
-        purchaseQty: parseNumber(getRowValue(row, headerMap.purchaseQty)),
-        remainingInboundQty: parseNumber(getRowValue(row, headerMap.remainingInboundQty)),
-      };
-    })
-    .filter((item) => item.materialCode || item.sku || item.itemName || item.supplier);
-}
-
-async function readWorkbookSheetRows(file, preferredSheetName = "") {
-  const fileName = String(file?.name || "");
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "csv") return csvToRows(await readFileText(file));
-  if (!window.XLSX) throw new Error("XLSX parser is not available.");
-  const sheetNames = await readWorkbookSheetNames(file);
-  const targetSheetName = sheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || sheetNames[0];
-  if (!targetSheetName) return [];
-  const workbook = await readWorkbook(file, { sheets: targetSheetName, sheetRows: MAX_EXTRACT_SHEET_ROWS });
-  return sheetToRows(workbook.Sheets[targetSheetName]);
-}
-
-async function readWorkbookSheetNames(file) {
-  const workbook = await readWorkbook(file, { bookSheets: true });
-  return workbook.SheetNames || [];
-}
-
-async function readWorkbook(file, options = {}) {
-  const commonOptions = {
-    type: "array",
-    cellNF: false,
-    cellHTML: false,
-    cellStyles: false,
-    cellFormula: false,
-    WTF: false,
-    ...options,
-  };
-  try {
-    return window.XLSX.read(await readFileArrayBuffer(file), commonOptions);
-  } catch (error) {
-    if (!isAllocationError(error)) throw error;
-    const binary = await readFileBinaryString(file);
-    return window.XLSX.read(binary, { ...commonOptions, type: "binary" });
-  }
-}
-
-function sheetToRows(sheet) {
-  if (!sheet) return [];
-  return window.XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    blankrows: false,
-    range: getSafeSheetRange(sheet),
-  });
-}
-
-function getSafeSheetRange(sheet) {
-  const rawRange = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
-  return {
-    s: rawRange.s,
-    e: {
-      r: Math.min(rawRange.e.r, rawRange.s.r + MAX_EXTRACT_SHEET_ROWS - 1),
-      c: Math.min(rawRange.e.c, rawRange.s.c + MAX_EXTRACT_SHEET_COLUMNS - 1),
-    },
-  };
-}
-
-async function readFileArrayBuffer(file) {
-  if (file?.arrayBuffer) return file.arrayBuffer();
-  if (file instanceof Blob) return file.arrayBuffer();
-  throw new Error("文件对象不可读取，请重新上传并确认应用");
-}
-
-function readFileBinaryString(file) {
-  if (!file) return Promise.reject(new Error("文件对象不可读取，请重新上传并确认应用"));
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result || "");
-    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
-    reader.readAsBinaryString(file);
-  });
-}
-
-async function readFileText(file) {
-  if (file?.text) return file.text();
-  if (file instanceof Blob) return file.text();
-  throw new Error("文件对象不可读取，请重新上传并确认应用");
-}
-
-function createHeaderMap(headers, dataRows, aliasesByKey) {
-  const headerMap = createAliasHeaderMap(headers, aliasesByKey);
-  if (headerMap.materialCode === undefined) {
-    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
-    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
-  }
-  return headerMap;
-}
-
-function createAliasHeaderMap(headers, aliasesByKey) {
-  return Object.fromEntries(
-    Object.entries(aliasesByKey)
-      .map(([key, aliases]) => {
-        const index = headers.findIndex((header) => aliases.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
-        return [key, index >= 0 ? index : undefined];
-      })
-      .filter(([, index]) => index !== undefined)
-  );
-}
-
-function hasKnownHeader(value, aliasesByKey) {
-  const header = normalizeHeader(value);
-  return Object.values(aliasesByKey).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
-}
-
-function inferMaterialCodeColumn(headers, dataRows, usedColumns) {
-  const candidates = headers.map((_, index) => index).filter((index) => !usedColumns.has(index));
-  let bestColumn;
-  let bestScore = 0;
-  candidates.forEach((column) => {
-    const score = dataRows.slice(0, 60).reduce((sum, row) => sum + scoreMaterialCodeCell(row[column]), 0);
-    if (score > bestScore) {
-      bestColumn = column;
-      bestScore = score;
-    }
-  });
-  return bestScore >= 3 ? bestColumn : undefined;
-}
-
-function scoreMaterialCodeCell(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  const normalized = normalizeMaterialCode(raw);
-  if (normalized.length < 4 || /[\u4e00-\u9fff]/.test(normalized)) return 0;
-  let score = 1;
-  if (/\d/.test(normalized)) score += 2;
-  if (/^[a-z0-9._-]+$/i.test(normalized)) score += 1;
-  return score;
-}
-
-function getRowValue(row, index) {
-  return index === undefined ? "" : String(row[index] ?? "").trim();
-}
-
-function normalizeHeader(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/[()（）]/g, "")
-    .toLowerCase();
-}
-
-function normalizeMaterialCode(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\.0$/, "")
-    .toLowerCase();
-}
-
-function normalizeBusinessUnit(value) {
-  const text = String(value || "").trim().split("*")[0].trim().replace(/[（(].*?[）)]/g, "").trim();
-  if (!text) return "未匹配";
-  if (text === "全球招商事业部") return "全球招商部";
-  return text;
-}
-
-function parseNumber(value) {
-  const number = Number(String(value || "").replace(/,/g, "").trim());
-  return Number.isFinite(number) ? number : 0;
-}
-
-function isAllocationError(error) {
-  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
 }
 
 function csvToRows(text) {
