@@ -6,12 +6,16 @@ const FACT_STORE_NAME = "fact-files";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
-const DELIVERY_SOURCE_LABEL = "\u6570\u636e\u6765\u6e90\uff1a\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93 / \u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868";
+const KINGDEE_ORDER_SLOT = "fact-2";
+const MAX_KINGDEE_SHEET_ROWS = 120000;
+const MAX_KINGDEE_SHEET_COLUMNS = 80;
+const DELIVERY_SOURCE_LABEL = "数据来源：本地文件库";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他/配件", "未匹配"];
 
 const deliveryState = {
   records: [],
   filtered: [],
+  kingdeeRecords: [],
   categoryMap: new Map(),
   categoryPurchaseGroups: [],
   purchaseDetailMap: new Map(),
@@ -101,6 +105,17 @@ const purchaseDetailAliases = {
   orderUser: ["采购下单人"],
 };
 
+const kingdeeAliases = {
+  materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
+  sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
+  itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
+  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
+  creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
+  businessUnit: ["事业部", "部门", "业务部门"],
+  purchaseQty: ["采购数量", "数量", "订单数量"],
+  remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
+};
+
 const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "completedQty", "shippedQty", "remainingQty"];
 
 async function initDeliveryDashboard() {
@@ -177,19 +192,21 @@ function bindDeliveryEvents() {
 async function loadDeliverySource(options = {}) {
   try {
     const db = await openAppDb();
-    const [factRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
+    const [factRecord, kingdeeRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
       getRecord(db, FACT_STORE_NAME, PURCHASE_ORDER_SLOT),
+      getRecord(db, FACT_STORE_NAME, KINGDEE_ORDER_SLOT),
       getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
       getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT),
     ]);
     db.close();
     const appliedFactRecord = getAppliedLibraryRecord(factRecord);
+    const appliedKingdeeRecord = getAppliedLibraryRecord(kingdeeRecord);
     const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
     const appliedPurchaseAssignmentRecord = getAppliedLibraryRecord(purchaseAssignmentRecord);
 
-    if (!appliedFactRecord?.file) {
+    if (!appliedFactRecord?.file || !appliedKingdeeRecord?.file) {
       if (options.silent) return false;
-      resetDelivery("\u8bf7\u5148\u5728\u5907\u8d27\u4e8b\u5b9e\u8868\u5e93\u4e0a\u4f20\u5e76\u786e\u8ba4\u5e94\u7528\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868");
+      resetDelivery("请先在文件库更新上传并确认应用 Fac-采购订单跟进表 和 Fac-金蝶采购订单列表");
       return false;
     }
 
@@ -198,14 +215,17 @@ async function loadDeliverySource(options = {}) {
     deliveryState.categoryPurchaseGroups = categoryResult.purchaseGroups;
     deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file ? await readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file) : new Map();
     const records = enrichDeliveryRecords(await readDeliveryWorkbook(appliedFactRecord.file), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
+    const kingdeeRecords = enrichKingdeeRecords(await readKingdeeRowsFromRecord(appliedKingdeeRecord), deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
       if (options.silent) return false;
       resetDelivery("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868\u65e0\u53ef\u7528\u6570\u636e");
       return false;
     }
     deliveryState.records = records;
+    deliveryState.kingdeeRecords = kingdeeRecords;
     updateSourceNote(deliveryEls.sourceNote, "数据来源：本地文件库", [
       { name: "Fac-采购订单跟进表", record: appliedFactRecord },
+      { name: "Fac-金蝶采购订单列表", record: appliedKingdeeRecord },
       { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
       { name: "Dim-采购分工明细", record: appliedPurchaseAssignmentRecord },
     ]);
@@ -214,7 +234,7 @@ async function loadDeliverySource(options = {}) {
   } catch (error) {
     console.error(error);
     if (options.silent) return false;
-    resetDelivery("\u4f9b\u5e94\u5546\u4ea4\u4ed8\u4fe1\u606f\u8bfb\u53d6\u5931\u8d25");
+    resetDelivery(`交付信息-金蝶导出读取失败：${error.message || "请检查已应用文件"}`);
     return false;
   }
 }
@@ -226,6 +246,7 @@ function getAppliedLibraryRecord(record) {
 function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
+  deliveryState.kingdeeRecords = [];
   deliveryState.purchaseDetailMap = new Map();
   deliveryState.categoryMap = new Map();
   deliveryState.categoryPurchaseGroups = [];
@@ -311,9 +332,175 @@ async function readWorkbookRows(file, preferredSheetName = "") {
   return window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
 }
 
+async function readKingdeeRowsFromRecord(record) {
+  const cachedRows = getFreshKingdeeCompareCache(record);
+  if (cachedRows) return cachedRows;
+  const rows = await readKingdeeWorkbook(record.file);
+  if (rows.length) {
+    await saveKingdeeCompareCache(record, rows);
+    return rows;
+  }
+  throw new Error(record?.kingdeeCompareExtractError || "Fac-金蝶采购订单列表未生成可用数据，请重新上传并确认应用");
+}
+
+function getFreshKingdeeCompareCache(record) {
+  const rows = record?.kingdeeCompareRows;
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const source = record.kingdeeCompareCacheSource || {};
+  if (!source.name && !source.size && !source.appliedAt) return null;
+  if (source.name && source.name !== record.name) return null;
+  if (source.size && Number(source.size) !== Number(record.size)) return null;
+  if (source.appliedAt && source.appliedAt !== record.appliedAt) return null;
+  return rows;
+}
+
+async function saveKingdeeCompareCache(record, rows) {
+  if (!record?.id || !Array.isArray(rows)) return;
+  const db = await openAppDb();
+  const latestRecord = await getRecord(db, FACT_STORE_NAME, record.id);
+  if (!latestRecord?.applied || latestRecord.appliedAt !== record.appliedAt) {
+    db.close();
+    return;
+  }
+  await putRecord(db, FACT_STORE_NAME, {
+    ...latestRecord,
+    kingdeeCompareRows: rows,
+    kingdeeCompareCachedAt: new Date().toISOString(),
+    kingdeeCompareExtractError: "",
+    kingdeeCompareCacheSource: {
+      name: latestRecord.name,
+      size: latestRecord.size,
+      appliedAt: latestRecord.appliedAt,
+    },
+  });
+  db.close();
+}
+
+async function readKingdeeWorkbook(file) {
+  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
+  return parseKingdeeSheet(rows);
+}
+
+async function readWorkbookSheetRows(file, preferredSheetName = "") {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return csvToRows(await readFileText(file));
+  }
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+  const workbookWithSheets = await readWorkbook(file, { bookSheets: true });
+  const targetSheetName = workbookWithSheets.SheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || workbookWithSheets.SheetNames[0];
+  if (!targetSheetName) return [];
+  const workbook = await readWorkbook(file, { sheets: targetSheetName, sheetRows: MAX_KINGDEE_SHEET_ROWS });
+  return sheetToRows(workbook.Sheets[targetSheetName]);
+}
+
+async function readWorkbook(file, options = {}) {
+  const commonOptions = {
+    type: "array",
+    cellNF: false,
+    cellHTML: false,
+    cellStyles: false,
+    cellFormula: false,
+    WTF: false,
+    ...options,
+  };
+  try {
+    return window.XLSX.read(await readFileArrayBuffer(file), commonOptions);
+  } catch (error) {
+    if (!isAllocationError(error)) throw error;
+    return window.XLSX.read(await readFileBinaryString(file), { ...commonOptions, type: "binary" });
+  }
+}
+
+function sheetToRows(sheet) {
+  if (!sheet) return [];
+  return window.XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+    range: getSafeSheetRange(sheet),
+  });
+}
+
+function getSafeSheetRange(sheet) {
+  const rawRange = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
+  return {
+    s: rawRange.s,
+    e: {
+      r: Math.min(rawRange.e.r, rawRange.s.r + MAX_KINGDEE_SHEET_ROWS - 1),
+      c: Math.min(rawRange.e.c, rawRange.s.c + MAX_KINGDEE_SHEET_COLUMNS - 1),
+    },
+  };
+}
+
+async function readFileArrayBuffer(file) {
+  if (file?.arrayBuffer) return file.arrayBuffer();
+  if (file instanceof Blob) return file.arrayBuffer();
+  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
+}
+
+function readFileBinaryString(file) {
+  if (!file) return Promise.reject(new Error("文件对象不可读取，请在文件库更新重新上传并确认应用"));
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || "");
+    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
+    reader.readAsBinaryString(file);
+  });
+}
+
+async function readFileText(file) {
+  if (file?.text) return file.text();
+  if (file instanceof Blob) return file.text();
+  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
+}
+
+function isAllocationError(error) {
+  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
+}
+
+function parseKingdeeSheet(rows) {
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownAliasHeader(cell, kingdeeAliases)));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createAliasBasedHeaderMap(headers, dataRows, kingdeeAliases);
+  if (headerMap.purchaseQty === undefined && headerMap.remainingInboundQty === undefined) return [];
+
+  return dataRows
+    .map((row, index) => {
+      const materialCode = getRowValue(row, headerMap.materialCode);
+      const sku = getRowValue(row, headerMap.sku);
+      const itemName = getRowValue(row, headerMap.itemName);
+      const supplier = getRowValue(row, headerMap.supplier);
+      return {
+        id: `kingdee-${index}-${materialCode}-${sku}-${supplier}`,
+        materialCode,
+        sku,
+        itemName,
+        supplier,
+        businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
+        creator: getRowValue(row, headerMap.creator),
+        orderUser: getRowValue(row, headerMap.creator),
+        purchaseQty: parseNumber(getRowValue(row, headerMap.purchaseQty)),
+        remainingInboundQty: parseNumber(getRowValue(row, headerMap.remainingInboundQty)),
+      };
+    })
+    .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
+}
+
 function getBusinessUnitFromSheetName(sheetName) {
   const name = String(sheetName || "").trim();
-  return name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配";
+  return normalizeBusinessUnit(name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配");
+}
+
+function normalizeBusinessUnit(value) {
+  const text = String(value || "").trim().split("*")[0].trim().replace(/[（(].*?[）)]/g, "").trim();
+  if (!text) return "未匹配";
+  if (text === "全球招商事业部") return "全球招商部";
+  return text;
 }
 
 function parsePurchaseOrderSheet(rows, businessUnit) {
@@ -402,6 +589,26 @@ function enrichDeliveryRecords(records, categoryMap, purchaseDetailMap = new Map
       supplier: detail?.supplier || record.supplier || "\u672a\u5339\u914d",
       supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || "\u672a\u5339\u914d",
       orderUser: detail?.orderUser || record.orderUser || "\u672a\u7ef4\u62a4",
+    };
+  });
+}
+
+function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map()) {
+  return records.map((record) => {
+    const materialCode = normalizeMaterialCode(record.materialCode);
+    const matched = categoryMap.get(materialCode);
+    const detail = purchaseDetailMap.get(materialCode);
+    return {
+      ...record,
+      materialCode: record.materialCode || materialCode,
+      businessUnit: normalizeBusinessUnit(record.businessUnit),
+      salesLine: matched?.salesLine || record.salesLine || "未匹配",
+      salesSeries: matched?.salesSeries || record.salesSeries || "未匹配",
+      model: matched?.model || record.model || "未匹配",
+      purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "未匹配",
+      supplier: detail?.supplier || record.supplier || "未匹配",
+      supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || record.supplier || "未匹配",
+      orderUser: record.orderUser || record.creator || detail?.orderUser || "未维护",
     };
   });
 }
@@ -596,6 +803,19 @@ function filterRecords(filters) {
   );
 }
 
+function filterKingdeeRecords(filters) {
+  return deliveryState.kingdeeRecords.filter(
+    (record) =>
+      matchesFilter(record.businessUnit, filters.businessUnit) &&
+      matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
+      matchesFilter(record.salesLine, filters.salesLine) &&
+      matchesFilter(record.salesSeries, filters.salesSeries) &&
+      matchesFilter(record.model, filters.model) &&
+      matchesFilter(record.supplierShort, filters.supplierShort) &&
+      matchesFilter(record.orderUser, filters.orderUser)
+  );
+}
+
 function matchesFilter(value, selectedValues = []) {
   return !selectedValues?.length || selectedValues.includes(value);
 }
@@ -609,7 +829,8 @@ function matchesStockAgeFilter(record, selectedValues = []) {
 
 function renderDelivery(message) {
   const records = deliveryState.filtered;
-  const baseDetailRecords = aggregateDeliveryDetailRecords(records.filter((record) => Number(record.remainingQty) > 0));
+  const activeRecords = records.filter((record) => Number(record.remainingQty) > 0);
+  const baseDetailRecords = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, getDeliveryFilterValues()));
   updateDetailFilterOptions(baseDetailRecords);
   const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
   deliveryEls.orderedQty.textContent = formatNumber(sumBy(records, "orderedQty"));
@@ -640,12 +861,13 @@ function renderDeliveryRow(record) {
 }
 
 function getDeliveryDetailRecords() {
-  const records = aggregateDeliveryDetailRecords(deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0));
+  const activeRecords = deliveryState.filtered.filter((record) => Number(record.remainingQty) > 0);
+  const records = aggregateDeliveryDetailRecords(activeRecords, buildKingdeeQuantityMap(activeRecords, getDeliveryFilterValues()));
   updateDetailFilterOptions(records);
   return filterDetailRecords(records, getDetailFilterValues());
 }
 
-function aggregateDeliveryDetailRecords(records) {
+function aggregateDeliveryDetailRecords(records, kingdeeQuantityMap = null) {
   const map = new Map();
   records.forEach((record) => {
     const materialKey = normalizeMaterialCode(record.materialCode);
@@ -672,7 +894,33 @@ function aggregateDeliveryDetailRecords(records) {
     target.shippedQty += Number(record.shippedQty) || 0;
     target.remainingQty += Number(record.remainingQty) || 0;
   });
+  if (kingdeeQuantityMap) {
+    map.forEach((target) => {
+      const kingdeeQty = kingdeeQuantityMap.get(normalizeMaterialCode(target.materialCode));
+      target.orderedQty = kingdeeQty?.orderedQty || 0;
+      target.remainingQty = kingdeeQty?.remainingQty || 0;
+    });
+  }
   return [...map.values()];
+}
+
+function buildKingdeeQuantityMap(activeDeliveryRecords, filters) {
+  const materialKeys = new Set(activeDeliveryRecords.map((record) => normalizeMaterialCode(record.materialCode)).filter(Boolean));
+  const map = new Map();
+  filterKingdeeRecords(filters).forEach((record) => {
+    const materialKey = normalizeMaterialCode(record.materialCode);
+    if (!materialKey || !materialKeys.has(materialKey)) return;
+    if (!map.has(materialKey)) {
+      map.set(materialKey, {
+        orderedQty: 0,
+        remainingQty: 0,
+      });
+    }
+    const target = map.get(materialKey);
+    target.orderedQty += Number(record.purchaseQty) || 0;
+    target.remainingQty += Number(record.remainingInboundQty) || 0;
+  });
+  return map;
 }
 
 function downloadDeliveryDetails() {
@@ -729,6 +977,15 @@ function createHeaderMap(headers, dataRows = []) {
   return headerMap;
 }
 
+function createAliasBasedHeaderMap(headers, dataRows = [], aliasesByKey) {
+  const headerMap = createAliasHeaderMap(headers, aliasesByKey);
+  if (headerMap.materialCode === undefined) {
+    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
+    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
+  }
+  return headerMap;
+}
+
 function createAliasHeaderMap(headers, aliasesByKey) {
   return Object.fromEntries(
     Object.entries(aliasesByKey)
@@ -743,6 +1000,11 @@ function createAliasHeaderMap(headers, aliasesByKey) {
 function hasKnownHeader(value) {
   const header = normalizeHeader(value);
   return Object.values(columnAliases).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
+}
+
+function hasKnownAliasHeader(value, aliasesByKey) {
+  const header = normalizeHeader(value);
+  return Object.values(aliasesByKey).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
 }
 
 function hasKnownPurchaseDetailHeader(value) {
@@ -896,6 +1158,16 @@ function getRecord(db, storeName, key) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(storeName, "readonly");
     const request = transaction.objectStore(storeName).get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
+function putRecord(db, storeName, record) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, "readwrite");
+    const request = transaction.objectStore(storeName).put(record);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
