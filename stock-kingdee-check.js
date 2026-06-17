@@ -10,7 +10,6 @@ const KINGDEE_ORDER_SLOT = "fact-2";
 const STOCK_DEMAND_SLOT = "fact-4";
 const MAX_KINGDEE_SHEET_ROWS = 120000;
 const MAX_KINGDEE_SHEET_COLUMNS = 80;
-const KINGDEE_PURCHASE_FILTER_KEYS = new Set(["purchaseGroup", "orderUser", "supplierShort"]);
 const DELIVERY_SOURCE_LABEL = "数据来源：本地文件库";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他/配件", "未匹配"];
 
@@ -29,7 +28,7 @@ const deliveryState = {
 const deliveryEls = {
   filterBar: document.querySelector("#deliveryFilterBar"),
   businessUnitFilter: document.querySelector("#businessUnitFilter"),
-  purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
+  differenceStatusFilter: document.querySelector("#differenceStatusFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
   modelFilter: document.querySelector("#modelFilter"),
@@ -59,7 +58,16 @@ const deliveryFilterConfigs = [
   { key: "salesLine", element: deliveryEls.salesLineFilter, label: "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf", field: "salesLine" },
   { key: "salesSeries", element: deliveryEls.salesSeriesFilter, label: "\u5168\u90e8\u9500\u552e\u7cfb\u5217", field: "salesSeries" },
   { key: "model", element: deliveryEls.modelFilter, label: "\u5168\u90e8\u578b\u53f7", field: "model" },
-  { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
+  {
+    key: "differenceStatus",
+    element: deliveryEls.differenceStatusFilter,
+    label: "\u5168\u90e8\u662f\u5426\u6709\u5dee\u5f02",
+    field: "differenceStatus",
+    staticOptions: [
+      { value: "\u6709", label: "\u6709" },
+      { value: "\u65e0", label: "\u65e0" },
+    ],
+  },
   { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
   { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
 ];
@@ -705,20 +713,15 @@ function updateFilterOptions() {
 }
 
 function getFilterOptionItems(config, filters) {
+  if (config.key === "differenceStatus") {
+    const rows = getAggregatedRecordsForFilters({ ...filters, [config.key]: [] });
+    return config.staticOptions.filter((option) => rows.some((row) => row.differenceStatus === option.value));
+  }
   if (config.staticOptions) {
     return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
   }
-  const sourceRows = KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)
-    ? aggregateStockKingdeeDetailRecords(
-        filterRecords({ ...filters, [config.key]: [] }),
-        filterKingdeeRecords({ ...filters, [config.key]: [] })
-      )
-    : filterRecords({ ...filters, [config.key]: [] });
+  const sourceRows = getAggregatedRecordsForFilters({ ...filters, [config.key]: [] });
   let values = uniqueValues(sourceRows, config.field);
-  if (config.key === "purchaseGroup" && !KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)) {
-    const sourceGroups = new Set(deliveryState.categoryPurchaseGroups);
-    values = values.filter((value) => sourceGroups.has(value));
-  }
   const sortedValues = config.sort ? config.sort(values) : values;
   return sortedValues.map((value) => ({ value, label: value }));
 }
@@ -870,7 +873,6 @@ function filterRecords(filters) {
   return deliveryState.records.filter(
     (record) =>
       matchesFilter(record.businessUnit, filters.businessUnit) &&
-      matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
       matchesFilter(record.salesLine, filters.salesLine) &&
       matchesFilter(record.salesSeries, filters.salesSeries) &&
       matchesFilter(record.model, filters.model) &&
@@ -883,7 +885,6 @@ function filterKingdeeRecords(filters) {
   return deliveryState.kingdeeRecords.filter(
     (record) =>
       matchesFilter(record.businessUnit, filters.businessUnit) &&
-      matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
       matchesFilter(record.salesLine, filters.salesLine) &&
       matchesFilter(record.salesSeries, filters.salesSeries) &&
       matchesFilter(record.model, filters.model) &&
@@ -906,15 +907,13 @@ function matchesDateRangeFilter(value, startDate = "", endDate = "") {
 
 function renderDelivery(message) {
   const filters = getDeliveryFilterValues();
-  const demandRecords = filterRecords(filters);
-  const kingdeeRecords = filterKingdeeRecords(filters);
-  const baseDetailRecords = aggregateStockKingdeeDetailRecords(demandRecords, kingdeeRecords);
-  const metricTotals = sumStockKingdeeQuantities(baseDetailRecords);
-  updateDetailFilterOptions(baseDetailRecords);
-  const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
+  const detailBaseRecords = getAggregatedRecordsForFilters(filters);
+  const metricTotals = sumStockKingdeeQuantities(detailBaseRecords);
+  updateDetailFilterOptions(detailBaseRecords);
+  const detailRecords = filterDetailRecords(detailBaseRecords, getDetailFilterValues());
   deliveryEls.orderedQty.textContent = formatNumber(metricTotals.orderedQty);
   deliveryEls.remainingQty.textContent = formatNumber(metricTotals.remainingQty);
-  deliveryEls.state.textContent = message || (baseDetailRecords.length ? `已匹配 ${baseDetailRecords.length} 行` : "暂无匹配数据");
+  deliveryEls.state.textContent = message || (detailBaseRecords.length ? `已匹配 ${detailBaseRecords.length} 行` : "暂无匹配数据");
   deliveryEls.downloadButton.disabled = Boolean(message) || !detailRecords.length;
 
   deliveryEls.rows.innerHTML = detailRecords.length
@@ -937,9 +936,14 @@ function renderDeliveryRow(record) {
 
 function getDeliveryDetailRecords() {
   const filters = getDeliveryFilterValues();
-  const records = aggregateStockKingdeeDetailRecords(filterRecords(filters), filterKingdeeRecords(filters));
+  const records = getAggregatedRecordsForFilters(filters);
   updateDetailFilterOptions(records);
   return filterDetailRecords(records, getDetailFilterValues());
+}
+
+function getAggregatedRecordsForFilters(filters) {
+  const rows = aggregateStockKingdeeDetailRecords(filterRecords(filters), filterKingdeeRecords(filters));
+  return rows.filter((record) => matchesFilter(record.differenceStatus, filters.differenceStatus));
 }
 
 function aggregateStockKingdeeDetailRecords(demandRecords, kingdeeRecords) {
@@ -952,7 +956,10 @@ function aggregateStockKingdeeDetailRecords(demandRecords, kingdeeRecords) {
     const target = getOrCreateStockKingdeeDetail(map, record);
     target.orderedQty += Number(record.purchaseQty) || 0;
   });
-  return [...map.values()];
+  return [...map.values()].map((record) => ({
+    ...record,
+    differenceStatus: hasQuantityDifference(record.orderedQty, record.remainingQty) ? "\u6709" : "\u65e0",
+  }));
 }
 
 function getOrCreateStockKingdeeDetail(map, record) {
@@ -985,6 +992,10 @@ function sumStockKingdeeQuantities(records) {
     },
     { orderedQty: 0, remainingQty: 0 }
   );
+}
+
+function hasQuantityDifference(kingdeeQty, demandQty) {
+  return Math.abs((Number(kingdeeQty) || 0) - (Number(demandQty) || 0)) > 0.000001;
 }
 
 function downloadDeliveryDetails() {
