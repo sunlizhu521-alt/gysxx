@@ -32,7 +32,8 @@ const deliveryEls = {
   modelFilter: document.querySelector("#modelFilter"),
   supplierShortFilter: document.querySelector("#supplierShortFilter"),
   orderUserFilter: document.querySelector("#orderUserFilter"),
-  orderDateFilter: document.querySelector("#orderDateFilter"),
+  orderDateStartFilter: document.querySelector("#orderDateStartFilter"),
+  orderDateEndFilter: document.querySelector("#orderDateEndFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
   downloadButton: document.querySelector("#deliveryDownloadButton"),
   orderedQty: document.querySelector("#orderedQty"),
@@ -119,7 +120,8 @@ function bindDeliveryEvents() {
     renderDetailFilterShell(config);
   });
 
-  deliveryEls.orderDateFilter?.addEventListener("change", applyDeliveryFilters);
+  deliveryEls.orderDateStartFilter?.addEventListener("change", applyDeliveryFilters);
+  deliveryEls.orderDateEndFilter?.addEventListener("change", applyDeliveryFilters);
 
   deliveryEls.filterBar.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-filter-toggle]");
@@ -168,7 +170,8 @@ function bindDeliveryEvents() {
   deliveryEls.resetButton.addEventListener("click", () => {
     deliveryFilterConfigs.forEach((config) => deliveryState.selectedFilters[config.key].clear());
     detailFilterConfigs.forEach((config) => deliveryState.detailFilters[config.key].clear());
-    if (deliveryEls.orderDateFilter) deliveryEls.orderDateFilter.value = "";
+    if (deliveryEls.orderDateStartFilter) deliveryEls.orderDateStartFilter.value = "";
+    if (deliveryEls.orderDateEndFilter) deliveryEls.orderDateEndFilter.value = "";
     applyDeliveryFilters();
   });
 
@@ -598,7 +601,8 @@ function getDeliveryFilterValues() {
   const filters = Object.fromEntries(
     deliveryFilterConfigs.map((config) => [config.key, [...(deliveryState.selectedFilters[config.key] || new Set())]])
   );
-  filters.orderDate = deliveryEls.orderDateFilter?.value || "";
+  filters.orderDateStart = deliveryEls.orderDateStartFilter?.value || "";
+  filters.orderDateEnd = deliveryEls.orderDateEndFilter?.value || "";
   return filters;
 }
 
@@ -795,7 +799,7 @@ function filterKingdeeRecords(filters) {
       matchesFilter(record.model, filters.model) &&
       matchesFilter(record.supplierShort, filters.supplierShort) &&
       matchesFilter(record.orderUser, filters.orderUser) &&
-      matchesDateFilter(record.orderDate, filters.orderDate)
+      matchesDateRangeFilter(record.orderDate, filters.orderDateStart, filters.orderDateEnd)
   );
 }
 
@@ -803,8 +807,11 @@ function matchesFilter(value, selectedValues = []) {
   return !selectedValues?.length || selectedValues.includes(value);
 }
 
-function matchesDateFilter(value, selectedDate = "") {
-  return !selectedDate || normalizeDateKey(value) === selectedDate;
+function matchesDateRangeFilter(value, startDate = "", endDate = "") {
+  if (!startDate && !endDate) return true;
+  const dateKey = normalizeDateKey(value);
+  if (!dateKey) return false;
+  return (!startDate || dateKey >= startDate) && (!endDate || dateKey <= endDate);
 }
 
 function renderDelivery(message) {
@@ -908,13 +915,22 @@ function buildDeliveryDownloadName() {
   const parts = [
     "供应商未交付明细",
     ...deliveryFilterConfigs.map((config) => selectedText(config)),
-    deliveryEls.orderDateFilter?.value ? `日期${deliveryEls.orderDateFilter.value}` : "",
+    buildDateRangeText(),
   ];
   return parts.map(sanitizeFileNamePart).filter(Boolean).join("_");
 }
 
 function selectedText(config) {
   return getFilterButtonLabel(config, [...(deliveryState.selectedFilters[config.key] || new Set())]);
+}
+
+function buildDateRangeText() {
+  const startDate = deliveryEls.orderDateStartFilter?.value || "";
+  const endDate = deliveryEls.orderDateEndFilter?.value || "";
+  if (startDate && endDate) return `日期${startDate}至${endDate}`;
+  if (startDate) return `日期${startDate}以后`;
+  if (endDate) return `日期${endDate}以前`;
+  return "";
 }
 
 function sanitizeFileNamePart(value) {
