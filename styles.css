@@ -406,6 +406,41 @@ select {
   flex: 0 0 auto;
 }
 
+.date-filter-control {
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.date-filter-control span {
+  color: #475569;
+  white-space: nowrap;
+}
+
+.date-filter-control input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  font: inherit;
+  background: transparent;
+}
+
+.date-filter-control:focus-within {
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
 .multi-filter.open .multi-filter-button {
   border-color: #2f6fed;
   box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);

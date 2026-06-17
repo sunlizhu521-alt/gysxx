@@ -32,8 +32,7 @@ const deliveryEls = {
   modelFilter: document.querySelector("#modelFilter"),
   supplierShortFilter: document.querySelector("#supplierShortFilter"),
   orderUserFilter: document.querySelector("#orderUserFilter"),
-  dateFilter: document.querySelector("#dateFilter"),
-  stockAgeFilter: document.querySelector("#stockAgeFilter"),
+  orderDateFilter: document.querySelector("#orderDateFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
   downloadButton: document.querySelector("#deliveryDownloadButton"),
   orderedQty: document.querySelector("#orderedQty"),
@@ -59,17 +58,6 @@ const deliveryFilterConfigs = [
   { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
   { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
   { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
-  { key: "dateRange", element: deliveryEls.dateFilter, label: "\u5168\u90e8\u65f6\u95f4", field: null, staticOptions: [] },
-  {
-    key: "stockAge",
-    element: deliveryEls.stockAgeFilter,
-    label: "\u5168\u90e8\u5e93\u9f84",
-    field: null,
-    staticOptions: [
-      { value: "over60", label: "\u8d8560\u5929" },
-      { value: "notOver60", label: "\u672a\u8d8560\u5929" },
-    ],
-  },
 ];
 
 const detailFilterConfigs = [
@@ -105,6 +93,7 @@ const kingdeeAliases = {
   itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
   supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
   creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
+  orderDate: ["采购日期", "下单日期", "订单日期", "日期"],
   businessUnit: ["事业部", "部门", "业务部门"],
   purchaseQty: ["采购数量", "数量", "订单数量"],
   remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
@@ -129,6 +118,8 @@ function bindDeliveryEvents() {
     deliveryState.detailFilters[config.key] = new Set();
     renderDetailFilterShell(config);
   });
+
+  deliveryEls.orderDateFilter?.addEventListener("change", applyDeliveryFilters);
 
   deliveryEls.filterBar.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-filter-toggle]");
@@ -177,6 +168,7 @@ function bindDeliveryEvents() {
   deliveryEls.resetButton.addEventListener("click", () => {
     deliveryFilterConfigs.forEach((config) => deliveryState.selectedFilters[config.key].clear());
     detailFilterConfigs.forEach((config) => deliveryState.detailFilters[config.key].clear());
+    if (deliveryEls.orderDateFilter) deliveryEls.orderDateFilter.value = "";
     applyDeliveryFilters();
   });
 
@@ -469,6 +461,7 @@ function parseKingdeeSheet(rows) {
         sku,
         itemName,
         supplier,
+        orderDate: normalizeDateKey(getRowValue(row, headerMap.orderDate)),
         businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
         creator: getRowValue(row, headerMap.creator),
         orderUser: getRowValue(row, headerMap.creator),
@@ -602,9 +595,11 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
 }
 
 function getDeliveryFilterValues() {
-  return Object.fromEntries(
+  const filters = Object.fromEntries(
     deliveryFilterConfigs.map((config) => [config.key, [...(deliveryState.selectedFilters[config.key] || new Set())]])
   );
+  filters.orderDate = deliveryEls.orderDateFilter?.value || "";
+  return filters;
 }
 
 function getDetailFilterValues() {
@@ -786,8 +781,7 @@ function filterRecords(filters) {
       matchesFilter(record.salesSeries, filters.salesSeries) &&
       matchesFilter(record.model, filters.model) &&
       matchesFilter(record.supplierShort, filters.supplierShort) &&
-      matchesFilter(record.orderUser, filters.orderUser) &&
-      matchesStockAgeFilter(record, filters.stockAge)
+      matchesFilter(record.orderUser, filters.orderUser)
   );
 }
 
@@ -800,7 +794,8 @@ function filterKingdeeRecords(filters) {
       matchesFilter(record.salesSeries, filters.salesSeries) &&
       matchesFilter(record.model, filters.model) &&
       matchesFilter(record.supplierShort, filters.supplierShort) &&
-      matchesFilter(record.orderUser, filters.orderUser)
+      matchesFilter(record.orderUser, filters.orderUser) &&
+      matchesDateFilter(record.orderDate, filters.orderDate)
   );
 }
 
@@ -808,11 +803,8 @@ function matchesFilter(value, selectedValues = []) {
   return !selectedValues?.length || selectedValues.includes(value);
 }
 
-function matchesStockAgeFilter(record, selectedValues = []) {
-  if (!selectedValues?.length) return true;
-  return selectedValues.some(
-    (value) => (value === "over60" && record.isOver60) || (value === "notOver60" && !record.isOver60)
-  );
+function matchesDateFilter(value, selectedDate = "") {
+  return !selectedDate || normalizeDateKey(value) === selectedDate;
 }
 
 function renderDelivery(message) {
@@ -914,8 +906,9 @@ function downloadDeliveryDetails() {
 
 function buildDeliveryDownloadName() {
   const parts = [
-    "????????????",
+    "供应商未交付明细",
     ...deliveryFilterConfigs.map((config) => selectedText(config)),
+    deliveryEls.orderDateFilter?.value ? `日期${deliveryEls.orderDateFilter.value}` : "",
   ];
   return parts.map(sanitizeFileNamePart).filter(Boolean).join("_");
 }
@@ -1044,6 +1037,29 @@ function getRowValue(row, index) {
 function parseNumber(value) {
   const number = Number(String(value || "").replace(/,/g, "").trim());
   return Number.isFinite(number) ? number : 0;
+}
+
+function normalizeDateKey(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatDateKey(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return Number.isNaN(date.getTime()) ? "" : formatDateKey(date);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const normalizedText = text.replace(/[年月.]/g, "/").replace(/日/g, "").split(/\s+/)[0];
+  const parts = normalizedText.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (parts) {
+    return `${parts[1]}-${parts[2].padStart(2, "0")}-${parts[3].padStart(2, "0")}`;
+  }
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? "" : formatDateKey(date);
+}
+
+function formatDateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function formatNumber(value) {

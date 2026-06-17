@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>备货与金蝶核对 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260610-14" />
+    <link rel="stylesheet" href="./styles.css?v=20260617-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -58,8 +58,10 @@
             <div class="multi-filter" id="purchaseGroupFilter" data-filter-key="purchaseGroup"></div>
             <div class="multi-filter" id="orderUserFilter" data-filter-key="orderUser"></div>
             <div class="multi-filter" id="supplierShortFilter" data-filter-key="supplierShort"></div>
-            <div class="multi-filter" id="dateFilter" data-filter-key="dateRange"></div>
-            <div class="multi-filter" id="stockAgeFilter" data-filter-key="stockAge"></div>
+            <label class="date-filter-control">
+              <span>日期</span>
+              <input id="orderDateFilter" type="date" />
+            </label>
           </div>
         </section>
 
@@ -108,6 +110,6 @@
     <script src="./vendor/jszip.min.js?v=20260617-1"></script>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./xlsx-repair.js?v=20260617-1"></script>
-    <script src="./stock-kingdee-check.js?v=20260617-1"></script>
+    <script src="./stock-kingdee-check.js?v=20260617-2"></script>
   </body>
 </html>
