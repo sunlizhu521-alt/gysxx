@@ -9,6 +9,7 @@ const PURCHASE_ORDER_SLOT = "fact-1";
 const KINGDEE_ORDER_SLOT = "fact-2";
 const MAX_KINGDEE_SHEET_ROWS = 120000;
 const MAX_KINGDEE_SHEET_COLUMNS = 80;
+const KINGDEE_PURCHASE_FILTER_KEYS = new Set(["purchaseGroup", "orderUser", "supplierShort"]);
 const DELIVERY_SOURCE_LABEL = "数据来源：本地文件库";
 const PURCHASE_GROUP_ORDER = ["采购一组", "采购二组", "采购三组", "采购四组", "其他/配件", "未匹配"];
 
@@ -84,6 +85,7 @@ const columnAliases = {
 const purchaseDetailAliases = {
   materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
   supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
+  purchaseGroup: ["采购分组", "采购组", "组名"],
   supplierShort: ["供应商简称", "简称", "供应商简名"],
   orderUser: ["采购下单人"],
 };
@@ -294,16 +296,22 @@ async function readPurchaseDetailMap(file) {
   if (headerIndex < 0) return new Map();
   const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseDetailAliases);
   const map = new Map();
+  const supplierMaterialMap = new Map();
   rows.slice(headerIndex + 1).forEach((row) => {
     const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
     if (!materialCode) return;
-    const supplier = getRowValue(row, headerMap.supplier);
-    map.set(materialCode, {
+    const supplier = getRowValue(row, 6) || getRowValue(row, headerMap.supplier);
+    const detail = {
       supplier,
+      purchaseGroup: getRowValue(row, headerMap.purchaseGroup),
       supplierShort: getRowValue(row, headerMap.supplierShort) || supplier,
       orderUser: getRowValue(row, headerMap.orderUser) || "\u672a\u7ef4\u62a4",
-    });
+    };
+    if (!map.has(materialCode)) map.set(materialCode, detail);
+    const supplierMaterialKey = createSupplierMaterialKey(supplier, materialCode);
+    if (supplierMaterialKey) supplierMaterialMap.set(supplierMaterialKey, detail);
   });
+  map.supplierMaterialMap = supplierMaterialMap;
   return map;
 }
 
@@ -581,7 +589,9 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
   return records.map((record) => {
     const materialCode = normalizeMaterialCode(record.materialCode);
     const matched = categoryMap.get(materialCode);
-    const detail = purchaseDetailMap.get(materialCode);
+    const detail =
+      purchaseDetailMap.supplierMaterialMap?.get(createSupplierMaterialKey(record.supplier, materialCode)) ||
+      purchaseDetailMap.get(materialCode);
     return {
       ...record,
       materialCode: record.materialCode || materialCode,
@@ -589,10 +599,10 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
       salesLine: matched?.salesLine || record.salesLine || "未匹配",
       salesSeries: matched?.salesSeries || record.salesSeries || "未匹配",
       model: matched?.model || record.model || "未匹配",
-      purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "未匹配",
+      purchaseGroup: detail?.purchaseGroup || matched?.purchaseGroup || record.purchaseGroup || "未匹配",
       supplier: detail?.supplier || record.supplier || "未匹配",
       supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || record.supplier || "未匹配",
-      orderUser: record.orderUser || record.creator || detail?.orderUser || "未维护",
+      orderUser: detail?.orderUser || record.orderUser || record.creator || "未维护",
     };
   });
 }
@@ -624,8 +634,11 @@ function getFilterOptionItems(config, filters) {
   if (config.staticOptions) {
     return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
   }
-  let values = uniqueValues(filterRecords({ ...filters, [config.key]: [] }), config.field);
-  if (config.key === "purchaseGroup") {
+  const sourceRows = KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)
+    ? filterKingdeeRecords({ ...filters, [config.key]: [] })
+    : filterRecords({ ...filters, [config.key]: [] });
+  let values = uniqueValues(sourceRows, config.field);
+  if (config.key === "purchaseGroup" && !KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)) {
     const sourceGroups = new Set(deliveryState.categoryPurchaseGroups);
     values = values.filter((value) => sourceGroups.has(value));
   }
@@ -1126,6 +1139,20 @@ function normalizeMaterialCode(value) {
   return String(value || "")
     .trim()
     .replace(/\.0$/, "")
+    .toLowerCase();
+}
+
+function createSupplierMaterialKey(supplier, materialCode) {
+  const normalizedSupplier = normalizeSupplierName(supplier);
+  const normalizedMaterialCode = normalizeMaterialCode(materialCode);
+  return normalizedSupplier && normalizedMaterialCode ? `${normalizedSupplier}||${normalizedMaterialCode}` : "";
+}
+
+function normalizeSupplierName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[()（）]/g, "")
     .toLowerCase();
 }
 
