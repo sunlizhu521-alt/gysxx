@@ -7,6 +7,7 @@ const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const KINGDEE_ORDER_SLOT = "fact-2";
+const STOCK_DEMAND_SLOT = "fact-4";
 const MAX_KINGDEE_SHEET_ROWS = 120000;
 const MAX_KINGDEE_SHEET_COLUMNS = 80;
 const KINGDEE_PURCHASE_FILTER_KEYS = new Set(["purchaseGroup", "orderUser", "supplierShort"]);
@@ -17,6 +18,7 @@ const deliveryState = {
   records: [],
   filtered: [],
   kingdeeRecords: [],
+  demandRecords: [],
   categoryMap: new Map(),
   categoryPurchaseGroups: [],
   purchaseDetailMap: new Map(),
@@ -66,9 +68,9 @@ const detailFilterConfigs = [
   { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
   { key: "materialCode", label: "物料编码", field: "materialCode" },
   { key: "sku", label: "SKU", field: "sku" },
-  { key: "itemName", label: "物品名称", field: "itemName" },
-  { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
-  { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
+  { key: "itemName", label: "物料名称", field: "itemName" },
+  { key: "orderedQty", label: "金蝶采购数量", field: "orderedQty", numeric: true },
+  { key: "remainingQty", label: "备货需求数量", field: "remainingQty", numeric: true },
 ];
 
 const columnAliases = {
@@ -100,6 +102,14 @@ const kingdeeAliases = {
   businessUnit: ["事业部", "部门", "业务部门"],
   purchaseQty: ["采购数量", "数量", "订单数量"],
   remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
+};
+
+const stockDemandAliases = {
+  businessUnit: ["事业部", "部门", "业务部门"],
+  materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
+  sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
+  itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
+  demandQty: ["数量", "备货需求数量", "需求数量", "申请数量"],
 };
 
 const purchaseOrderRequiredColumns = ["materialCode", "orderedQty", "completedQty", "shippedQty", "remainingQty"];
@@ -183,21 +193,21 @@ function bindDeliveryEvents() {
 async function loadDeliverySource(options = {}) {
   try {
     const db = await openAppDb();
-    const [factRecord, kingdeeRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
-      getRecord(db, FACT_STORE_NAME, PURCHASE_ORDER_SLOT),
+    const [demandRecord, kingdeeRecord, categoryRecord, purchaseAssignmentRecord] = await Promise.all([
+      getRecord(db, FACT_STORE_NAME, STOCK_DEMAND_SLOT),
       getRecord(db, FACT_STORE_NAME, KINGDEE_ORDER_SLOT),
       getRecord(db, DIMENSION_STORE_NAME, CATEGORY_DIMENSION_SLOT),
       getRecord(db, DIMENSION_STORE_NAME, PURCHASE_ASSIGNMENT_SLOT),
     ]);
     db.close();
-    const appliedFactRecord = getAppliedLibraryRecord(factRecord);
+    const appliedDemandRecord = getAppliedLibraryRecord(demandRecord);
     const appliedKingdeeRecord = getAppliedLibraryRecord(kingdeeRecord);
     const appliedCategoryRecord = getAppliedLibraryRecord(categoryRecord);
     const appliedPurchaseAssignmentRecord = getAppliedLibraryRecord(purchaseAssignmentRecord);
 
-    if (!appliedFactRecord?.file || !appliedKingdeeRecord?.file) {
+    if (!appliedDemandRecord?.file || !appliedKingdeeRecord?.file) {
       if (options.silent) return false;
-      resetDelivery("请先在文件库更新上传并确认应用 Fac-采购订单跟进表 和 Fac-金蝶采购订单列表");
+      resetDelivery("请先在文件库更新上传并确认应用 Fac-备货需求分配 和 Fac-金蝶采购订单列表");
       return false;
     }
 
@@ -209,19 +219,20 @@ async function loadDeliverySource(options = {}) {
     deliveryState.purchaseDetailMap = appliedPurchaseAssignmentRecord?.file
       ? await readNamedSource("Dim-采购分工明细", () => readPurchaseDetailMap(appliedPurchaseAssignmentRecord.file))
       : new Map();
-    const deliveryRows = await readNamedSource("Fac-采购订单跟进表", () => readDeliveryWorkbook(appliedFactRecord.file));
+    const demandRows = await readNamedSource("Fac-备货需求分配", () => readStockDemandWorkbook(appliedDemandRecord.file));
     const kingdeeRows = await readNamedSource("Fac-金蝶采购订单列表", () => readKingdeeRowsFromRecord(appliedKingdeeRecord));
-    const records = enrichDeliveryRecords(deliveryRows, deliveryState.categoryMap, deliveryState.purchaseDetailMap);
+    const records = enrichDemandRecords(demandRows, deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     const kingdeeRecords = enrichKingdeeRecords(kingdeeRows, deliveryState.categoryMap, deliveryState.purchaseDetailMap);
     if (!records.length) {
       if (options.silent) return false;
-      resetDelivery("\u5df2\u5e94\u7528\u7684\u91c7\u8d2d\u8ba2\u5355\u8ddf\u8fdb\u8868\u65e0\u53ef\u7528\u6570\u636e");
+      resetDelivery("已应用的 Fac-备货需求分配无可用数据");
       return false;
     }
     deliveryState.records = records;
+    deliveryState.demandRecords = records;
     deliveryState.kingdeeRecords = kingdeeRecords;
     updateSourceNote(deliveryEls.sourceNote, "数据来源：本地文件库", [
-      { name: "Fac-采购订单跟进表", record: appliedFactRecord },
+      { name: "Fac-备货需求分配", record: appliedDemandRecord },
       { name: "Fac-金蝶采购订单列表", record: appliedKingdeeRecord },
       { name: "Dim-YL医疗器械商品分类", record: appliedCategoryRecord },
       { name: "Dim-采购分工明细", record: appliedPurchaseAssignmentRecord },
@@ -252,6 +263,7 @@ function resetDelivery(message) {
   deliveryState.records = [];
   deliveryState.filtered = [];
   deliveryState.kingdeeRecords = [];
+  deliveryState.demandRecords = [];
   deliveryState.purchaseDetailMap = new Map();
   deliveryState.categoryMap = new Map();
   deliveryState.categoryPurchaseGroups = [];
@@ -345,6 +357,23 @@ async function readKingdeeRowsFromRecord(record) {
 async function readKingdeeWorkbook(file) {
   const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
   return parseKingdeeSheet(rows);
+}
+
+async function readStockDemandWorkbook(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "csv") {
+    return parseStockDemandSheet(csvToRows(await readFileText(file)), "");
+  }
+  if (!window.XLSX) {
+    throw new Error("XLSX parser is not available.");
+  }
+  const sheetNames = await readWorkbookSheetNames(file);
+  const records = [];
+  for (const sheetName of sheetNames) {
+    const rows = await readWorkbookSheetRows(file, sheetName, { exact: true });
+    records.push(...parseStockDemandSheet(rows, sheetName));
+  }
+  return records;
 }
 
 async function readWorkbookSheetRows(file, preferredSheetName = "", options = {}) {
@@ -483,6 +512,32 @@ function parseKingdeeSheet(rows) {
     .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
 }
 
+function parseStockDemandSheet(rows, sheetName = "") {
+  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownAliasHeader(cell, stockDemandAliases)));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
+  const dataRows = rows.slice(headerIndex + 1);
+  const headerMap = createAliasBasedHeaderMap(headers, dataRows, stockDemandAliases);
+  if (headerMap.demandQty === undefined) return [];
+
+  return dataRows
+    .map((row, index) => {
+      const materialCode = getRowValue(row, headerMap.materialCode);
+      const sku = getRowValue(row, headerMap.sku);
+      const itemName = getRowValue(row, headerMap.itemName);
+      const businessUnit = getRowValue(row, headerMap.businessUnit) || getBusinessUnitFromSheetName(sheetName);
+      return {
+        id: `demand-${sheetName}-${index}-${materialCode}-${sku}`,
+        businessUnit: normalizeBusinessUnit(businessUnit),
+        materialCode,
+        sku,
+        itemName,
+        demandQty: parseNumber(getRowValue(row, headerMap.demandQty)),
+      };
+    })
+    .filter((record) => record.materialCode || record.sku || record.itemName);
+}
+
 function getBusinessUnitFromSheetName(sheetName) {
   const name = String(sheetName || "").trim();
   return normalizeBusinessUnit(name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配");
@@ -585,6 +640,25 @@ function enrichDeliveryRecords(records, categoryMap, purchaseDetailMap = new Map
   });
 }
 
+function enrichDemandRecords(records, categoryMap, purchaseDetailMap = new Map()) {
+  return records.map((record) => {
+    const materialCode = normalizeMaterialCode(record.materialCode);
+    const matched = categoryMap.get(materialCode);
+    const detail = purchaseDetailMap.get(materialCode);
+    return {
+      ...record,
+      materialCode: record.materialCode || materialCode,
+      salesLine: matched?.salesLine || record.salesLine || "未匹配",
+      salesSeries: matched?.salesSeries || record.salesSeries || "未匹配",
+      model: matched?.model || record.model || "未匹配",
+      purchaseGroup: detail?.purchaseGroup || matched?.purchaseGroup || record.purchaseGroup || "未匹配",
+      supplier: detail?.supplier || record.supplier || "未匹配",
+      supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || record.supplier || "未匹配",
+      orderUser: detail?.orderUser || record.orderUser || "未维护",
+    };
+  });
+}
+
 function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map()) {
   return records.map((record) => {
     const materialCode = normalizeMaterialCode(record.materialCode);
@@ -635,7 +709,10 @@ function getFilterOptionItems(config, filters) {
     return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
   }
   const sourceRows = KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)
-    ? filterKingdeeRecords({ ...filters, [config.key]: [] })
+    ? aggregateStockKingdeeDetailRecords(
+        filterRecords({ ...filters, [config.key]: [] }),
+        filterKingdeeRecords({ ...filters, [config.key]: [] })
+      )
     : filterRecords({ ...filters, [config.key]: [] });
   let values = uniqueValues(sourceRows, config.field);
   if (config.key === "purchaseGroup" && !KINGDEE_PURCHASE_FILTER_KEYS.has(config.key)) {
@@ -829,16 +906,15 @@ function matchesDateRangeFilter(value, startDate = "", endDate = "") {
 
 function renderDelivery(message) {
   const filters = getDeliveryFilterValues();
+  const demandRecords = filterRecords(filters);
   const kingdeeRecords = filterKingdeeRecords(filters);
-  const metricTotals = sumKingdeeQuantities(kingdeeRecords);
-  const baseDetailRecords = aggregateKingdeeDetailRecords(
-    kingdeeRecords.filter((record) => Number(record.remainingInboundQty) > 0)
-  );
+  const baseDetailRecords = aggregateStockKingdeeDetailRecords(demandRecords, kingdeeRecords);
+  const metricTotals = sumStockKingdeeQuantities(baseDetailRecords);
   updateDetailFilterOptions(baseDetailRecords);
   const detailRecords = filterDetailRecords(baseDetailRecords, getDetailFilterValues());
   deliveryEls.orderedQty.textContent = formatNumber(metricTotals.orderedQty);
   deliveryEls.remainingQty.textContent = formatNumber(metricTotals.remainingQty);
-  deliveryEls.state.textContent = message || (kingdeeRecords.length ? `已匹配 ${kingdeeRecords.length} 行` : "暂无匹配数据");
+  deliveryEls.state.textContent = message || (baseDetailRecords.length ? `已匹配 ${baseDetailRecords.length} 行` : "暂无匹配数据");
   deliveryEls.downloadButton.disabled = Boolean(message) || !detailRecords.length;
 
   deliveryEls.rows.innerHTML = detailRecords.length
@@ -860,44 +936,51 @@ function renderDeliveryRow(record) {
 }
 
 function getDeliveryDetailRecords() {
-  const records = aggregateKingdeeDetailRecords(
-    filterKingdeeRecords(getDeliveryFilterValues()).filter((record) => Number(record.remainingInboundQty) > 0)
-  );
+  const filters = getDeliveryFilterValues();
+  const records = aggregateStockKingdeeDetailRecords(filterRecords(filters), filterKingdeeRecords(filters));
   updateDetailFilterOptions(records);
   return filterDetailRecords(records, getDetailFilterValues());
 }
 
-function aggregateKingdeeDetailRecords(records) {
+function aggregateStockKingdeeDetailRecords(demandRecords, kingdeeRecords) {
   const map = new Map();
-  records.forEach((record) => {
-    const materialKey = normalizeMaterialCode(record.materialCode);
-    const key = materialKey || `row:${record.id}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        ...record,
-        supplierShortValues: new Set(),
-        orderedQty: 0,
-        remainingQty: 0,
-      });
-    }
-    const target = map.get(key);
-    addDisplayValue(target.supplierShortValues, record.supplierShort || record.supplier);
-    target.supplierShort = [...target.supplierShortValues].join("、");
-    target.supplier ||= record.supplier || "";
-    target.materialCode ||= record.materialCode || "";
-    target.sku ||= record.sku || "";
-    target.itemName ||= record.itemName || "";
+  demandRecords.forEach((record) => {
+    const target = getOrCreateStockKingdeeDetail(map, record);
+    target.remainingQty += Number(record.demandQty) || 0;
+  });
+  kingdeeRecords.forEach((record) => {
+    const target = getOrCreateStockKingdeeDetail(map, record);
     target.orderedQty += Number(record.purchaseQty) || 0;
-    target.remainingQty += Number(record.remainingInboundQty) || 0;
   });
   return [...map.values()];
 }
 
-function sumKingdeeQuantities(records) {
+function getOrCreateStockKingdeeDetail(map, record) {
+  const materialKey = normalizeMaterialCode(record.materialCode);
+  const key = materialKey || `row:${record.id}`;
+  if (!map.has(key)) {
+    map.set(key, {
+      ...record,
+      supplierShortValues: new Set(),
+      orderedQty: 0,
+      remainingQty: 0,
+    });
+  }
+  const target = map.get(key);
+  addDisplayValue(target.supplierShortValues, record.supplierShort || record.supplier);
+  target.supplierShort = [...target.supplierShortValues].join("、");
+  target.supplier ||= record.supplier || "";
+  target.materialCode ||= record.materialCode || "";
+  target.sku ||= record.sku || "";
+  target.itemName ||= record.itemName || "";
+  return target;
+}
+
+function sumStockKingdeeQuantities(records) {
   return records.reduce(
     (totals, record) => {
-      totals.orderedQty += Number(record.purchaseQty) || 0;
-      totals.remainingQty += Number(record.remainingInboundQty) || 0;
+      totals.orderedQty += Number(record.orderedQty) || 0;
+      totals.remainingQty += Number(record.remainingQty) || 0;
       return totals;
     },
     { orderedQty: 0, remainingQty: 0 }
@@ -912,12 +995,12 @@ function downloadDeliveryDetails() {
     供应商简称: record.supplierShort || record.supplier || "",
     物料编码: record.materialCode || "",
     SKU: record.sku || "",
-    物品名称: record.itemName || "",
-    下单数量: Number(record.orderedQty) || 0,
-    剩余数量: Number(record.remainingQty) || 0,
+    物料名称: record.itemName || "",
+    金蝶采购数量: Number(record.orderedQty) || 0,
+    备货需求数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["供应商简称", "物料编码", "SKU", "物品名称", "下单数量", "剩余数量"],
+    header: ["供应商简称", "物料编码", "SKU", "物料名称", "金蝶采购数量", "备货需求数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
