@@ -713,6 +713,11 @@ function updateFilterOptions() {
 }
 
 function getFilterOptionItems(config, filters) {
+  if (config.key === "businessUnit") {
+    const rows = filterKingdeeRecords({ ...filters, [config.key]: [] });
+    const values = uniqueValues(rows, config.field);
+    return values.map((value) => ({ value, label: value }));
+  }
   if (config.key === "differenceStatus") {
     const rows = getAggregatedRecordsForFilters({ ...filters, [config.key]: [] });
     return config.staticOptions.filter((option) => rows.some((row) => row.differenceStatus === option.value));
