@@ -293,6 +293,7 @@ async function readPurchaseDetailMap(file) {
   const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseDetailAliases);
   const map = new Map();
   const supplierMap = new Map();
+  const supplierMaterialMap = new Map();
   rows.slice(headerIndex + 1).forEach((row) => {
     const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
     const supplier = getRowValue(row, headerMap.supplier);
@@ -304,8 +305,11 @@ async function readPurchaseDetailMap(file) {
     if (materialCode) map.set(materialCode, detail);
     const supplierKey = normalizeSupplierName(supplier);
     if (supplierKey && !supplierMap.has(supplierKey)) supplierMap.set(supplierKey, detail);
+    const supplierMaterialKey = buildSupplierMaterialKey(supplier, materialCode);
+    if (supplierMaterialKey && !supplierMaterialMap.has(supplierMaterialKey)) supplierMaterialMap.set(supplierMaterialKey, detail);
   });
   map.supplierMap = supplierMap;
+  map.supplierMaterialMap = supplierMaterialMap;
   return map;
 }
 
@@ -583,8 +587,9 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
   return records.map((record) => {
     const materialCode = normalizeMaterialCode(record.materialCode);
     const matched = categoryMap.get(materialCode);
+    const comboDetail = purchaseDetailMap.supplierMaterialMap?.get(buildSupplierMaterialKey(record.supplier, materialCode));
     const supplierDetail = purchaseDetailMap.supplierMap?.get(normalizeSupplierName(record.supplier));
-    const detail = supplierDetail || purchaseDetailMap.get(materialCode);
+    const detail = comboDetail || supplierDetail || purchaseDetailMap.get(materialCode);
     return {
       ...record,
       materialCode: record.materialCode || materialCode,
@@ -594,8 +599,8 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
       model: matched?.model || record.model || "未匹配",
       purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "未匹配",
       supplier: detail?.supplier || record.supplier || "未匹配",
-      supplierShort: supplierDetail?.supplierShort || detail?.supplierShort || record.supplierShort || record.supplier || "未匹配",
-      orderUser: record.orderUser || record.creator || detail?.orderUser || "未维护",
+      supplierShort: comboDetail?.supplierShort || supplierDetail?.supplierShort || detail?.supplierShort || record.supplierShort || record.supplier || "未匹配",
+      orderUser: comboDetail?.orderUser || "未维护",
     };
   });
 }
@@ -1158,6 +1163,12 @@ function normalizeSupplierName(value) {
     .replace(/\s+/g, "")
     .replace(/[()（）]/g, "")
     .toLowerCase();
+}
+
+function buildSupplierMaterialKey(supplier, materialCode) {
+  const supplierKey = normalizeSupplierName(supplier);
+  const materialKey = normalizeMaterialCode(materialCode);
+  return supplierKey && materialKey ? `${supplierKey}__${materialKey}` : "";
 }
 
 function openAppDb() {
