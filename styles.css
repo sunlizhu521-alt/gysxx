@@ -353,6 +353,13 @@ select {
   margin-bottom: 0;
 }
 
+.supplier-table-panel > .table-wrap,
+.missing-table-wrap {
+  max-height: calc(100vh - 430px);
+  min-height: 300px;
+  overflow: auto;
+}
+
 .delivery-filter-panel {
   margin-bottom: 10px;
 }
@@ -572,7 +579,7 @@ select {
 .delivery-dashboard .delivery-table-wrap {
   max-height: calc(100vh - 390px);
   min-height: 310px;
-  overflow: visible;
+  overflow: auto;
 }
 
 .delivery-table {
@@ -726,6 +733,7 @@ select {
 .kingdee-table-wrap {
   max-height: calc(100vh - 380px);
   min-height: 300px;
+  overflow: auto;
 }
 
 .kingdee-compare-table {
@@ -895,6 +903,7 @@ select {
 .order-change-table-wrap {
   max-height: calc(100vh - 470px);
   min-height: 280px;
+  overflow: auto;
 }
 
 .order-change-table {
@@ -1772,6 +1781,18 @@ select {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.supplier-table-panel > .table-wrap thead th,
+.delivery-table-wrap thead th,
+.kingdee-table-wrap thead th,
+.order-change-table-wrap thead th,
+.missing-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #f8fbff;
+  box-shadow: 0 1px 0 var(--line);
 }
 
 table {
