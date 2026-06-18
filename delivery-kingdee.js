@@ -69,9 +69,9 @@ const detailFilterConfigs = [
   { key: "sku", label: "SKU", field: "sku" },
   { key: "itemName", label: "物品名称", field: "itemName" },
   { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
-  { key: "purchaseOrderNo", label: "采购订单号", field: "purchaseOrderNo" },
   { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
   { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
+  { key: "purchaseOrderNo", label: "采购订单号", field: "purchaseOrderNo" },
 ];
 
 const columnAliases = {
@@ -892,9 +892,9 @@ function renderDeliveryRow(record) {
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
-      <td>${escapeHtml(record.purchaseOrderNo || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
+      <td>${escapeHtml(record.purchaseOrderNo || "--")}</td>
     </tr>
   `;
 }
@@ -956,12 +956,12 @@ function downloadDeliveryDetails() {
     SKU: record.sku || "",
     物品名称: record.itemName || "",
     供应商简称: record.supplierShort || record.supplier || "",
-    采购订单号: record.purchaseOrderNo || "",
     下单数量: Number(record.orderedQty) || 0,
     剩余数量: Number(record.remainingQty) || 0,
+    采购订单号: record.purchaseOrderNo || "",
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["物料编码", "SKU", "物品名称", "供应商简称", "采购订单号", "下单数量", "剩余数量"],
+    header: ["物料编码", "SKU", "物品名称", "供应商简称", "下单数量", "剩余数量", "采购订单号"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
