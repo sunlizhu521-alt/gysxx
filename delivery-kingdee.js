@@ -26,14 +26,11 @@ const deliveryState = {
 const deliveryEls = {
   filterBar: document.querySelector("#deliveryFilterBar"),
   businessUnitFilter: document.querySelector("#businessUnitFilter"),
-  purchaseGroupFilter: document.querySelector("#purchaseGroupFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
   modelFilter: document.querySelector("#modelFilter"),
   supplierShortFilter: document.querySelector("#supplierShortFilter"),
   orderUserFilter: document.querySelector("#orderUserFilter"),
-  dateFilter: document.querySelector("#dateFilter"),
-  stockAgeFilter: document.querySelector("#stockAgeFilter"),
   resetButton: document.querySelector("#deliveryResetButton"),
   downloadButton: document.querySelector("#deliveryDownloadButton"),
   orderedQty: document.querySelector("#orderedQty"),
@@ -52,24 +49,12 @@ const deliveryEls = {
 };
 
 const deliveryFilterConfigs = [
+  { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
   { key: "businessUnit", element: deliveryEls.businessUnitFilter, label: "\u5168\u90e8\u4e8b\u4e1a\u90e8", field: "businessUnit" },
   { key: "salesLine", element: deliveryEls.salesLineFilter, label: "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf", field: "salesLine" },
   { key: "salesSeries", element: deliveryEls.salesSeriesFilter, label: "\u5168\u90e8\u9500\u552e\u7cfb\u5217", field: "salesSeries" },
   { key: "model", element: deliveryEls.modelFilter, label: "\u5168\u90e8\u578b\u53f7", field: "model" },
-  { key: "purchaseGroup", element: deliveryEls.purchaseGroupFilter, label: "\u5168\u90e8\u91c7\u8d2d\u5206\u7ec4", field: "purchaseGroup", sort: sortPurchaseGroups },
-  { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
   { key: "supplierShort", element: deliveryEls.supplierShortFilter, label: "\u5168\u90e8\u4f9b\u5e94\u5546\u7b80\u79f0", field: "supplierShort" },
-  { key: "dateRange", element: deliveryEls.dateFilter, label: "\u5168\u90e8\u65f6\u95f4", field: null, staticOptions: [] },
-  {
-    key: "stockAge",
-    element: deliveryEls.stockAgeFilter,
-    label: "\u5168\u90e8\u5e93\u9f84",
-    field: null,
-    staticOptions: [
-      { value: "over60", label: "\u8d8560\u5929" },
-      { value: "notOver60", label: "\u672a\u8d8560\u5929" },
-    ],
-  },
 ];
 
 const detailFilterConfigs = [
@@ -299,16 +284,20 @@ async function readPurchaseDetailMap(file) {
   if (headerIndex < 0) return new Map();
   const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseDetailAliases);
   const map = new Map();
+  const supplierMap = new Map();
   rows.slice(headerIndex + 1).forEach((row) => {
     const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
-    if (!materialCode) return;
     const supplier = getRowValue(row, headerMap.supplier);
-    map.set(materialCode, {
+    const detail = {
       supplier,
       supplierShort: getRowValue(row, headerMap.supplierShort) || supplier,
       orderUser: getRowValue(row, headerMap.orderUser) || "\u672a\u7ef4\u62a4",
-    });
+    };
+    if (materialCode) map.set(materialCode, detail);
+    const supplierKey = normalizeSupplierName(supplier);
+    if (supplierKey && !supplierMap.has(supplierKey)) supplierMap.set(supplierKey, detail);
   });
+  map.supplierMap = supplierMap;
   return map;
 }
 
@@ -585,7 +574,8 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
   return records.map((record) => {
     const materialCode = normalizeMaterialCode(record.materialCode);
     const matched = categoryMap.get(materialCode);
-    const detail = purchaseDetailMap.get(materialCode);
+    const supplierDetail = purchaseDetailMap.supplierMap?.get(normalizeSupplierName(record.supplier));
+    const detail = supplierDetail || purchaseDetailMap.get(materialCode);
     return {
       ...record,
       materialCode: record.materialCode || materialCode,
@@ -595,7 +585,7 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
       model: matched?.model || record.model || "未匹配",
       purchaseGroup: matched?.purchaseGroup || record.purchaseGroup || "未匹配",
       supplier: detail?.supplier || record.supplier || "未匹配",
-      supplierShort: detail?.supplierShort || record.supplierShort || detail?.supplier || record.supplier || "未匹配",
+      supplierShort: supplierDetail?.supplierShort || detail?.supplierShort || record.supplierShort || record.supplier || "未匹配",
       orderUser: record.orderUser || record.creator || detail?.orderUser || "未维护",
     };
   });
@@ -627,6 +617,10 @@ function getFilterOptionItems(config, filters) {
     return values.map((value) => ({ value, label: value }));
   }
   if (config.key === "orderUser") {
+    const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
+    return values.map((value) => ({ value, label: value }));
+  }
+  if (config.key === "supplierShort") {
     const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
     return values.map((value) => ({ value, label: value }));
   }
@@ -1102,6 +1096,14 @@ function normalizeMaterialCode(value) {
   return String(value || "")
     .trim()
     .replace(/\.0$/, "")
+    .toLowerCase();
+}
+
+function normalizeSupplierName(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[()（）]/g, "")
     .toLowerCase();
 }
 
