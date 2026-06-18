@@ -58,10 +58,10 @@ const deliveryFilterConfigs = [
 ];
 
 const detailFilterConfigs = [
-  { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
   { key: "materialCode", label: "物料编码", field: "materialCode" },
   { key: "sku", label: "SKU", field: "sku" },
   { key: "itemName", label: "物品名称", field: "itemName" },
+  { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
   { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
   { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
 ];
@@ -839,10 +839,10 @@ function renderDelivery(message) {
 function renderDeliveryRow(record) {
   return `
     <tr>
-      <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
       <td>${escapeHtml(record.materialCode || "--")}</td>
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
+      <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
@@ -899,15 +899,15 @@ function downloadDeliveryDetails() {
   if (!rows.length || !window.XLSX) return;
 
   const exportRows = rows.map((record) => ({
-    供应商简称: record.supplierShort || record.supplier || "",
     物料编码: record.materialCode || "",
     SKU: record.sku || "",
     物品名称: record.itemName || "",
+    供应商简称: record.supplierShort || record.supplier || "",
     下单数量: Number(record.orderedQty) || 0,
     剩余数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["供应商简称", "物料编码", "SKU", "物品名称", "下单数量", "剩余数量"],
+    header: ["物料编码", "SKU", "物品名称", "供应商简称", "下单数量", "剩余数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
