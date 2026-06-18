@@ -48,6 +48,7 @@ const deliveryEls = {
     sku: document.querySelector("#skuColumnFilter"),
     itemName: document.querySelector("#itemNameColumnFilter"),
     orderedQty: document.querySelector("#orderedQtyColumnFilter"),
+    purchaseOrderNo: document.querySelector("#purchaseOrderNoColumnFilter"),
     remainingQty: document.querySelector("#remainingQtyColumnFilter"),
   },
 };
@@ -68,6 +69,7 @@ const detailFilterConfigs = [
   { key: "sku", label: "SKU", field: "sku" },
   { key: "itemName", label: "物品名称", field: "itemName" },
   { key: "supplierShort", label: "供应商简称", field: "supplierShort" },
+  { key: "purchaseOrderNo", label: "采购订单号", field: "purchaseOrderNo" },
   { key: "orderedQty", label: "下单数量", field: "orderedQty", numeric: true },
   { key: "remainingQty", label: "剩余数量", field: "remainingQty", numeric: true },
 ];
@@ -95,6 +97,7 @@ const kingdeeAliases = {
   sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
   itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
   supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
+  purchaseOrderNo: ["单据编号", "采购订单号", "订单号", "单号"],
   creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
   operator: ["运营", "运营人员", "运营负责人"],
   orderEntity: ["采购组织", "下单主体", "采购主体"],
@@ -476,6 +479,7 @@ function parseKingdeeSheet(rows) {
         sku,
         itemName,
         supplier,
+        purchaseOrderNo: getRowValue(row, headerMap.purchaseOrderNo),
         businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
         operator: getRowValue(row, headerMap.operator),
         orderEntity: getRowValue(row, headerMap.orderEntity),
@@ -878,7 +882,7 @@ function renderDelivery(message) {
 
   deliveryEls.rows.innerHTML = detailRecords.length
     ? detailRecords.map(renderDeliveryRow).join("")
-    : `<tr><td colspan="6">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    : `<tr><td colspan="7">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
 }
 
 function renderDeliveryRow(record) {
@@ -888,6 +892,7 @@ function renderDeliveryRow(record) {
       <td>${escapeHtml(record.sku || "--")}</td>
       <td>${escapeHtml(record.itemName || "--")}</td>
       <td>${escapeHtml(record.supplierShort || record.supplier || "--")}</td>
+      <td>${escapeHtml(record.purchaseOrderNo || "--")}</td>
       <td>${formatNumber(record.orderedQty)}</td>
       <td>${formatNumber(record.remainingQty)}</td>
     </tr>
@@ -911,13 +916,16 @@ function aggregateKingdeeDetailRecords(records) {
       map.set(key, {
         ...record,
         supplierShortValues: new Set(),
+        purchaseOrderNoValues: new Set(),
         orderedQty: 0,
         remainingQty: 0,
       });
     }
     const target = map.get(key);
     addDisplayValue(target.supplierShortValues, record.supplierShort || record.supplier);
+    addDisplayValue(target.purchaseOrderNoValues, record.purchaseOrderNo);
     target.supplierShort = [...target.supplierShortValues].join("、");
+    target.purchaseOrderNo = [...target.purchaseOrderNoValues].join("、");
     target.supplier ||= record.supplier || "";
     target.materialCode ||= record.materialCode || "";
     target.sku ||= record.sku || "";
@@ -948,11 +956,12 @@ function downloadDeliveryDetails() {
     SKU: record.sku || "",
     物品名称: record.itemName || "",
     供应商简称: record.supplierShort || record.supplier || "",
+    采购订单号: record.purchaseOrderNo || "",
     下单数量: Number(record.orderedQty) || 0,
     剩余数量: Number(record.remainingQty) || 0,
   }));
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, {
-    header: ["物料编码", "SKU", "物品名称", "供应商简称", "下单数量", "剩余数量"],
+    header: ["物料编码", "SKU", "物品名称", "供应商简称", "采购订单号", "下单数量", "剩余数量"],
   });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "供应商未交付明细");
