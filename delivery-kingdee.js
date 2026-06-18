@@ -26,6 +26,7 @@ const deliveryState = {
 const deliveryEls = {
   filterBar: document.querySelector("#deliveryFilterBar"),
   businessUnitFilter: document.querySelector("#businessUnitFilter"),
+  operatorFilter: document.querySelector("#operatorFilter"),
   orderEntityFilter: document.querySelector("#orderEntityFilter"),
   salesLineFilter: document.querySelector("#salesLineFilter"),
   salesSeriesFilter: document.querySelector("#salesSeriesFilter"),
@@ -54,6 +55,7 @@ const deliveryEls = {
 const deliveryFilterConfigs = [
   { key: "orderUser", element: deliveryEls.orderUserFilter, label: "\u5168\u90e8\u91c7\u8d2d\u4e0b\u5355\u4eba", field: "orderUser" },
   { key: "businessUnit", element: deliveryEls.businessUnitFilter, label: "\u5168\u90e8\u4e8b\u4e1a\u90e8", field: "businessUnit" },
+  { key: "operator", element: deliveryEls.operatorFilter, label: "\u5168\u90e8\u8fd0\u8425", field: "operator" },
   { key: "orderEntity", element: deliveryEls.orderEntityFilter, label: "\u5168\u90e8\u4e0b\u5355\u4e3b\u4f53", field: "orderEntity" },
   { key: "salesLine", element: deliveryEls.salesLineFilter, label: "\u5168\u90e8\u9500\u552e\u4ea7\u54c1\u7ebf", field: "salesLine" },
   { key: "salesSeries", element: deliveryEls.salesSeriesFilter, label: "\u5168\u90e8\u9500\u552e\u7cfb\u5217", field: "salesSeries" },
@@ -94,6 +96,7 @@ const kingdeeAliases = {
   itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
   supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
   creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
+  operator: ["运营", "运营人员", "运营负责人"],
   orderEntity: ["采购组织", "下单主体", "采购主体"],
   orderDate: ["采购日期", "下单日期", "订单日期", "日期"],
   businessUnit: ["事业部", "部门", "业务部门"],
@@ -474,6 +477,7 @@ function parseKingdeeSheet(rows) {
         itemName,
         supplier,
         businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
+        operator: getRowValue(row, headerMap.operator),
         orderEntity: getRowValue(row, headerMap.orderEntity),
         creator: getRowValue(row, headerMap.creator),
         orderUser: getRowValue(row, headerMap.creator),
@@ -598,6 +602,7 @@ function enrichKingdeeRecords(records, categoryMap, purchaseDetailMap = new Map(
       ...record,
       materialCode: record.materialCode || materialCode,
       businessUnit: normalizeBusinessUnit(record.businessUnit),
+      operator: record.operator || "未匹配",
       orderEntity: record.orderEntity || "未匹配",
       salesLine: matched?.salesLine || record.salesLine || "未匹配",
       salesSeries: matched?.salesSeries || record.salesSeries || "未匹配",
@@ -635,6 +640,10 @@ function updateFilterOptions() {
 
 function getFilterOptionItems(config, filters) {
   if (config.key === "businessUnit") {
+    const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
+    return values.map((value) => ({ value, label: value }));
+  }
+  if (config.key === "operator") {
     const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
     return values.map((value) => ({ value, label: value }));
   }
@@ -823,6 +832,7 @@ function filterKingdeeRecords(filters) {
   return deliveryState.kingdeeRecords.filter(
     (record) =>
       matchesFilter(record.businessUnit, filters.businessUnit) &&
+      matchesFilter(record.operator, filters.operator) &&
       matchesFilter(record.orderEntity, filters.orderEntity) &&
       matchesFilter(record.purchaseGroup, filters.purchaseGroup) &&
       matchesFilter(record.salesLine, filters.salesLine) &&
