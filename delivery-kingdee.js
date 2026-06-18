@@ -626,6 +626,10 @@ function getFilterOptionItems(config, filters) {
     const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
     return values.map((value) => ({ value, label: value }));
   }
+  if (config.key === "orderUser") {
+    const values = uniqueValues(filterKingdeeRecords({ ...filters, [config.key]: [] }), config.field);
+    return values.map((value) => ({ value, label: value }));
+  }
   if (config.staticOptions) {
     return config.staticOptions.filter((option) => filterRecords({ ...filters, [config.key]: [option.value] }).length);
   }
