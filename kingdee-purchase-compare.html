@@ -53,7 +53,7 @@
           <div class="kingdee-filter-bar" id="kingdeeFilterBar">
             <label class="search-box kingdee-search-box">
               <span>搜索</span>
-              <input id="kingdeeSearch" type="search" placeholder="单据编号、物料编码、SKU、物料名称、供应商" />
+              <input id="kingdeeSearch" type="search" placeholder="单据编号、金蝶单据编号、物料编码、SKU、物料名称、供应商" />
             </label>
             <div class="multi-filter" id="orderUserCompareFilter" data-filter-key="orderUser"></div>
             <div class="multi-filter" id="businessUnitCompareFilter" data-filter-key="businessUnit"></div>
@@ -95,6 +95,7 @@
                 <tr>
                   <th>事业部</th>
                   <th>单据编号</th>
+                  <th>金蝶单据编号</th>
                   <th>供应商简称</th>
                   <th>物料编码</th>
                   <th>SKU</th>
@@ -105,7 +106,7 @@
                 </tr>
               </thead>
               <tbody id="kingdeeCompareRows">
-                <tr><td colspan="9" class="empty-table-cell">等待数据来源规则</td></tr>
+                <tr><td colspan="10" class="empty-table-cell">等待数据来源规则</td></tr>
               </tbody>
             </table>
           </div>
@@ -115,6 +116,6 @@
     <script src="./vendor/jszip.min.js?v=20260617-1"></script>
     <script src="./vendor/xlsx.full.min.js?v=20260601-1"></script>
     <script src="./xlsx-repair.js?v=20260617-1"></script>
-    <script src="./kingdee-purchase-compare-cache-only.js?v=20260617-1"></script>
+    <script src="./kingdee-purchase-compare-cache-only.js?v=20260708-1"></script>
   </body>
 </html>

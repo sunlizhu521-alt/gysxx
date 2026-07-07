@@ -1,6 +1,6 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
-const KINGDEE_COMPARE_BUILD = "cache-only-20260612-1";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260708-1";
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -375,7 +375,7 @@ function renderCompareRows(message = "") {
   compareEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
 
   if (message || !rows.length) {
-    compareEls.rows.innerHTML = `<tr><td colspan="9" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    compareEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
     return;
   }
 
@@ -398,6 +398,7 @@ function renderCompareRow(record, metric) {
     <tr>
       <td>${escapeHtml(record.businessUnit || "--")}</td>
       <td>${escapeHtml(formatDocumentNumbers(record.documentNumbers))}</td>
+      <td>${escapeHtml(formatDocumentNumbers(record.kingdeeDocumentNumbers))}</td>
       <td>${escapeHtml(record.supplierShort || "--")}</td>
       <td>${escapeHtml(record.materialCode || "--")}</td>
       <td>${escapeHtml(record.sku || "--")}</td>
@@ -427,6 +428,7 @@ function downloadCompareRows() {
     return {
       事业部: record.businessUnit || "",
       单据编号: formatDocumentNumbers(record.documentNumbers),
+      金蝶单据编号: formatDocumentNumbers(record.kingdeeDocumentNumbers),
       供应商简称: record.supplierShort || "",
       物料编码: record.materialCode || "",
       SKU: record.sku || "",
@@ -436,7 +438,7 @@ function downloadCompareRows() {
       [`${metric}-差异数据`]: values.difference,
     };
   });
-  const headers = ["事业部", "单据编号", "供应商简称", "物料编码", "SKU", "物料名称", `${metric}-金蝶数据`, `${metric}-未交付表数据`, `${metric}-差异数据`];
+  const headers = ["事业部", "单据编号", "金蝶单据编号", "供应商简称", "物料编码", "SKU", "物料名称", `${metric}-金蝶数据`, `${metric}-未交付表数据`, `${metric}-差异数据`];
   const worksheet = window.XLSX.utils.json_to_sheet(exportRows, { header: headers });
   const workbook = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(workbook, worksheet, "数据对比");
@@ -614,6 +616,7 @@ function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps
     const target = getOrCreateCompareRow(rowMap, enriched);
     target.kingdeeOrderedQty += row.purchaseQty;
     target.kingdeeRemainingQty += row.remainingInboundQty;
+    addSetValues(target.kingdeeDocumentNumbers, [row.documentNumber]);
     addSetValues(target.orderUsers, enriched.orderUsers);
   });
 
@@ -630,6 +633,7 @@ function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps
     ...record,
     orderUsers: [...record.orderUsers].filter(Boolean),
     documentNumbers: [...record.documentNumbers].filter(Boolean),
+    kingdeeDocumentNumbers: [...record.kingdeeDocumentNumbers].filter(Boolean),
   }));
 }
 
@@ -645,6 +649,7 @@ function enrichKingdeeRow(row, categoryMap, assignmentMaps) {
     supplierShort,
     materialCode: row.materialCode || materialCode || "未匹配",
     materialKey: materialCode,
+    kingdeeDocumentNumbers: [row.documentNumber],
     sku: category?.sku || row.sku,
     itemName: category?.itemName || row.itemName,
     salesLine: category?.salesLine || "未匹配",
@@ -687,6 +692,7 @@ function getOrCreateCompareRow(rowMap, enriched) {
       salesSeries: enriched.salesSeries || "未匹配",
       orderUsers: new Set(enriched.orderUsers || []),
       documentNumbers: new Set(enriched.documentNumbers || []),
+      kingdeeDocumentNumbers: new Set(enriched.kingdeeDocumentNumbers || []),
       kingdeeOrderedQty: 0,
       kingdeeRemainingQty: 0,
       deliveryOrderedQty: 0,
@@ -699,6 +705,7 @@ function getOrCreateCompareRow(rowMap, enriched) {
     existing.salesLine = existing.salesLine === "未匹配" ? enriched.salesLine : existing.salesLine;
     existing.salesSeries = existing.salesSeries === "未匹配" ? enriched.salesSeries : existing.salesSeries;
     addSetValues(existing.documentNumbers, enriched.documentNumbers);
+    addSetValues(existing.kingdeeDocumentNumbers, enriched.kingdeeDocumentNumbers);
   }
   return rowMap.get(key);
 }
@@ -720,7 +727,7 @@ function filterCompareRows(filters, searchText = "") {
     if (!matchesFilter(record.salesSeries, filters.salesSeries)) return false;
     if (!matchesDifferenceStatus(record, filters.differenceStatus, metric)) return false;
     if (!query) return true;
-    return [record.businessUnit, ...(record.documentNumbers || []), record.supplierShort, record.materialCode, record.sku, record.itemName, record.salesLine, record.salesSeries, ...(record.orderUsers || [])]
+    return [record.businessUnit, ...(record.documentNumbers || []), ...(record.kingdeeDocumentNumbers || []), record.supplierShort, record.materialCode, record.sku, record.itemName, record.salesLine, record.salesSeries, ...(record.orderUsers || [])]
       .some((value) => normalizeTextKey(value).includes(query));
   });
 }
@@ -1096,7 +1103,7 @@ function getAppliedLibraryRecord(record) {
 
 function setCompareMessage(message) {
   compareEls.state.textContent = message;
-  compareEls.rows.innerHTML = `<tr><td colspan="9" class="empty-table-cell">${escapeHtml(message)}</td></tr>`;
+  compareEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message)}</td></tr>`;
   if (compareEls.downloadButton) compareEls.downloadButton.disabled = true;
 }
 
