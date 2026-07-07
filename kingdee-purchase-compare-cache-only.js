@@ -61,7 +61,7 @@ const kingdeeAliases = {
 };
 
 const deliveryAliases = {
-  documentNumber: ["序号", "单据编号", "单据号", "行号"],
+  documentNumber: ["单据编号", "单据号", "采购订单号", "行号"],
   materialCode: ["品号", "物料编码", "商品编码", "存货编码", "产品编码"],
   sku: ["SKU", "sku", "领星SKU"],
   itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
