@@ -1956,3 +1956,33 @@ th {
     font-size: 24px;
   }
 }
+
+.kingdee-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.kingdee-pagination button {
+  padding: 4px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.kingdee-pagination button:hover:not(:disabled) {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.kingdee-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
