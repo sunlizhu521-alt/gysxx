@@ -1,6 +1,6 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
-const KINGDEE_COMPARE_BUILD = "cache-only-20260708-1";
+const KINGDEE_COMPARE_BUILD = "cache-only-20260708-2";
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -680,7 +680,8 @@ function enrichDeliveryRow(row, categoryMap, assignmentMaps) {
 }
 
 function getOrCreateCompareRow(rowMap, enriched) {
-  const key = [enriched.businessUnit, normalizeTextKey(enriched.supplierShort), enriched.materialKey || normalizeMaterialCode(enriched.materialCode)].join("|");
+  const materialKey = enriched.materialKey || normalizeMaterialCode(enriched.materialCode);
+  const key = materialKey || [enriched.businessUnit, normalizeTextKey(enriched.supplierShort), normalizeTextKey(enriched.sku), normalizeTextKey(enriched.itemName)].join("|");
   if (!rowMap.has(key)) {
     rowMap.set(key, {
       businessUnit: enriched.businessUnit || "未匹配",
@@ -700,14 +701,25 @@ function getOrCreateCompareRow(rowMap, enriched) {
     });
   } else {
     const existing = rowMap.get(key);
-    existing.sku ||= enriched.sku || "";
-    existing.itemName ||= enriched.itemName || "";
-    existing.salesLine = existing.salesLine === "未匹配" ? enriched.salesLine : existing.salesLine;
-    existing.salesSeries = existing.salesSeries === "未匹配" ? enriched.salesSeries : existing.salesSeries;
+    existing.businessUnit = chooseCompareDisplayValue(existing.businessUnit, enriched.businessUnit);
+    existing.supplierShort = chooseCompareDisplayValue(existing.supplierShort, enriched.supplierShort);
+    existing.materialCode = chooseCompareDisplayValue(existing.materialCode, enriched.materialCode);
+    existing.sku = chooseCompareDisplayValue(existing.sku, enriched.sku);
+    existing.itemName = chooseCompareDisplayValue(existing.itemName, enriched.itemName);
+    existing.salesLine = chooseCompareDisplayValue(existing.salesLine, enriched.salesLine);
+    existing.salesSeries = chooseCompareDisplayValue(existing.salesSeries, enriched.salesSeries);
     addSetValues(existing.documentNumbers, enriched.documentNumbers);
     addSetValues(existing.kingdeeDocumentNumbers, enriched.kingdeeDocumentNumbers);
   }
   return rowMap.get(key);
+}
+
+function chooseCompareDisplayValue(current, next) {
+  const currentText = String(current || "").trim();
+  const nextText = String(next || "").trim();
+  if (!nextText) return current || "";
+  if (!currentText || currentText === "未匹配" || currentText === "--") return nextText;
+  return current;
 }
 
 function matchSupplier(value, assignmentMaps) {
