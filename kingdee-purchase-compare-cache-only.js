@@ -1,7 +1,8 @@
 const DB_NAME = "supply-chain-library";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const KINGDEE_COMPARE_BUILD = "cache-only-20260708-2";
 const COMPARE_PAGE_SIZE = 100;
+const KINGDEE_CACHE_STORE = "kingdee-compare-cache";
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -220,7 +221,7 @@ async function readRequiredSource(label, file, reader) {
 }
 
 async function readKingdeeRowsFromRecord(record) {
-  const cachedRows = getFreshKingdeeCompareCache(record);
+  const cachedRows = await getFreshKingdeeCompareCache(record);
   if (cachedRows) return cachedRows;
   if (record?.file) {
     const rows = await readKingdeeWorkbook(record.file);
@@ -229,50 +230,35 @@ async function readKingdeeRowsFromRecord(record) {
       return rows;
     }
   }
-  const extractError = record?.kingdeeCompareExtractError;
-  throw new Error(
-    extractError
-      ? formatKingdeeCacheError(extractError)
-      : "Fac-金蝶采购订单列表未生成对比数据，请到文件库更新重新上传该表并点击确认应用"
-  );
+  throw new Error("Fac-金蝶采购订单列表未生成对比数据，请到文件库更新重新上传该表并点击确认应用");
 }
 
-function formatKingdeeCacheError(errorMessage) {
-  if (/allocation|array buffer|out of memory|memory/i.test(String(errorMessage || ""))) {
-    return "Fac-金蝶采购订单列表读取失败，请到文件库更新重新上传并点击确认应用";
-  }
-  return `Fac-金蝶采购订单列表数据读取失败：${errorMessage}`;
-}
-
-function getFreshKingdeeCompareCache(record) {
-  const rows = record?.kingdeeCompareRows;
-  if (!Array.isArray(rows) || !rows.length) return null;
-  const source = record.kingdeeCompareCacheSource || {};
+async function getFreshKingdeeCompareCache(record) {
+  if (!record?.id) return null;
+  const db = await openAppDb();
+  const cacheEntry = await getRecord(db, KINGDEE_CACHE_STORE, record.id);
+  db.close();
+  if (!cacheEntry?.rows?.length) return null;
+  const source = cacheEntry.source || {};
   if (!source.name && !source.size && !source.appliedAt) return null;
   if (source.name && source.name !== record.name) return null;
   if (source.size && Number(source.size) !== Number(record.size)) return null;
   if (source.appliedAt && source.appliedAt !== record.appliedAt) return null;
   if (source.build !== KINGDEE_COMPARE_BUILD) return null;
-  return rows;
+  return cacheEntry.rows;
 }
 
 async function saveKingdeeCompareCache(record, rows) {
   if (!record?.id || !Array.isArray(rows)) return;
   const db = await openAppDb();
-  const latestRecord = await getRecord(db, FACT_STORE_NAME, record.id);
-  if (!latestRecord?.applied || latestRecord.appliedAt !== record.appliedAt) {
-    db.close();
-    return;
-  }
-  await putRecord(db, FACT_STORE_NAME, {
-    ...latestRecord,
-    kingdeeCompareRows: rows,
-    kingdeeCompareCachedAt: new Date().toISOString(),
-    kingdeeCompareExtractError: "",
-    kingdeeCompareCacheSource: {
-      name: latestRecord.name,
-      size: latestRecord.size,
-      appliedAt: latestRecord.appliedAt,
+  await putRecord(db, KINGDEE_CACHE_STORE, {
+    id: record.id,
+    rows,
+    cachedAt: new Date().toISOString(),
+    source: {
+      name: record.name,
+      size: record.size,
+      appliedAt: record.appliedAt,
       build: KINGDEE_COMPARE_BUILD,
     },
   });
@@ -1176,7 +1162,7 @@ function openAppDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, FACT_STORE_NAME].forEach((storeName) => {
+      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, FACT_STORE_NAME, KINGDEE_CACHE_STORE].forEach((storeName) => {
         if (!db.objectStoreNames.contains(storeName)) {
           db.createObjectStore(storeName, { keyPath: "id" });
         }
