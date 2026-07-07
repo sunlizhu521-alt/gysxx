@@ -103,7 +103,11 @@ function bindCompareEvents() {
   compareEls.filterBar.addEventListener("click", handleCompareFilterClick);
   compareEls.tableActions.addEventListener("click", handleCompareFilterClick);
 
-  compareEls.search.addEventListener("input", applyCompareFilters);
+  let kingdeeSearchTimer = null;
+  compareEls.search.addEventListener("input", () => {
+    clearTimeout(kingdeeSearchTimer);
+    kingdeeSearchTimer = setTimeout(applyCompareFilters, 300);
+  });
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest("#kingdeeFilterBar") && !event.target.closest("#kingdeeTableActions")) closeCompareFilters();
