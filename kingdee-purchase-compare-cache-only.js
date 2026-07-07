@@ -1,6 +1,7 @@
 const DB_NAME = "supply-chain-library";
 const DB_VERSION = 3;
 const KINGDEE_COMPARE_BUILD = "cache-only-20260708-2";
+const COMPARE_PAGE_SIZE = 100;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -89,11 +90,14 @@ const compareState = {
   records: [],
   filtered: [],
   selectedFilters: Object.fromEntries(compareFilterConfigs.map((config) => [config.key, new Set()])),
+  page: 1,
+  pageSize: COMPARE_PAGE_SIZE,
 };
 
 async function initKingdeeComparePage() {
   compareFilterConfigs.forEach(renderCompareFilter);
   compareState.selectedFilters.compareMetric.add("下单数量");
+  ensureComparePagination();
   bindCompareEvents();
   updateCompareHeaders();
   await loadCompareData();
@@ -121,6 +125,22 @@ function bindCompareEvents() {
   });
 
   compareEls.downloadButton?.addEventListener("click", downloadCompareRows);
+
+  document.getElementById("kingdeeComparePagination")?.addEventListener("click", (event) => {
+    const prevButton = event.target.closest("#kingdeePrevPage");
+    const nextButton = event.target.closest("#kingdeeNextPage");
+    if (prevButton && compareState.page > 1) {
+      compareState.page -= 1;
+      renderCompareRows();
+    }
+    if (nextButton) {
+      const totalPages = Math.max(1, Math.ceil(compareState.filtered.length / COMPARE_PAGE_SIZE));
+      if (compareState.page < totalPages) {
+        compareState.page += 1;
+        renderCompareRows();
+      }
+    }
+  });
 }
 
 function handleCompareFilterClick(event) {
@@ -290,6 +310,7 @@ function applyCompareFilters(message = "") {
   updateCompareHeaders();
   updateCompareFilters();
   compareState.filtered = message ? [] : filterCompareRows(getCompareFilterValues(), compareEls.search.value);
+  compareState.page = 1;
   renderCompareRows(message);
 }
 
@@ -373,17 +394,44 @@ function updateCompareHeaders() {
 
 function renderCompareRows(message = "") {
   const rows = compareState.filtered;
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / COMPARE_PAGE_SIZE));
+  if (compareState.page > totalPages) compareState.page = totalPages;
+  const startIndex = (compareState.page - 1) * COMPARE_PAGE_SIZE;
+  const pageRows = rows.slice(startIndex, startIndex + COMPARE_PAGE_SIZE);
   const metric = getSelectedMetric();
-  renderCompareMetrics(rows, message);
+  renderCompareMetrics(pageRows, message);
   compareEls.downloadButton.disabled = Boolean(message) || !rows.length || !window.XLSX;
-  compareEls.state.textContent = message || (rows.length ? `已匹配 ${rows.length} 行` : "暂无匹配数据");
+  compareEls.state.textContent = message || (totalRows ? `已匹配 ${totalRows} 行｜第 ${compareState.page}/${totalPages} 页｜本页 ${pageRows.length} 行` : "暂无匹配数据");
 
   if (message || !rows.length) {
     compareEls.rows.innerHTML = `<tr><td colspan="10" class="empty-table-cell">${escapeHtml(message || "暂无匹配数据")}</td></tr>`;
+    const paginationEl = document.getElementById("kingdeeComparePagination");
+    if (paginationEl) paginationEl.innerHTML = "";
     return;
   }
 
-  compareEls.rows.innerHTML = rows.map((record) => renderCompareRow(record, metric)).join("");
+  compareEls.rows.innerHTML = pageRows.map((record) => renderCompareRow(record, metric)).join("");
+  const paginationEl = document.getElementById("kingdeeComparePagination");
+  if (paginationEl && totalRows > 0) {
+    paginationEl.innerHTML = totalPages <= 1 ? "" : `
+      <span>第 ${compareState.page}/${totalPages} 页，共 ${totalRows} 条</span>
+      <button id="kingdeePrevPage" type="button" ${compareState.page <= 1 ? "disabled" : ""}>上一页</button>
+      <button id="kingdeeNextPage" type="button" ${compareState.page >= totalPages ? "disabled" : ""}>下一页</button>
+    `;
+  } else if (paginationEl) {
+    paginationEl.innerHTML = "";
+  }
+}
+
+function ensureComparePagination() {
+  if (document.getElementById("kingdeeComparePagination")) return;
+  const tableWrap = document.querySelector(".kingdee-table-wrap");
+  if (!tableWrap) return;
+  const paginationEl = document.createElement("div");
+  paginationEl.id = "kingdeeComparePagination";
+  paginationEl.className = "table-pagination kingdee-compare-pagination";
+  tableWrap.insertAdjacentElement("afterend", paginationEl);
 }
 
 function renderCompareMetrics(rows, message = "") {
