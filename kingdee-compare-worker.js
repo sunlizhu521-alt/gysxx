@@ -320,6 +320,7 @@ function createEmptyAssignmentMaps() {
     bySupplier: new Map(),
     bySupplierShort: new Map(),
     orderUsers: new Set(),
+    byComposite: new Map(),
   };
 }
 
@@ -338,6 +339,10 @@ function readPurchaseAssignment(file, fileName) {
     if (supplier) maps.bySupplier.set(normalizeTextKey(supplier), { supplier, supplierShort, orderUser });
     if (supplierShort) maps.bySupplierShort.set(normalizeTextKey(supplierShort), { supplier, supplierShort, orderUser });
     if (orderUser) maps.orderUsers.add(orderUser);
+    if (materialCode && supplierShort) {
+      const compositeKey = normalizeTextKey(supplierShort) + "|" + materialCode;
+      maps.byComposite.set(compositeKey, { supplier, supplierShort, orderUser });
+    }
   });
   return { maps, isMaps: true };
 }
@@ -373,6 +378,7 @@ self.onmessage = function handleMessage(event) {
             bySupplierEntries: [...data.maps.bySupplier],
             bySupplierShortEntries: [...data.maps.bySupplierShort],
             orderUsersEntries: [...data.maps.orderUsers],
+            byComposite: [...data.maps.byComposite],
           },
           isMaps: true,
         };
