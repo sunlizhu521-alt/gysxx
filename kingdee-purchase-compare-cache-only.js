@@ -510,6 +510,7 @@ async function readPurchaseAssignment(file) {
     bySupplier: new Map(data.maps.bySupplier),
     bySupplierShort: new Map(data.maps.bySupplierShort),
     orderUsers: new Set(data.maps.orderUsersEntries || []),
+    byComposite: new Map(data.maps.byComposite || []),
   };
   return maps;
 }
@@ -520,6 +521,7 @@ function createEmptyAssignmentMaps() {
     bySupplier: new Map(),
     bySupplierShort: new Map(),
     orderUsers: new Set(),
+    byComposite: new Map(),
   };
 }
 
@@ -563,10 +565,10 @@ function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps
 function enrichKingdeeRow(row, categoryMap, assignmentMaps) {
   const materialCode = normalizeMaterialCode(row.materialCode);
   const category = categoryMap.get(materialCode);
-  const supplierMatch = matchSupplier(row.supplier, assignmentMaps);
-  const materialMatch = assignmentMaps.byMaterial.get(materialCode);
-  const supplierShort = supplierMatch?.supplierShort || materialMatch?.supplierShort || row.supplier || "未匹配";
-  const orderUser = row.creator || supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
+  const compositeMatchForS = assignmentMaps.byComposite.get(normalizeTextKey(row.supplier || "") + "|" + materialCode);
+  const supplierShort = compositeMatchForS?.supplierShort || row.supplier || "未匹配";
+  const compositeMatch = assignmentMaps.byComposite.get(normalizeTextKey(supplierShort) + "|" + materialCode);
+  const orderUser = row.creator || compositeMatch?.orderUser || "未维护";
   return {
     businessUnit: normalizeBusinessUnit(row.businessUnit),
     supplierShort,
@@ -584,10 +586,10 @@ function enrichKingdeeRow(row, categoryMap, assignmentMaps) {
 function enrichDeliveryRow(row, categoryMap, assignmentMaps) {
   const materialCode = normalizeMaterialCode(row.materialCode);
   const category = categoryMap.get(materialCode);
-  const supplierMatch = matchSupplier(row.supplier, assignmentMaps);
-  const materialMatch = assignmentMaps.byMaterial.get(materialCode);
-  const supplierShort = supplierMatch?.supplierShort || materialMatch?.supplierShort || row.supplier || "未匹配";
-  const orderUser = supplierMatch?.orderUser || materialMatch?.orderUser || "未维护";
+  const compositeMatchForS = assignmentMaps.byComposite.get(normalizeTextKey(row.supplier || "") + "|" + materialCode);
+  const supplierShort = compositeMatchForS?.supplierShort || row.supplier || "未匹配";
+  const compositeMatch = assignmentMaps.byComposite.get(normalizeTextKey(supplierShort) + "|" + materialCode);
+  const orderUser = compositeMatch?.orderUser || "未维护";
   return {
     businessUnit: normalizeBusinessUnit(row.businessUnit),
     documentNumbers: [row.documentNumber],
@@ -643,12 +645,6 @@ function chooseCompareDisplayValue(current, next) {
   if (!nextText) return current || "";
   if (!currentText || currentText === "未匹配" || currentText === "--") return nextText;
   return current;
-}
-
-function matchSupplier(value, assignmentMaps) {
-  const key = normalizeTextKey(value);
-  if (!key) return null;
-  return assignmentMaps.bySupplier.get(key) || assignmentMaps.bySupplierShort.get(key) || null;
 }
 
 function filterCompareRows(filters, searchText = "") {
