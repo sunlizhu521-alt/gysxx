@@ -1,7 +1,7 @@
 (function () {
   const DB_NAME = "supply-chain-library";
-  const DB_VERSION = 3;
-  const STORES = ["uploaded-files", "dimension-files", "fact-files"];
+  const DB_VERSION = 4;
+  const STORES = ["uploaded-files", "dimension-files", "fact-files", "kingdee-compare-cache"];
   const SHARED_LIBRARY_URL = "./data/shared-library.json";
 
   let sharedLibraryPromise = null;

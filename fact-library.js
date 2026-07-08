@@ -1,8 +1,9 @@
 ﻿const DB_NAME = "supply-chain-library";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const STORE_NAME = "fact-files";
+const KINGDEE_CACHE_STORE = "kingdee-compare-cache";
 const MAINTAINER_KEY = "3.1415926";
 const UNLOCK_KEY = "fact-library-key-unlocked-v2";
 const LOCAL_LIBRARY_SOURCE = "local-upload";
@@ -342,15 +343,11 @@ function openLibraryDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(UPLOAD_STORE_NAME)) {
-        db.createObjectStore(UPLOAD_STORE_NAME, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(DIMENSION_STORE_NAME)) {
-        db.createObjectStore(DIMENSION_STORE_NAME, { keyPath: "id" });
-      }
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "id" });
-      }
+      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, STORE_NAME, KINGDEE_CACHE_STORE].forEach((storeName) => {
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName, { keyPath: "id" });
+        }
+      });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

@@ -1,8 +1,9 @@
 const DB_NAME = "supply-chain-library";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
+const KINGDEE_CACHE_STORE = "kingdee-compare-cache";
 const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
@@ -1028,7 +1029,7 @@ function openAppDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, FACT_STORE_NAME].forEach((storeName) => {
+      [UPLOAD_STORE_NAME, DIMENSION_STORE_NAME, FACT_STORE_NAME, KINGDEE_CACHE_STORE].forEach((storeName) => {
         if (!db.objectStoreNames.contains(storeName)) {
           db.createObjectStore(storeName, { keyPath: "id" });
         }
