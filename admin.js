@@ -1,5 +1,5 @@
 const DB_NAME = "supply-chain-library";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const LOCAL_LIBRARY_SOURCE = "local-upload";
 const LIBRARY_UNLOCK_KEYS = ["dimension-library-key-unlocked-v2", "fact-library-key-unlocked-v2"];
 const KINGDEE_ORDER_SLOT = "fact-2";
@@ -164,6 +164,9 @@ async function applySlot(slotId, options = {}) {
       };
   const db = await openAppDb();
   await putRecord(db, slot.store, updatedRecord);
+  if (slotId === KINGDEE_ORDER_SLOT) {
+    await deleteRecord(db, "kingdee-compare-cache", slotId).catch(() => {});
+  }
   db.close();
   if (!options.skipRefresh) await refreshAdmin();
 }
@@ -193,8 +196,7 @@ async function applyAllSlots() {
 }
 
 function buildSlotApplicationFields(slotId) {
-  if (slotId !== KINGDEE_ORDER_SLOT) return {};
-  return clearKingdeeExtractFields();
+  return {};
 }
 
 async function deleteSlot(slotId) {
@@ -338,15 +340,6 @@ function clearPendingFields(record) {
   return nextRecord;
 }
 
-function clearKingdeeExtractFields(errorMessage = "") {
-  return {
-    kingdeeCompareRows: [],
-    kingdeeCompareCachedAt: "",
-    kingdeeCompareExtractError: errorMessage,
-    kingdeeCompareCacheSource: null,
-  };
-}
-
 function csvToRows(text) {
   const rows = [];
   let row = [];
@@ -385,7 +378,7 @@ function openAppDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      ["uploaded-files", "dimension-files", "fact-files"].forEach((storeName) => {
+      ["uploaded-files", "dimension-files", "fact-files", "kingdee-compare-cache"].forEach((storeName) => {
         if (!db.objectStoreNames.contains(storeName)) {
           db.createObjectStore(storeName, { keyPath: "id" });
         }
