@@ -3,6 +3,36 @@ const DB_VERSION = 4;
 const KINGDEE_COMPARE_BUILD = "cache-only-20260708-2";
 const COMPARE_PAGE_SIZE = 100;
 const KINGDEE_CACHE_STORE = "kingdee-compare-cache";
+let kingdeeCompareWorker = null;
+function getKingdeeCompareWorker() {
+  if (!kingdeeCompareWorker) {
+    kingdeeCompareWorker = new Worker("./kingdee-compare-worker.js?v=20260708-1");
+  }
+  return kingdeeCompareWorker;
+}
+
+function runWorkerTask(type, file) {
+  return new Promise((resolve, reject) => {
+    const worker = getKingdeeCompareWorker();
+    const id = `${type}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const handler = function handleWorkerMessage(event) {
+      if (event.data.id !== id) return;
+      worker.removeEventListener("message", handler);
+      if (event.data.type === "result") {
+        resolve(event.data.rows);
+      } else {
+        reject(new Error(event.data.error || "Worker解析失败"));
+      }
+    };
+    worker.addEventListener("message", handler);
+    file.arrayBuffer()
+      .then((buffer) => {
+        worker.postMessage({ type, id, file: buffer, fileName: file.name }, [buffer]);
+      })
+      .catch(reject);
+  });
+}
+
 const UPLOAD_STORE_NAME = "uploaded-files";
 const DIMENSION_STORE_NAME = "dimension-files";
 const FACT_STORE_NAME = "fact-files";
@@ -10,8 +40,6 @@ const CATEGORY_DIMENSION_SLOT = "dimension-1";
 const PURCHASE_ASSIGNMENT_SLOT = "dimension-6";
 const PURCHASE_ORDER_SLOT = "fact-1";
 const KINGDEE_ORDER_SLOT = "fact-2";
-const MAX_COMPARE_SHEET_ROWS = 120000;
-const MAX_COMPARE_SHEET_COLUMNS = 80;
 
 const compareEls = {
   filterBar: document.querySelector("#kingdeeFilterBar"),
@@ -49,43 +77,6 @@ const compareFilterConfigs = [
     options: ["有差异", "无差异"],
   },
 ];
-
-const kingdeeAliases = {
-  documentNumber: ["单据编号", "单据号", "采购订单号", "采购订单编号", "订单编号", "采购单号"],
-  materialCode: ["物料编码", "品号", "物料代码", "商品编码", "存货编码", "产品编码"],
-  sku: ["SKU", "sku", "领星SKU", "商品SKU", "物料SKU"],
-  itemName: ["物料名称", "商品名称", "物品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
-  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
-  creator: ["创建人", "采购订单下单人", "下单人", "制单人"],
-  businessUnit: ["事业部", "部门", "业务部门"],
-  purchaseQty: ["采购数量", "数量", "订单数量"],
-  remainingInboundQty: ["剩余入库数量", "未入库数量", "剩余数量"],
-};
-
-const deliveryAliases = {
-  documentNumber: ["单据编号", "单据号", "采购订单号", "行号"],
-  materialCode: ["品号", "物料编码", "商品编码", "存货编码", "产品编码"],
-  sku: ["SKU", "sku", "领星SKU"],
-  itemName: ["物品名称", "物料名称", "商品名称", "存货名称", "产品名称", "金蝶名称", "品名"],
-  supplier: ["供应商", "供应商名称", "供方", "厂家", "厂商"],
-  orderedQty: ["下单数量-备货需求-OA申请为准"],
-  remainingQty: ["未发货数量"],
-};
-
-const categoryAliases = {
-  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
-  sku: ["SKU", "sku", "领星SKU"],
-  itemName: ["金蝶名称", "物料名称", "物品名称", "商品名称", "品名"],
-  salesLine: ["销售产品线"],
-  salesSeries: ["销售系列"],
-};
-
-const purchaseAssignmentAliases = {
-  materialCode: ["物料编码", "品号", "商品编码", "存货编码", "产品编码"],
-  supplier: ["供应商", "供应商名称", "厂家", "厂商", "供方"],
-  supplierShort: ["供应商简称", "简称", "供应商简名"],
-  orderUser: ["采购下单人"],
-};
 
 const compareState = {
   records: [],
@@ -387,7 +378,7 @@ function renderCompareRows(message = "") {
   const pageRows = rows.slice(startIndex, startIndex + COMPARE_PAGE_SIZE);
   const metric = getSelectedMetric();
   renderCompareMetrics(pageRows, message);
-  compareEls.downloadButton.disabled = Boolean(message) || !rows.length || !window.XLSX;
+  compareEls.downloadButton.disabled = Boolean(message) || !rows.length;
   compareEls.state.textContent = message || (totalRows ? `已匹配 ${totalRows} 行｜第 ${compareState.page}/${totalPages} 页｜本页 ${pageRows.length} 行` : "暂无匹配数据");
 
   if (message || !rows.length) {
@@ -459,28 +450,39 @@ function getMetricValues(record, metric) {
 }
 
 function downloadCompareRows() {
-  if (!compareState.filtered.length || !window.XLSX) return;
+  if (!compareState.filtered.length) return;
   const metric = getSelectedMetric();
-  const exportRows = compareState.filtered.map((record) => {
-    const values = getMetricValues(record, metric);
-    return {
-      事业部: record.businessUnit || "",
-      单据编号: formatDocumentNumbers(record.documentNumbers),
-      金蝶单据编号: formatDocumentNumbers(record.kingdeeDocumentNumbers),
-      供应商简称: record.supplierShort || "",
-      物料编码: record.materialCode || "",
-      SKU: record.sku || "",
-      物料名称: record.itemName || "",
-      [`${metric}-金蝶数据`]: values.kingdee,
-      [`${metric}-未交付表数据`]: values.undelivered,
-      [`${metric}-差异数据`]: values.difference,
-    };
-  });
   const headers = ["事业部", "单据编号", "金蝶单据编号", "供应商简称", "物料编码", "SKU", "物料名称", `${metric}-金蝶数据`, `${metric}-未交付表数据`, `${metric}-差异数据`];
-  const worksheet = window.XLSX.utils.json_to_sheet(exportRows, { header: headers });
-  const workbook = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(workbook, worksheet, "数据对比");
-  window.XLSX.writeFile(workbook, `${buildCompareDownloadName(metric)}.xlsx`);
+  const rows = compareState.filtered.map((record) => {
+    const values = getMetricValues(record, metric);
+    return [
+      record.businessUnit || "",
+      formatDocumentNumbers(record.documentNumbers),
+      formatDocumentNumbers(record.kingdeeDocumentNumbers),
+      record.supplierShort || "",
+      record.materialCode || "",
+      record.sku || "",
+      record.itemName || "",
+      values.kingdee,
+      values.undelivered,
+      values.difference,
+    ];
+  });
+  const csv = [headers, ...rows].map((row) => row.map(csvEscapeCell).join(",")).join("\r\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${buildCompareDownloadName(metric)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscapeCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function buildCompareDownloadName(metric) {
@@ -497,74 +499,18 @@ function buildCompareDownloadName(metric) {
 }
 
 async function readCategoryDimension(file) {
-  const rows = await readWorkbookSheetRows(file, "Dim-YL医疗器械商品分类");
-  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, categoryAliases)));
-  const map = new Map();
-  if (headerIndex >= 0) {
-    const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), categoryAliases);
-    rows.slice(headerIndex + 1).forEach((row) => {
-      const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
-      if (!materialCode) return;
-      map.set(materialCode, {
-        materialCode,
-        sku: getRowValue(row, headerMap.sku),
-        itemName: getRowValue(row, headerMap.itemName),
-        salesLine: getRowValue(row, headerMap.salesLine) || "未匹配",
-        salesSeries: getRowValue(row, headerMap.salesSeries) || "未匹配",
-      });
-    });
-    return map;
-  }
-
-  rows.slice(1).forEach((row) => {
-    const materialCode = normalizeMaterialCode(row[0]);
-    if (!materialCode) return;
-    map.set(materialCode, {
-      materialCode,
-      sku: String(row[2] ?? "").trim(),
-      itemName: String(row[3] ?? "").trim(),
-      salesLine: String(row[6] ?? "").trim() || "未匹配",
-      salesSeries: String(row[7] ?? "").trim() || "未匹配",
-    });
-  });
-  return map;
+  const data = await runWorkerTask("category", file);
+  return new Map(data.map);
 }
 
 async function readPurchaseAssignment(file) {
-  const rows = await readWorkbookSheetRows(file, "产品线明细");
-  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, purchaseAssignmentAliases)));
-  const maps = createEmptyAssignmentMaps();
-  if (headerIndex < 0) return maps;
-
-  const headerMap = createAliasHeaderMap(rows[headerIndex].map((cell) => String(cell || "").trim()), purchaseAssignmentAliases);
-  rows.slice(headerIndex + 1).forEach((row) => {
-    const materialCode = normalizeMaterialCode(getRowValue(row, headerMap.materialCode));
-    const supplier = getRowValue(row, headerMap.supplier);
-    const supplierShort = getRowValue(row, headerMap.supplierShort) || supplier;
-    const orderUser = getRowValue(row, headerMap.orderUser);
-    if (materialCode) {
-      maps.byMaterial.set(materialCode, {
-        supplier,
-        supplierShort,
-        orderUser,
-      });
-    }
-    if (supplier) {
-      maps.bySupplier.set(normalizeTextKey(supplier), {
-        supplier,
-        supplierShort,
-        orderUser,
-      });
-    }
-    if (supplierShort) {
-      maps.bySupplierShort.set(normalizeTextKey(supplierShort), {
-        supplier,
-        supplierShort,
-        orderUser,
-      });
-    }
-    if (orderUser) maps.orderUsers.add(orderUser);
-  });
+  const data = await runWorkerTask("assignment", file);
+  const maps = {
+    byMaterial: new Map(data.maps.byMaterial),
+    bySupplier: new Map(data.maps.bySupplier),
+    bySupplierShort: new Map(data.maps.bySupplierShort),
+    orderUsers: new Set(data.maps.orderUsersEntries || []),
+  };
   return maps;
 }
 
@@ -578,72 +524,11 @@ function createEmptyAssignmentMaps() {
 }
 
 async function readKingdeeWorkbook(file) {
-  const rows = await readWorkbookSheetRows(file, "Fac-采购订单列表");
-  return parseKingdeeSheet(rows);
-}
-
-function parseKingdeeSheet(rows) {
-  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, kingdeeAliases)));
-  if (headerIndex < 0) return [];
-  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
-  const dataRows = rows.slice(headerIndex + 1);
-  const headerMap = createHeaderMap(headers, dataRows, kingdeeAliases);
-  if (headerMap.purchaseQty === undefined && headerMap.remainingInboundQty === undefined) return [];
-
-  return dataRows
-    .map((row, index) => {
-      const materialCode = getRowValue(row, headerMap.materialCode);
-      const sku = getRowValue(row, headerMap.sku);
-      const itemName = getRowValue(row, headerMap.itemName);
-      const supplier = getRowValue(row, headerMap.supplier);
-      return {
-        id: `kingdee-${index}-${materialCode}-${sku}-${supplier}`,
-        documentNumber: getRowValue(row, headerMap.documentNumber),
-        materialCode,
-        sku,
-        itemName,
-        supplier,
-        creator: getRowValue(row, headerMap.creator),
-        businessUnit: normalizeBusinessUnit(getRowValue(row, headerMap.businessUnit)),
-        purchaseQty: parseNumber(getRowValue(row, headerMap.purchaseQty)),
-        remainingInboundQty: parseNumber(getRowValue(row, headerMap.remainingInboundQty)),
-      };
-    })
-    .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
+  return runWorkerTask("kingdee", file);
 }
 
 async function readDeliveryWorkbook(file) {
-  const workbookRows = await readAllWorkbookSheets(file);
-  return workbookRows.flatMap(({ sheetName, rows }) => parseDeliverySheet(rows, getBusinessUnitFromSheetName(sheetName)));
-}
-
-function parseDeliverySheet(rows, businessUnit) {
-  const headerIndex = rows.findIndex((row) => row.some((cell) => hasKnownHeader(cell, deliveryAliases)));
-  if (headerIndex < 0) return [];
-  const headers = rows[headerIndex].map((cell) => String(cell || "").trim());
-  const dataRows = rows.slice(headerIndex + 1);
-  const headerMap = createHeaderMap(headers, dataRows, deliveryAliases);
-  if (headerMap.orderedQty === undefined && headerMap.remainingQty === undefined) return [];
-
-  return dataRows
-    .map((row, index) => {
-      const materialCode = getRowValue(row, headerMap.materialCode);
-      const sku = getRowValue(row, headerMap.sku);
-      const itemName = getRowValue(row, headerMap.itemName);
-      const supplier = getRowValue(row, headerMap.supplier);
-      return {
-        id: `delivery-${businessUnit}-${index}-${materialCode}-${sku}-${supplier}`,
-        businessUnit: normalizeBusinessUnit(businessUnit),
-        documentNumber: getRowValue(row, headerMap.documentNumber),
-        materialCode,
-        sku,
-        itemName,
-        supplier,
-        orderedQty: parseNumber(getRowValue(row, headerMap.orderedQty)),
-        remainingQty: parseNumber(getRowValue(row, headerMap.remainingQty)),
-      };
-    })
-    .filter((record) => record.materialCode || record.sku || record.itemName || record.supplier);
+  return runWorkerTask("delivery", file);
 }
 
 function mergeCompareRows(kingdeeRows, deliveryRows, categoryMap, assignmentMaps) {
@@ -867,199 +752,11 @@ function closeCompareFilters(exceptKey = "") {
   });
 }
 
-async function readAllWorkbookSheets(file) {
-  const fileName = String(file?.name || "");
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "csv") {
-    return [{ sheetName: fileName || "CSV", rows: csvToRows(await readFileText(file)) }];
-  }
-  if (!window.XLSX) {
-    throw new Error("XLSX parser is not available.");
-  }
-  const workbook = await readWorkbook(file, {});
-  return workbook.SheetNames.map((sheetName) => ({
-    sheetName,
-    rows: sheetToRows(workbook.Sheets[sheetName]),
-  }));
-}
-
-async function readWorkbookSheetRows(file, preferredSheetName = "") {
-  const fileName = String(file?.name || "");
-  const extension = fileName.split(".").pop()?.toLowerCase();
-  if (extension === "csv") return csvToRows(await readFileText(file));
-  if (!window.XLSX) {
-    throw new Error("XLSX parser is not available.");
-  }
-
-  const sheetNames = await readWorkbookSheetNames(file);
-  const targetSheetName = sheetNames.find((name) => preferredSheetName && name.includes(preferredSheetName)) || sheetNames[0];
-  if (!targetSheetName) return [];
-  const workbook = await readWorkbook(file, { sheets: targetSheetName, sheetRows: MAX_COMPARE_SHEET_ROWS });
-  return sheetToRows(workbook.Sheets[targetSheetName]);
-}
-
-async function readWorkbookSheetNames(file) {
-  const workbook = await readWorkbook(file, { bookSheets: true });
-  return workbook.SheetNames || [];
-}
-
-async function readWorkbook(file, options = {}) {
-  const commonOptions = {
-    type: "array",
-    cellNF: false,
-    cellHTML: false,
-    cellStyles: false,
-    cellFormula: false,
-    WTF: false,
-    ...options,
-  };
-  const arrayBuffer = await readFileArrayBuffer(file);
-  const source = (await repairWorkbookArrayBuffer(arrayBuffer, file)) || arrayBuffer;
-  try {
-    return window.XLSX.read(source, commonOptions);
-  } catch (error) {
-    if (!isAllocationError(error)) throw error;
-    const repaired = source === arrayBuffer ? await repairWorkbookArrayBuffer(arrayBuffer, file) : null;
-    if (repaired) {
-      return window.XLSX.read(repaired, commonOptions);
-    }
-    const binary = await readFileBinaryString(file);
-    return window.XLSX.read(binary, { ...commonOptions, type: "binary" });
-  }
-}
-
-function sheetToRows(sheet) {
-  if (!sheet) return [];
-  return window.XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    blankrows: false,
-    range: getSafeSheetRange(sheet),
-  });
-}
-
-function getSafeSheetRange(sheet) {
-  const rawRange = window.XLSX.utils.decode_range(sheet["!ref"] || "A1:A1");
-  const maxRow = rawRange.s.r + MAX_COMPARE_SHEET_ROWS - 1;
-  const maxColumn = rawRange.s.c + MAX_COMPARE_SHEET_COLUMNS - 1;
-  return {
-    s: rawRange.s,
-    e: {
-      r: Math.min(rawRange.e.r, maxRow),
-      c: Math.min(rawRange.e.c, maxColumn),
-    },
-  };
-}
-
-async function readFileArrayBuffer(file) {
-  if (file?.arrayBuffer) return file.arrayBuffer();
-  if (file instanceof Blob) return file.arrayBuffer();
-  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
-}
-
-function readFileBinaryString(file) {
-  if (!file) return Promise.reject(new Error("文件对象不可读取，请在文件库更新重新上传并确认应用"));
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result || "");
-    reader.onerror = () => reject(reader.error || new Error("文件读取失败"));
-    reader.readAsBinaryString(file);
-  });
-}
-
-function isAllocationError(error) {
-  return /allocation|array buffer|out of memory|memory/i.test(String(error?.message || error || ""));
-}
-
-async function repairWorkbookArrayBuffer(arrayBuffer, file) {
-  if (!window.repairXlsxDimensionA1 || !/\.xlsx$/i.test(String(file?.name || ""))) return null;
-  try {
-    const result = await window.repairXlsxDimensionA1(arrayBuffer);
-    return result?.repaired ? result.arrayBuffer : null;
-  } catch (error) {
-    console.warn("xlsx dimension repair failed", error);
-    return null;
-  }
-}
-
-async function readFileText(file) {
-  if (file?.text) return file.text();
-  if (file instanceof Blob) return file.text();
-  throw new Error("文件对象不可读取，请在文件库更新重新上传并确认应用");
-}
-
-async function readWorkbookRows(file, preferredSheetName = "") {
-  return readWorkbookSheetRows(file, preferredSheetName);
-}
-
-function createHeaderMap(headers, dataRows, aliasesByKey) {
-  const headerMap = createAliasHeaderMap(headers, aliasesByKey);
-  if (headerMap.materialCode === undefined) {
-    const inferredColumn = inferMaterialCodeColumn(headers, dataRows, new Set(Object.values(headerMap)));
-    if (inferredColumn !== undefined) headerMap.materialCode = inferredColumn;
-  }
-  return headerMap;
-}
-
-function createAliasHeaderMap(headers, aliasesByKey) {
-  return Object.fromEntries(
-    Object.entries(aliasesByKey)
-      .map(([key, aliases]) => {
-        const index = headers.findIndex((header) => aliases.some((alias) => normalizeHeader(header) === normalizeHeader(alias)));
-        return [key, index >= 0 ? index : undefined];
-      })
-      .filter(([, index]) => index !== undefined)
-  );
-}
-
-function hasKnownHeader(value, aliasesByKey) {
-  const header = normalizeHeader(value);
-  return Object.values(aliasesByKey).some((aliases) => aliases.some((alias) => normalizeHeader(alias) === header));
-}
-
-function inferMaterialCodeColumn(headers, dataRows, usedColumns) {
-  const candidates = headers.map((_, index) => index).filter((index) => !usedColumns.has(index));
-  let bestColumn;
-  let bestScore = 0;
-  candidates.forEach((column) => {
-    const score = dataRows.slice(0, 60).reduce((sum, row) => sum + scoreMaterialCodeCell(row[column]), 0);
-    if (score > bestScore) {
-      bestColumn = column;
-      bestScore = score;
-    }
-  });
-  return bestScore >= 3 ? bestColumn : undefined;
-}
-
-function scoreMaterialCodeCell(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return 0;
-  const normalized = normalizeMaterialCode(raw);
-  if (normalized.length < 4 || /[\u4e00-\u9fff]/.test(normalized)) return 0;
-  let score = 1;
-  if (/\d/.test(normalized)) score += 2;
-  if (/^[a-z0-9._-]+$/i.test(normalized)) score += 1;
-  return score;
-}
-
-function getBusinessUnitFromSheetName(sheetName) {
-  const name = String(sheetName || "").trim();
-  return normalizeBusinessUnit(name.replace(/[（(].*?[）)]/g, "").trim() || name || "未匹配");
-}
-
 function normalizeBusinessUnit(value) {
   const text = String(value || "").trim().split("*")[0].trim().replace(/[（(].*?[）)]/g, "").trim();
   if (!text) return "未匹配";
   if (text === "全球招商事业部") return "全球招商部";
   return text;
-}
-
-function normalizeHeader(value) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/[()（）]/g, "")
-    .toLowerCase();
 }
 
 function normalizeMaterialCode(value) {
@@ -1088,15 +785,6 @@ function sortCompareRows(a, b) {
     String(a.supplierShort).localeCompare(String(b.supplierShort), "zh-CN") ||
     String(a.materialCode).localeCompare(String(b.materialCode), "zh-CN")
   );
-}
-
-function getRowValue(row, index) {
-  return index === undefined ? "" : String(row[index] ?? "").trim();
-}
-
-function parseNumber(value) {
-  const number = Number(String(value || "").replace(/,/g, "").trim());
-  return Number.isFinite(number) ? number : 0;
 }
 
 function formatNumber(value) {
@@ -1191,39 +879,6 @@ function putRecord(db, storeName, record) {
     request.onerror = () => reject(request.error);
     transaction.onerror = () => reject(transaction.error);
   });
-}
-
-function csvToRows(text) {
-  const rows = [];
-  let row = [];
-  let value = "";
-  let quoted = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (char === '"' && quoted && next === '"') {
-      value += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      row.push(value);
-      value = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(value);
-      rows.push(row);
-      row = [];
-      value = "";
-    } else {
-      value += char;
-    }
-  }
-  if (value || row.length) {
-    row.push(value);
-    rows.push(row);
-  }
-  return rows;
 }
 
 function escapeHtml(value) {
