@@ -84,6 +84,8 @@ const compareState = {
   selectedFilters: Object.fromEntries(compareFilterConfigs.map((config) => [config.key, new Set()])),
   page: 1,
   pageSize: COMPARE_PAGE_SIZE,
+  assignmentOrderUsers: [],
+  assignmentSupplierShorts: [],
 };
 
 async function initKingdeeComparePage() {
@@ -186,6 +188,14 @@ async function loadCompareData() {
       readKingdeeRowsFromRecord(appliedKingdeeRecord),
       readRequiredSource("Fac-采购订单跟进表", appliedDeliveryRecord.file, readDeliveryWorkbook),
     ]);
+
+    const assignmentMaps = assignmentResult.value;
+    compareState.assignmentOrderUsers = [...assignmentMaps.orderUsers].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+    const supplierShorts = new Set();
+    for (const [, info] of assignmentMaps.byComposite) {
+      if (info.supplierShort) supplierShorts.add(info.supplierShort);
+    }
+    compareState.assignmentSupplierShorts = [...supplierShorts].sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
 
     compareState.records = mergeCompareRows(kingdeeRows, deliveryRows, categoryResult.value, assignmentResult.value);
     if (!compareState.records.length) {
@@ -307,6 +317,14 @@ function updateCompareFilters() {
 
 function getCompareOptionItems(config, filters) {
   if (config.options) return config.options.map((value) => ({ value, label: value }));
+  if (config.key === "orderUser") {
+    const values = [...compareState.assignmentOrderUsers];
+    if (!values.includes("未维护")) values.push("未维护");
+    return values.map((value) => ({ value, label: value }));
+  }
+  if (config.key === "supplierShort") {
+    return compareState.assignmentSupplierShorts.map((value) => ({ value, label: value }));
+  }
   const optionRows = filterCompareRows({ ...filters, [config.key]: [] }, compareEls.search.value);
   return uniqueFilterValues(optionRows, config.field).map((value) => ({ value, label: value }));
 }
