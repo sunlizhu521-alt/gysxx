@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>交付信息-金蝶导出 - 供应链信息库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260618-2" />
+    <title>生产跟进 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css?v=20260720-1" />
   </head>
   <body>
     <div class="app-shell">
@@ -17,19 +17,57 @@
             <span class="brand-wave wave-d"></span>
           </span>
           <div>
-            <strong>供应链信息库</strong>
+            <strong>采购跟单&头程数据</strong>
             <span>维护人孙立柱</span>
           </div>
         </div>
-        <nav class="nav-list">
-          <a href="./purchase.html">采购分工信息</a>
-          <a href="./delivery.html">交付信息-手工登记</a>
-          <a class="active" href="./delivery-kingdee.html">交付信息-金蝶导出</a>
-          <a href="./stock-kingdee-check.html">备货与金蝶核对</a>
-          <a href="./kingdee-purchase-compare.html">金蝶采购订单对比</a>
-          <a href="./order-change.html">订单变更</a>
-          <a href="./admin.html">文件库更新</a>
-          <a href="./missing.html">信息缺失</a>
+        <nav class="nav-list nav-tree">
+          <section class="nav-section" aria-label="国内数据">
+            <div class="nav-section-title">国内数据</div>
+            <div class="nav-sublist">
+              <a href="./stock-kingdee-check.html">国内事业部看板</a>
+              <a href="./domestic-stock.html">国内数据</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="跨境数据">
+            <div class="nav-section-title">跨境数据</div>
+            <div class="nav-sublist">
+              <a href="./cross-border-stock.html">跨境库存看板</a>
+              <a href="./lingxing-stock.html">领星库存</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="采购跟单">
+            <div class="nav-section-title">采购跟单</div>
+            <div class="nav-sublist">
+              <a href="./delivery.html">运营看板-未交付</a>
+              <a class="active" href="./delivery-kingdee.html">生产跟进</a>
+              <a href="./kingdee-purchase-compare.html">差异分配</a>
+              <a href="./order-change.html">变更追溯</a>
+              <a href="./purchase.html">采购看板</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="头程数据">
+            <div class="nav-section-title">头程数据</div>
+            <div class="nav-sublist">
+              <a href="./first-leg-dashboard.html">头程数据看板</a>
+              <a href="./first-leg-database.html">头程数据库</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="维护数据">
+            <div class="nav-section-title">维护数据</div>
+            <div class="nav-sublist">
+              <a href="./missing.html">维度表缺失</a>
+              <a href="./file-library.html">维度表库</a>
+              <a href="./fact-library.html">采购订单</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="系统操作">
+            <div class="nav-section-title">系统操作</div>
+            <div class="nav-sublist">
+              <a href="./admin.html">权限管理</a>
+              <a href="./operation-daily.html">操作日常</a>
+            </div>
+          </section>
         </nav>
       </aside>
 
@@ -37,7 +75,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Supplier Delivery</p>
-            <h1>交付信息-金蝶导出</h1>
+            <h1>生产跟进</h1>
             <small class="source-note" id="deliverySourceNote">数据来源：本地文件库｜引用时间：--</small>
           </div>
         </header>

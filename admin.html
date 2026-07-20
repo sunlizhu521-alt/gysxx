@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>&#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</title>
-    <link rel="stylesheet" href="./styles.css?v=20260608-5" />
+    <title>权限管理 - 供应链信息库</title>
+    <link rel="stylesheet" href="./styles.css?v=20260720-1" />
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="&#30475;&#26495;&#23548;&#33322;">
+      <aside class="sidebar" aria-label="看板导航">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
             <span class="brand-wave wave-a"></span>
@@ -17,19 +17,57 @@
             <span class="brand-wave wave-d"></span>
           </span>
           <div>
-            <strong>&#20379;&#24212;&#38142;&#20449;&#24687;&#24211;</strong>
-            <span>&#32500;&#25252;&#20154;&#23385;&#31435;&#26609;</span>
+            <strong>采购跟单&头程数据</strong>
+            <span>维护人孙立柱</span>
           </div>
         </div>
-        <nav class="nav-list">
-          <a href="./purchase.html">&#37319;&#36141;&#20998;&#24037;&#20449;&#24687;</a>
-          <a href="./delivery.html">交付信息-手工登记</a>
-          <a href="./delivery-kingdee.html">交付信息-金蝶导出</a>
-          <a href="./stock-kingdee-check.html">备货与金蝶核对</a>
-          <a href="./kingdee-purchase-compare.html">金蝶采购订单对比</a>
-          <a href="./order-change.html">订单变更</a>
-          <a class="active" href="./admin.html">&#25991;&#20214;&#24211;&#26356;&#26032;</a>
-          <a href="./missing.html">&#20449;&#24687;&#32570;&#22833;</a>
+        <nav class="nav-list nav-tree">
+          <section class="nav-section" aria-label="国内数据">
+            <div class="nav-section-title">国内数据</div>
+            <div class="nav-sublist">
+              <a href="./stock-kingdee-check.html">国内事业部看板</a>
+              <a href="./domestic-stock.html">国内数据</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="跨境数据">
+            <div class="nav-section-title">跨境数据</div>
+            <div class="nav-sublist">
+              <a href="./cross-border-stock.html">跨境库存看板</a>
+              <a href="./lingxing-stock.html">领星库存</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="采购跟单">
+            <div class="nav-section-title">采购跟单</div>
+            <div class="nav-sublist">
+              <a href="./delivery.html">运营看板-未交付</a>
+              <a href="./delivery-kingdee.html">生产跟进</a>
+              <a href="./kingdee-purchase-compare.html">差异分配</a>
+              <a href="./order-change.html">变更追溯</a>
+              <a href="./purchase.html">采购看板</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="头程数据">
+            <div class="nav-section-title">头程数据</div>
+            <div class="nav-sublist">
+              <a href="./first-leg-dashboard.html">头程数据看板</a>
+              <a href="./first-leg-database.html">头程数据库</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="维护数据">
+            <div class="nav-section-title">维护数据</div>
+            <div class="nav-sublist">
+              <a href="./missing.html">维度表缺失</a>
+              <a href="./file-library.html">维度表库</a>
+              <a href="./fact-library.html">采购订单</a>
+            </div>
+          </section>
+          <section class="nav-section" aria-label="系统操作">
+            <div class="nav-section-title">系统操作</div>
+            <div class="nav-sublist">
+              <a class="active" href="./admin.html">权限管理</a>
+              <a href="./operation-daily.html">操作日常</a>
+            </div>
+          </section>
         </nav>
       </aside>
 
@@ -37,7 +75,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">File Library Update</p>
-            <h1>&#25991;&#20214;&#24211;&#26356;&#26032;</h1>
+            <h1>权限管理</h1>
             <small class="source-note">&#20165;&#32500;&#25252;&#20154;&#20351;&#29992;&#65292;&#26222;&#36890;&#21516;&#20107;&#35831;&#20351;&#29992;&#19994;&#21153;&#30475;&#26495;&#38142;&#25509;</small>
           </div>
         </header>
