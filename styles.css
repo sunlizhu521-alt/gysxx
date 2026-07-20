@@ -151,29 +151,6 @@ button:hover {
   gap: 8px;
 }
 
-.nav-tree {
-  gap: 16px;
-  padding-bottom: 24px;
-}
-
-.nav-section {
-  display: grid;
-  gap: 6px;
-}
-
-.nav-section-title {
-  padding: 0 12px;
-  color: #8fa2bd;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.nav-sublist {
-  display: grid;
-  gap: 4px;
-}
-
 .nav-list a {
   padding: 11px 12px;
   border-radius: 6px;
@@ -1928,10 +1905,6 @@ th {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .nav-tree {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .topbar,
   .work-area,
   .chart-layout,
@@ -1963,10 +1936,6 @@ th {
   .upload-actions,
   .admin-links,
   .admin-library-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .nav-tree {
     grid-template-columns: 1fr;
   }
 
